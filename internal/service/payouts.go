@@ -37,8 +37,6 @@ const (
 	payoutChangeSourceAdmin    = "admin"
 
 	payoutArrivalInDays = 5
-
-	payoutEmailSubjectTemplate = "New payout invoice #%s from PaySuper"
 )
 
 var (
@@ -333,8 +331,8 @@ func (s *Service) GetPayoutDocumentRoyaltyReports(
 
 func (s *Service) AutoCreatePayoutDocuments(
 	ctx context.Context,
-	req *billingpb.EmptyRequest,
-	rsp *billingpb.EmptyResponse,
+	_ *billingpb.EmptyRequest,
+	_ *billingpb.EmptyResponse,
 ) error {
 	zap.L().Info("start auto-creation of payout documents")
 
@@ -669,7 +667,6 @@ func (s *Service) PayoutDocumentPdfUploaded(
 			"merchant_greeting":      merchant.GetAuthorizedName(),
 			"payouts_url":            s.cfg.GetPayoutsUrl(),
 			"operating_company_name": operatingCompany.Name,
-			"email_subject":          fmt.Sprintf(payoutEmailSubjectTemplate, pd.Id),
 		},
 		To: merchant.GetAuthorizedEmail(),
 		Attachments: []*postmarkpb.PayloadAttachment{
