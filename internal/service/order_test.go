@@ -2424,12 +2424,12 @@ func (suite *OrderTestSuite) TestOrder_ValidateKeyProductsForOrder_AnotherProjec
 }
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_Ok() {
-	_, err := suite.service.GetOrderProducts(suite.projectWithProducts.Id, suite.productIds)
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectWithProducts.Id, suite.productIds)
 	assert.Nil(suite.T(), err)
 }
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_AnotherProject_Fail() {
-	_, err := suite.service.GetOrderProducts(suite.project.Id, suite.productIds)
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.project.Id, suite.productIds)
 	assert.Error(suite.T(), err)
 	assert.Equal(suite.T(), orderErrorProductsInvalid, err)
 }
@@ -2465,7 +2465,7 @@ func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_OneProductIsInac
 	inactiveProd := billingpb.Product{}
 	if assert.NoError(suite.T(), suite.service.CreateOrUpdateProduct(context.TODO(), req, &inactiveProd)) {
 		products := []string{suite.productIds[0], inactiveProd.Id}
-		_, err := suite.service.GetOrderProducts(suite.projectFixedAmount.Id, products)
+		_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectFixedAmount.Id, products)
 		assert.Error(suite.T(), err)
 		assert.Equal(suite.T(), orderErrorProductsInvalid, err)
 	}
@@ -2473,19 +2473,19 @@ func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_OneProductIsInac
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_SomeProductsIsNotFound_Fail() {
 	products := []string{suite.productIds[0], primitive.NewObjectID().Hex()}
-	_, err := suite.service.GetOrderProducts(suite.projectFixedAmount.Id, products)
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectFixedAmount.Id, products)
 	assert.Error(suite.T(), err)
 	assert.Equal(suite.T(), orderErrorProductsInvalid, err)
 }
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_EmptyProducts_Fail() {
-	_, err := suite.service.GetOrderProducts(suite.projectFixedAmount.Id, []string{})
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectFixedAmount.Id, []string{})
 	assert.Error(suite.T(), err)
 	assert.Equal(suite.T(), orderErrorProductsEmpty, err)
 }
 
 func (suite *OrderTestSuite) TestOrder_GetProductsOrderAmount_Ok() {
-	p, err := suite.service.GetOrderProducts(suite.projectWithProducts.Id, suite.productIds)
+	p, err := suite.service.GetOrderProducts(context.TODO(), suite.projectWithProducts.Id, suite.productIds)
 	assert.Nil(suite.T(), err)
 
 	amount, err := suite.service.GetOrderProductsAmount(p, &billingpb.PriceGroup{Currency: suite.merchantDefaultCurrency, IsActive: true})
@@ -2629,7 +2629,7 @@ func (suite *OrderTestSuite) TestOrder_GetProductsOrderAmount_DifferentCurrencie
 }
 
 func (suite *OrderTestSuite) TestOrder_GetOrderProductsItems_Ok() {
-	p, err := suite.service.GetOrderProducts(suite.projectWithProducts.Id, suite.productIds)
+	p, err := suite.service.GetOrderProducts(context.TODO(), suite.projectWithProducts.Id, suite.productIds)
 	assert.Nil(suite.T(), err)
 
 	items, err := suite.service.GetOrderProductsItems(p, DefaultLanguage, &billingpb.PriceGroup{Currency: suite.merchantDefaultCurrency, IsActive: true})
@@ -3945,7 +3945,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_SavedCards_Ok()
 
 	assert.True(suite.T(), len(pm.SavedCards) <= 0)
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.True(suite.T(), pm.HasSavedCards)
 	assert.True(suite.T(), len(pm.SavedCards) > 0)
@@ -3988,7 +3988,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_EmptySavedCards
 
 	assert.True(suite.T(), len(pm.SavedCards) <= 0)
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.False(suite.T(), pm.HasSavedCards)
 	assert.Len(suite.T(), pm.SavedCards, 0)
@@ -4031,7 +4031,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_NotBankCard_Ok(
 
 	assert.True(suite.T(), len(pm.SavedCards) <= 0)
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.False(suite.T(), pm.HasSavedCards)
 	assert.Len(suite.T(), pm.SavedCards, 0)
@@ -4072,7 +4072,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_GetSavedCards_E
 		AccountRegexp: suite.paymentMethod.AccountRegexp,
 	}
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.False(suite.T(), pm.HasSavedCards)
 	assert.Len(suite.T(), pm.SavedCards, 0)

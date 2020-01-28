@@ -951,7 +951,7 @@ func (s *Service) PaymentCreateProcess(
 	}
 
 	if req.Ip != "" {
-		address, err := s.getAddressByIp(req.Ip)
+		address, err := s.getAddressByIp(ctx, req.Ip)
 		if err == nil {
 			order.PaymentIpCountry = address.Country
 		}
@@ -1572,7 +1572,7 @@ func (s *Service) ProcessBillingAddress(
 		}
 	}
 
-	address, err := s.getAddressByIp(req.Ip)
+	address, err := s.getAddressByIp(ctx, req.Ip)
 	if err == nil {
 		customer.Ip = req.Ip
 		customer.IpCountry = address.Country
@@ -1731,7 +1731,7 @@ func (s *Service) updateOrder(ctx context.Context, order *billingpb.Order) error
 	zap.S().Debug("[updateOrder] updating order success", "order_id", order.Id, "status_changed", statusChanged, "type", order.ProductType)
 
 	if order.ProductType == pkg.OrderType_key {
-		s.orderNotifyKeyProducts(context.TODO(), order)
+		s.orderNotifyKeyProducts(ctx, order)
 	}
 
 	if statusChanged && order.NeedCallbackNotification() {
@@ -2362,7 +2362,7 @@ func (v *OrderCreateRequestProcessor) getCountry() string {
 }
 
 func (v *OrderCreateRequestProcessor) processPayerIp() error {
-	address, err := v.getAddressByIp(v.checked.user.Ip)
+	address, err := v.getAddressByIp(v.ctx, v.checked.user.Ip)
 
 	if err != nil {
 		return err
@@ -2484,7 +2484,7 @@ func (v *OrderCreateRequestProcessor) processLimitAmounts() (err error) {
 			Amount:            amount,
 		}
 
-		rsp, err := v.curService.ExchangeCurrencyCurrentForMerchant(context.TODO(), req)
+		rsp, err := v.curService.ExchangeCurrencyCurrentForMerchant(v.ctx, req)
 
 		if err != nil {
 			zap.S().Error(
@@ -2598,7 +2598,7 @@ func (v *OrderCreateRequestProcessor) processOrderVat(order *billingpb.Order) er
 		req.Zip = order.GetPostalCode()
 	}
 
-	rsp, err := v.tax.GetRate(context.TODO(), req)
+	rsp, err := v.tax.GetRate(v.ctx, req)
 
 	if err != nil {
 		v.logError("Tax service return error", []interface{}{"error", err.Error(), "request", req})
@@ -2769,7 +2769,7 @@ func (v *PaymentFormProcessor) processRenderFormPaymentMethods(
 			AccountRegexp: pm.AccountRegexp,
 		}
 
-		err = v.processPaymentMethodsData(formPm)
+		err = v.processPaymentMethodsData(ctx, formPm)
 
 		if err != nil {
 			zap.S().Errorw(
@@ -2791,12 +2791,12 @@ func (v *PaymentFormProcessor) processRenderFormPaymentMethods(
 	return projectPms, nil
 }
 
-func (v *PaymentFormProcessor) processPaymentMethodsData(pm *billingpb.PaymentFormPaymentMethod) error {
+func (v *PaymentFormProcessor) processPaymentMethodsData(ctx context.Context, pm *billingpb.PaymentFormPaymentMethod) error {
 	pm.HasSavedCards = false
 
 	if pm.IsBankCard() == true {
 		req := &recurringpb.SavedCardRequest{Token: v.order.User.Id}
-		rsp, err := v.service.rep.FindSavedCards(context.TODO(), req)
+		rsp, err := v.service.rep.FindSavedCards(ctx, req)
 
 		if err != nil {
 			zap.S().Errorw(
@@ -3071,7 +3071,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 
 	if pm.IsBankCard() == true {
 		if id, ok := v.data[billingpb.PaymentCreateFieldStoredCardId]; ok {
-			storedCard, err := v.service.rep.FindSavedCardById(context.TODO(), &recurringpb.FindByStringValue{Value: id})
+			storedCard, err := v.service.rep.FindSavedCardById(ctx, &recurringpb.FindByStringValue{Value: id})
 
 			if err != nil {
 				v.service.logError("Get data about stored card failed", []interface{}{"err", err.Error(), "id", id})
@@ -3232,14 +3232,14 @@ func (s *Service) GetOrderKeyProductsAmount(products []*billingpb.KeyProduct, gr
 	return sum, nil
 }
 
-func (s *Service) GetOrderProducts(projectId string, productIds []string) ([]*billingpb.Product, error) {
+func (s *Service) GetOrderProducts(ctx context.Context, projectId string, productIds []string) ([]*billingpb.Product, error) {
 	if len(productIds) == 0 {
 		return nil, orderErrorProductsEmpty
 	}
 
 	result := billingpb.ListProductsResponse{}
 
-	err := s.GetProductsForOrder(context.TODO(), &billingpb.GetProductsForOrderRequest{
+	err := s.GetProductsForOrder(ctx, &billingpb.GetProductsForOrderRequest{
 		ProjectId: projectId,
 		Ids:       productIds,
 	}, &result)
@@ -4460,8 +4460,8 @@ func (s *Service) OrderReCreateProcess(
 	return nil
 }
 
-func (s *Service) getAddressByIp(ip string) (order *billingpb.OrderBillingAddress, err error) {
-	rsp, err := s.geo.GetIpData(context.TODO(), &geoip.GeoIpDataRequest{IP: ip})
+func (s *Service) getAddressByIp(ctx context.Context, ip string) (order *billingpb.OrderBillingAddress, err error) {
+	rsp, err := s.geo.GetIpData(ctx, &geoip.GeoIpDataRequest{IP: ip})
 	if err != nil {
 		zap.L().Error(
 			"GetIpData failed",
@@ -4637,7 +4637,7 @@ func (s *Service) processProducts(
 		return
 	}
 
-	orderProducts, err := s.GetOrderProducts(project.Id, productIds)
+	orderProducts, err := s.GetOrderProducts(ctx, project.Id, productIds)
 	if err != nil {
 		return
 	}
