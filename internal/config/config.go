@@ -242,6 +242,10 @@ func (cfg *Config) GetRoyaltyReportsUrl() string {
 	return fmt.Sprintf(pkg.RoyaltyReportsUrl, cfg.DashboardUrl)
 }
 
+func (cfg *Config) GetRoyaltyReportUrl(id string) string {
+	return fmt.Sprintf(pkg.RoyaltyReportUrl, cfg.DashboardUrl, id)
+}
+
 func (cfg *Config) GetPayoutsUrl() string {
 	return fmt.Sprintf(pkg.PayoutsUrl, cfg.DashboardUrl)
 }

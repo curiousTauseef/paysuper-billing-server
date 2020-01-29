@@ -939,6 +939,7 @@ func (s *Service) RoyaltyReportPdfUploaded(
 			"status":                 report.Status,
 			"merchant_greeting":      merchant.GetOwnerName(),
 			"royalty_reports_url":    s.cfg.GetRoyaltyReportsUrl(),
+			"royalty_report_url":     s.cfg.GetRoyaltyReportUrl(report.Id),
 			"operating_company_name": operatingCompany.Name,
 		},
 		To: merchant.GetAuthorizedEmail(),
