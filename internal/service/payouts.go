@@ -668,7 +668,7 @@ func (s *Service) PayoutDocumentPdfUploaded(
 			"payouts_url":            s.cfg.GetPayoutsUrl(),
 			"operating_company_name": operatingCompany.Name,
 		},
-		To: merchant.GetAuthorizedEmail(),
+		To: merchant.GetOwnerEmail(),
 		Attachments: []*postmarkpb.PayloadAttachment{
 			{
 				Name:        req.Filename,

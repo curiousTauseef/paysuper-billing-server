@@ -942,7 +942,7 @@ func (s *Service) RoyaltyReportPdfUploaded(
 			"royalty_report_url":     s.cfg.GetRoyaltyReportUrl(report.Id),
 			"operating_company_name": operatingCompany.Name,
 		},
-		To: merchant.GetAuthorizedEmail(),
+		To: merchant.GetOwnerEmail(),
 		Attachments: []*postmarkpb.PayloadAttachment{
 			{
 				Name:        req.Filename,
