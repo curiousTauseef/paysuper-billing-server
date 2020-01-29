@@ -664,7 +664,7 @@ func (s *Service) PayoutDocumentPdfUploaded(
 			"period_to":              periodTo.Format("2006-01-02"),
 			"license_agreement":      merchant.AgreementNumber,
 			"status":                 pd.Status,
-			"merchant_greeting":      merchant.GetAuthorizedName(),
+			"merchant_greeting":      merchant.GetOwnerName(),
 			"payouts_url":            s.cfg.GetPayoutsUrl(),
 			"operating_company_name": operatingCompany.Name,
 		},

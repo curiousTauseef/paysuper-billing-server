@@ -25,7 +25,7 @@ require (
 	github.com/micro/go-micro v1.18.0
 	github.com/micro/go-plugins v1.2.0
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
-	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200128100521-6735e6aec590
+	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200129073016-008bf2f9b153
 	github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200119221447-498828dffe30
 	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200119003232-91615911efec
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200117170849-2e388108ebcc
@@ -45,6 +45,7 @@ require (
 	go.uber.org/zap v1.13.0
 	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
 	gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20190719062839-9858d727f3ef
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/paysuper/paysuper-database-mongo.v2 v2.0.0-20200116095540-a477bfd0ce4c
 )
