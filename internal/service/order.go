@@ -271,7 +271,7 @@ func (s *Service) OrderCreateProcess(
 	}
 
 	if req.Token != "" {
-		err := processor.processCustomerToken()
+		err := processor.processCustomerToken(ctx)
 
 		if err != nil {
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
@@ -379,7 +379,7 @@ func (s *Service) OrderCreateProcess(
 	}
 
 	if processor.checked.user != nil && processor.checked.user.Ip != "" && !processor.checked.user.HasAddress() {
-		err := processor.processPayerIp()
+		err := processor.processPayerIp(ctx)
 
 		if err != nil {
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
@@ -603,7 +603,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 	}
 
 	if !order.User.HasAddress() && p1.checked.user.Ip != "" {
-		err = p1.processPayerIp()
+		err = p1.processPayerIp(ctx)
 
 		if err != nil {
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
@@ -2361,8 +2361,8 @@ func (v *OrderCreateRequestProcessor) getCountry() string {
 	return v.checked.user.GetCountry()
 }
 
-func (v *OrderCreateRequestProcessor) processPayerIp() error {
-	address, err := v.getAddressByIp(v.ctx, v.checked.user.Ip)
+func (v *OrderCreateRequestProcessor) processPayerIp(ctx context.Context) error {
+	address, err := v.getAddressByIp(ctx, v.checked.user.Ip)
 
 	if err != nil {
 		return err
@@ -2626,14 +2626,14 @@ func (v *OrderCreateRequestProcessor) processOrderVat(order *billingpb.Order) er
 	return nil
 }
 
-func (v *OrderCreateRequestProcessor) processCustomerToken() error {
+func (v *OrderCreateRequestProcessor) processCustomerToken(ctx context.Context) error {
 	token, err := v.getTokenBy(v.request.Token)
 
 	if err != nil {
 		return err
 	}
 
-	customer, err := v.getCustomerById(v.ctx, token.CustomerId)
+	customer, err := v.getCustomerById(ctx, token.CustomerId)
 
 	if err != nil {
 		return err

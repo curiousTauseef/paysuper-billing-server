@@ -2322,7 +2322,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptyEmailAndPhone_Ok() 
 	err := processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), processor.checked.user)
@@ -2347,7 +2347,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptySubdivision_Ok() {
 	err := processor.processUserData()
 	assert.NoError(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), processor.checked.user)
@@ -2383,7 +2383,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_NotEmptyEmailAndPhone_Ok
 	assert.Equal(suite.T(), req.User.Email, processor.checked.user.Email)
 	assert.Equal(suite.T(), req.User.Phone, processor.checked.user.Phone)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), processor.checked.user.Address)
 }
@@ -2405,7 +2405,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_Error() {
 	err := processor.processUserData()
 	assert.NoError(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), processor.checked.user.Address)
@@ -2789,7 +2789,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessProjectOrderId_Duplicate_Error() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processPaylinkProducts()
@@ -3311,10 +3311,10 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_Ok() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
@@ -3368,7 +3368,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_PaymentMethod_Ok() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
@@ -3431,7 +3431,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlVerify_Error() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
@@ -3482,7 +3482,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlRedirect_Error() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
