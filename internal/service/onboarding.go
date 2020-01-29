@@ -488,6 +488,14 @@ func (s *Service) ChangeMerchantData(
 
 		merchant.Status = billingpb.MerchantStatusAgreementSigned
 		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
+
+		err = s.sendLicenseAgreementSignedEmail(merchant)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
 	}
 
 	message, ok := merchantStatusChangesMessages[merchant.Status]
@@ -1640,7 +1648,12 @@ func (s *Service) getMerchantAgreementNumber(merchantId string) string {
 	return fmt.Sprintf("%s%s-%03d", now.Format("01"), now.Format("02"), mongodb.GetObjectIDCounter(merchantOid))
 }
 
-func (s *Service) sendOnboardingLetter(merchant *billingpb.Merchant, oc *billingpb.OperatingCompany, template, recipientEmail string) (err error) {
+func (s *Service) sendOnboardingLetter(
+	merchant *billingpb.Merchant,
+	oc *billingpb.OperatingCompany,
+	template,
+	recipientEmail string,
+) (err error) {
 	ocName := ""
 	if oc != nil {
 		ocName = oc.Name
@@ -1672,4 +1685,29 @@ func (s *Service) sendOnboardingLetter(merchant *billingpb.Merchant, oc *billing
 	}
 
 	return
+}
+
+// Send message to RabbitMQ for send email to merchant owner about than license agreement fully signed
+func (s *Service) sendLicenseAgreementSignedEmail(merchant *billingpb.Merchant) error {
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.MerchantAgreementSigned,
+		TemplateModel: map[string]string{
+			"agreement_url": s.cfg.GetMerchantCompanyUrl(),
+		},
+		To: merchant.GetOwnerEmail(),
+	}
+
+	err := s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+
+	if err != nil {
+		zap.L().Error(
+			"Publication message about than license agreement fully signed failed",
+			zap.Error(err),
+			zap.String("template", payload.TemplateAlias),
+			zap.String("recipient_email", payload.To),
+			zap.Any("merchant", merchant),
+		)
+	}
+
+	return err
 }

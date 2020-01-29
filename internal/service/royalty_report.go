@@ -937,7 +937,7 @@ func (s *Service) RoyaltyReportPdfUploaded(
 			"period_to":              periodTo.Format("2006-01-02"),
 			"license_agreement":      merchant.AgreementNumber,
 			"status":                 report.Status,
-			"merchant_greeting":      merchant.GetAuthorizedName(),
+			"merchant_greeting":      merchant.GetOwnerName(),
 			"royalty_reports_url":    s.cfg.GetRoyaltyReportsUrl(),
 			"operating_company_name": operatingCompany.Name,
 		},

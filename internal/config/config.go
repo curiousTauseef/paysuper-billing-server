@@ -52,6 +52,7 @@ type EmailTemplates struct {
 	OnboardingVerificationAdmin    string `envconfig:"EMAIL_ADMIN_NEW_ONBOARDING_REQUEST_TEMPLATE" default:"p1_email_admin_new_onboarding_request_template"`
 	OnboardingCompleted            string `envconfig:"EMAIL_MERCHANT_ONBOARDING_REQUEST_COMPLETE_TEMPLATE" default:"p1_email_merchant_onboarding_request_complete_template"`
 	UserInvite                     string `envconfig:"EMAIL_INVITE_TEMPLATE" default:"code-your-own"`
+	MerchantAgreementSigned        string `envconfig:"EMAIL_MERCHANT_AGREEMENT_SIGNED" default:"p1_agreement_fully_signed"`
 }
 
 type Centrifugo struct {
