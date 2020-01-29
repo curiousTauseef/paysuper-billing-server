@@ -93,7 +93,7 @@ func (r *turnoverRepository) Get(ctx context.Context, operatingCompanyId, countr
 }
 
 func (r *turnoverRepository) CountAll(ctx context.Context) (int64, error) {
-	count, err := r.db.Collection(collectionAnnualTurnovers).CountDocuments(context.TODO(), bson.M{})
+	count, err := r.db.Collection(collectionAnnualTurnovers).CountDocuments(ctx, bson.M{})
 
 	if err != nil {
 		zap.L().Error(
