@@ -84,21 +84,21 @@ func (suite *PriceTableTestSuite) TearDownTest() {
 }
 
 func (suite *PriceTableTestSuite) TestPriceTable_Insert_Ok() {
-	assert.NoError(suite.T(), suite.service.priceTable.Insert(context.TODO(), &billingpb.PriceTable{Id: primitive.NewObjectID().Hex()}))
+	assert.NoError(suite.T(), suite.service.priceTableRepository.Insert(context.TODO(), &billingpb.PriceTable{Id: primitive.NewObjectID().Hex()}))
 }
 
 func (suite *PriceTableTestSuite) TestPriceTable_GetByRegion_Ok() {
 	table := &billingpb.PriceTable{Id: primitive.NewObjectID().Hex(), Currency: "TST"}
-	assert.NoError(suite.T(), suite.service.priceTable.Insert(context.TODO(), table))
+	assert.NoError(suite.T(), suite.service.priceTableRepository.Insert(context.TODO(), table))
 
-	t, err := suite.service.priceTable.GetByRegion(context.TODO(), table.Currency)
+	t, err := suite.service.priceTableRepository.GetByRegion(context.TODO(), table.Currency)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), table.Id, t.Id)
 	assert.Equal(suite.T(), table.Currency, t.Currency)
 }
 
 func (suite *PriceTableTestSuite) TestPriceTable_GetByRegion_Error_NotFound() {
-	_, err := suite.service.priceTable.GetByRegion(context.TODO(), "TST")
+	_, err := suite.service.priceTableRepository.GetByRegion(context.TODO(), "TST")
 	assert.Error(suite.T(), err)
 }
 
@@ -107,7 +107,7 @@ func (suite *PriceTableTestSuite) TestPriceTable_GetRecommendedPriceTable_Ok() {
 	rep.
 		On("GetByRegion", mock.Anything, mock.Anything).
 		Return(&billingpb.PriceTable{Ranges: []*billingpb.PriceTableRange{{From: 0, To: 0, Position: 0}}}, nil)
-	suite.service.priceTable = rep
+	suite.service.priceTableRepository = rep
 
 	res := billingpb.RecommendedPriceTableResponse{}
 	err := suite.service.GetRecommendedPriceTable(context.TODO(), &billingpb.RecommendedPriceTableRequest{}, &res)

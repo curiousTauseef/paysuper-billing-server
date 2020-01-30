@@ -172,7 +172,7 @@ func (s *Service) GetRecommendedPriceByPriceGroup(
 		return err
 	}
 
-	priceTable, err := s.priceTable.GetByRegion(ctx, req.Currency)
+	priceTable, err := s.priceTableRepository.GetByRegion(ctx, req.Currency)
 
 	if err != nil {
 		zap.S().Errorw("Unable to get price table", "err", err, "req", req)
@@ -231,7 +231,7 @@ func (s *Service) getRecommendedPriceForRegion(
 	rng *billingpb.PriceTableRange,
 	amount float64,
 ) (float64, error) {
-	table, err := s.priceTable.GetByRegion(ctx, region.Region)
+	table, err := s.priceTableRepository.GetByRegion(ctx, region.Region)
 
 	if err != nil {
 		return 0, err
