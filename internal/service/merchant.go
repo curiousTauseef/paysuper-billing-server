@@ -55,10 +55,10 @@ func (s *Service) MerchantsMigrate(ctx context.Context) error {
 			Role: billingpb.RoleMerchantOwner,
 		}
 
-		roles, err := s.casbinService.GetRolesForUser(context.TODO(), casbinRole)
+		roles, err := s.casbinService.GetRolesForUser(ctx, casbinRole)
 
 		if roles == nil || len(roles.Array) < 1 {
-			_, err = s.casbinService.AddRoleForUser(context.TODO(), casbinRole)
+			_, err = s.casbinService.AddRoleForUser(ctx, casbinRole)
 		}
 
 		if err != nil {
