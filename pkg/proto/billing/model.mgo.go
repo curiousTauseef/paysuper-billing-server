@@ -63,6 +63,7 @@ type MgoProject struct {
 	VirtualCurrency  *ProjectVirtualCurrency `bson:"virtual_currency"`
 	VatPayer         string                  `bson:"vat_payer"`
 	WebHookTesting   *WebHookTesting         `bson:"webhook_testing"`
+	WebhookMode      string
 }
 
 type MgoMerchantLastPayout struct {
@@ -295,7 +296,7 @@ type MgoOrder struct {
 	BillingCountryChangedByUser bool                           `bson:"billing_country_changed_by_user"`
 	IsRefundAllowed             bool                           `bson:"is_refund_allowed"`
 	VatPayer                    string                         `bson:"vat_payer"`
-	TestingCase                string                         `bson:"testing_case"`
+	TestingCase                 string                         `bson:"testing_case"`
 }
 
 type MgoOrderItem struct {
@@ -1419,6 +1420,7 @@ func (m *Project) MarshalBSON() ([]byte, error) {
 		VirtualCurrency:          m.VirtualCurrency,
 		VatPayer:                 m.VatPayer,
 		WebHookTesting:           m.WebhookTesting,
+		WebhookMode:              m.WebhookMode,
 	}
 
 	if len(m.Name) > 0 {
@@ -1508,6 +1510,7 @@ func (m *Project) UnmarshalBSON(raw []byte) error {
 	m.VirtualCurrency = decoded.VirtualCurrency
 	m.VatPayer = decoded.VatPayer
 	m.WebhookTesting = decoded.WebHookTesting
+	m.WebhookMode = decoded.WebhookMode
 
 	nameLen := len(decoded.Name)
 
@@ -1728,7 +1731,7 @@ func (m *Order) MarshalBSON() ([]byte, error) {
 		BillingCountryChangedByUser: m.BillingCountryChangedByUser,
 		IsRefundAllowed:             m.IsRefundAllowed,
 		VatPayer:                    m.VatPayer,
-		TestingCase: m.TestingCase,
+		TestingCase:                 m.TestingCase,
 	}
 
 	if m.Refund != nil {
