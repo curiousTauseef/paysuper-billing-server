@@ -2423,8 +2423,8 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 	v.checked.priceGroup = priceGroup
 
 	if v.checked.project.CallbackProtocol == pkg.ProjectCallbackProtocolDefault {
-		if v.checked.project.WebhookTesting == nil ||
-			!(v.checked.project.WebhookTesting.Keys.IsPassed) {
+		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
+			!(v.checked.project.WebhookTesting.Keys.IsPassed)) {
 			return orderErrorMerchantWebHookTestingNotPassed
 		}
 	}
@@ -2454,11 +2454,11 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts(ctx context.Context
 	}
 
 	if v.checked.project.CallbackProtocol == pkg.ProjectCallbackProtocolDefault {
-		if v.checked.project.WebhookTesting == nil ||
+		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
 			!(v.checked.project.WebhookTesting.Products.IncorrectPayment &&
 				v.checked.project.WebhookTesting.Products.CorrectPayment &&
 				v.checked.project.WebhookTesting.Products.ExistingUser &&
-				v.checked.project.WebhookTesting.Products.NonExistingUser) {
+				v.checked.project.WebhookTesting.Products.NonExistingUser)) {
 			return orderErrorMerchantWebHookTestingNotPassed
 		}
 	}
@@ -4490,11 +4490,11 @@ func (v *OrderCreateRequestProcessor) processVirtualCurrency(ctx context.Context
 	v.checked.virtualAmount = amount
 
 	if v.checked.project.CallbackProtocol == pkg.ProjectCallbackProtocolDefault {
-		if v.checked.project.WebhookTesting == nil ||
+		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
 			!(v.checked.project.WebhookTesting.VirtualCurrency.IncorrectPayment &&
 				v.checked.project.WebhookTesting.VirtualCurrency.CorrectPayment &&
 				v.checked.project.WebhookTesting.VirtualCurrency.ExistingUser &&
-				v.checked.project.WebhookTesting.VirtualCurrency.NonExistingUser) {
+				v.checked.project.WebhookTesting.VirtualCurrency.NonExistingUser)) {
 			return orderErrorMerchantWebHookTestingNotPassed
 		}
 	}
