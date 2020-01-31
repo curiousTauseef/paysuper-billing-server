@@ -31,6 +31,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"math"
 	"regexp"
 	"sort"
@@ -643,6 +644,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 	} else {
 		if req.Cookie != "" {
 			decryptedBrowserCustomer, err := s.decryptBrowserCookie(req.Cookie)
+			log.Println(decryptedBrowserCustomer)
 
 			if err == nil {
 				isIdentified = true
