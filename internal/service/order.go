@@ -4482,7 +4482,7 @@ func (v *OrderCreateRequestProcessor) processVirtualCurrency(ctx context.Context
 		return orderErrorVirtualCurrencyFracNotSupported
 	}
 
-	if v.checked.amount < virtualCurrency.MinPurchaseValue ||
+	if amount < virtualCurrency.MinPurchaseValue ||
 		(virtualCurrency.MaxPurchaseValue > 0 && amount > virtualCurrency.MaxPurchaseValue) {
 		return orderErrorVirtualCurrencyLimits
 	}
