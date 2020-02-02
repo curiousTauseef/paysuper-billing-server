@@ -6982,10 +6982,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifySales_Ok() {
 	assert.False(suite.T(), rsp.NotifySale)
 	assert.Empty(suite.T(), rsp.NotifySaleEmail)
 
-	var data []*billingpb.NotifyUserSales
-	cursor, err := suite.service.db.Collection(collectionNotifySales).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err := suite.service.notifySalesRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 0)
 
@@ -7003,9 +7000,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifySales_Ok() {
 	assert.True(suite.T(), order.NotifySale)
 	assert.Equal(suite.T(), order.NotifySaleEmail, notifyEmail)
 
-	cursor, err = suite.service.db.Collection(collectionNotifySales).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err = suite.service.notifySalesRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 1)
 

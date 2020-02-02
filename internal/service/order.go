@@ -55,7 +55,6 @@ const (
 	taxTypeSalesTax = "sales_tax"
 
 	collectionBinData         = "bank_bin"
-	collectionNotifySales     = "notify_sales"
 	collectionNotifyNewRegion = "notify_new_region"
 )
 
@@ -3855,15 +3854,8 @@ func (s *Service) SetUserNotifySales(
 	if order.User != nil {
 		data.UserId = order.User.Id
 	}
-	_, err = s.db.Collection(collectionNotifySales).InsertOne(ctx, data)
-	if err != nil {
 
-		zap.S().Errorf(
-			"Save email to collection failed",
-			"error", err.Error(),
-			"request", req,
-			"collection", collectionNotifySales,
-		)
+	if err = s.notifySalesRepository.Insert(ctx, data); err != nil {
 		return err
 	}
 

@@ -100,6 +100,7 @@ type Service struct {
 	project                         repository.ProjectRepositoryInterface
 	priceTableRepository            repository.PriceTableRepositoryInterface
 	notificationRepository          repository.NotificationRepositoryInterface
+	notifySalesRepository           repository.NotifySalesRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -189,6 +190,7 @@ func (s *Service) Init() (err error) {
 	s.project = repository.NewProjectRepository(s.db, s.cacher)
 	s.priceTableRepository = repository.NewPriceTableRepository(s.db)
 	s.notificationRepository = repository.NewNotificationRepository(s.db)
+	s.notifySalesRepository = repository.NewNotifySalesRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {
