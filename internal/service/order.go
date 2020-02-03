@@ -54,8 +54,7 @@ const (
 	taxTypeVat      = "vat"
 	taxTypeSalesTax = "sales_tax"
 
-	collectionBinData         = "bank_bin"
-	collectionNotifyNewRegion = "notify_new_region"
+	collectionBinData = "bank_bin"
 )
 
 var (
@@ -3924,14 +3923,8 @@ func (s *Service) SetUserNotifyNewRegion(
 		Date:             time.Now().Format(time.RFC3339),
 		CountryIsoCodeA2: order.CountryRestriction.IsoCodeA2,
 	}
-	_, err = s.db.Collection(collectionNotifyNewRegion).InsertOne(ctx, data)
-	if err != nil {
-		zap.S().Errorf(
-			"Save email to collection failed",
-			"error", err.Error(),
-			"request", req,
-			"collection", collectionNotifyNewRegion,
-		)
+
+	if err = s.notifyRegionRepository.Insert(ctx, data); err != nil {
 		return err
 	}
 

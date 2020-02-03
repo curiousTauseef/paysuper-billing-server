@@ -57,7 +57,7 @@ func (r notifySalesRepository) FindByEmail(ctx context.Context, email string) ([
 		zap.L().Error(
 			pkg.ErrorQueryCursorExecutionFailed,
 			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionProject),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionNotifySales),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return nil, err

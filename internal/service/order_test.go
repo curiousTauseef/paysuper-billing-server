@@ -7038,10 +7038,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifyNewRegion_Ok() {
 	assert.False(suite.T(), rsp.User.NotifyNewRegion)
 	assert.Empty(suite.T(), rsp.User.NotifyNewRegionEmail)
 
-	var data []*billingpb.NotifyUserNewRegion
-	cursor, err := suite.service.db.Collection(collectionNotifyNewRegion).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err := suite.service.notifyRegionRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 0)
 
@@ -7066,9 +7063,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifyNewRegion_Ok() {
 	assert.True(suite.T(), order.User.NotifyNewRegion)
 	assert.Equal(suite.T(), order.User.NotifyNewRegionEmail, notifyEmail)
 
-	cursor, err = suite.service.db.Collection(collectionNotifyNewRegion).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err = suite.service.notifyRegionRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 1)
 
