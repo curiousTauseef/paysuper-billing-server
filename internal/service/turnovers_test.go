@@ -4,22 +4,24 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	curPkg "github.com/paysuper/paysuper-currencies/pkg"
-	"github.com/paysuper/paysuper-currencies/pkg/proto/currencies"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/currenciespb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
+	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 	"time"
 )
@@ -28,9 +30,9 @@ type TurnoversTestSuite struct {
 	suite.Suite
 	service          *Service
 	log              *zap.Logger
-	cache            CacheInterface
-	country          *billing.Country
-	operatingCompany *billing.OperatingCompany
+	cache            database.CacheInterface
+	country          *billingpb.Country
+	operatingCompany *billingpb.OperatingCompany
 }
 
 func Test_Turnovers(t *testing.T) {
@@ -55,7 +57,7 @@ func (suite *TurnoversTestSuite) SetupTest() {
 	}
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -80,17 +82,17 @@ func (suite *TurnoversTestSuite) SetupTest() {
 
 	suite.operatingCompany = helperOperatingCompany(suite.Suite, suite.service)
 
-	pg := &billing.PriceGroup{
+	pg := &billingpb.PriceGroup{
 		Id:       primitive.NewObjectID().Hex(),
 		Currency: "USD",
 		Region:   "",
 		IsActive: true,
 	}
-	if err := suite.service.priceGroup.Insert(context.TODO(), pg); err != nil {
+	if err := suite.service.priceGroupRepository.Insert(context.TODO(), pg); err != nil {
 		suite.FailNow("Insert price group test data failed", "%v", err)
 	}
 
-	countryRu := &billing.Country{
+	countryRu := &billingpb.Country{
 		Id:              primitive.NewObjectID().Hex(),
 		IsoCodeA2:       "RU",
 		Region:          "Russia",
@@ -100,7 +102,7 @@ func (suite *TurnoversTestSuite) SetupTest() {
 		VatEnabled:      true,
 		PriceGroupId:    pg.Id,
 		VatCurrency:     "RUB",
-		VatThreshold: &billing.CountryVatThreshold{
+		VatThreshold: &billingpb.CountryVatThreshold{
 			Year:  0,
 			World: 0,
 		},
@@ -111,7 +113,7 @@ func (suite *TurnoversTestSuite) SetupTest() {
 		VatCurrencyRatesSource: "cbrf",
 	}
 
-	countryTr := &billing.Country{
+	countryTr := &billingpb.Country{
 		Id:              primitive.NewObjectID().Hex(),
 		IsoCodeA2:       "TR",
 		Region:          "West Asia",
@@ -121,7 +123,7 @@ func (suite *TurnoversTestSuite) SetupTest() {
 		VatEnabled:      true,
 		PriceGroupId:    pg.Id,
 		VatCurrency:     "TRY",
-		VatThreshold: &billing.CountryVatThreshold{
+		VatThreshold: &billingpb.CountryVatThreshold{
 			Year:  0,
 			World: 0,
 		},
@@ -132,7 +134,7 @@ func (suite *TurnoversTestSuite) SetupTest() {
 		VatCurrencyRatesSource: "cbtr",
 	}
 
-	countries := []*billing.Country{countryRu, countryTr}
+	countries := []*billingpb.Country{countryRu, countryTr}
 	if err := suite.service.country.MultipleInsert(context.TODO(), countries); err != nil {
 		suite.FailNow("Insert country test data failed", "%v", err)
 	}
@@ -161,7 +163,7 @@ func (suite *TurnoversTestSuite) TestTurnovers_getTurnover_Empty() {
 	from, to, err := suite.service.getLastVatReportTime(int32(3))
 	assert.NoError(suite.T(), err)
 
-	amount, err := suite.service.getTurnover(context.TODO(), from, to, countryCode, country.VatCurrency, country.VatCurrencyRatesPolicy, curPkg.RateTypeCentralbanks, "", suite.operatingCompany.Id)
+	amount, err := suite.service.getTurnover(context.TODO(), from, to, countryCode, country.VatCurrency, country.VatCurrencyRatesPolicy, currenciespb.RateTypeCentralbanks, "", suite.operatingCompany.Id)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), amount, float64(0))
 }
@@ -182,6 +184,8 @@ func (suite *TurnoversTestSuite) TestTurnovers_getTurnover() {
 	countryCode := "RU"
 
 	suite.fillAccountingEntries(suite.operatingCompany.Id, countryCode, 10)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
 
 	country, err := suite.service.country.GetByIsoCodeA2(context.TODO(), countryCode)
 	assert.NoError(suite.T(), err)
@@ -189,21 +193,24 @@ func (suite *TurnoversTestSuite) TestTurnovers_getTurnover() {
 	from, to, err := suite.service.getLastVatReportTime(int32(3))
 	assert.NoError(suite.T(), err)
 
-	amount, err := suite.service.getTurnover(context.TODO(), from, to, countryCode, country.VatCurrency, country.VatCurrencyRatesPolicy, curPkg.RateTypeCentralbanks, "", suite.operatingCompany.Id)
+	amount, err := suite.service.getTurnover(context.TODO(), from, to, countryCode, country.VatCurrency, country.VatCurrencyRatesPolicy, currenciespb.RateTypeCentralbanks, "", suite.operatingCompany.Id)
 	assert.NoError(suite.T(), err)
 	ref1 := suite.getTurnoverReference(from, to, suite.operatingCompany.Id, countryCode, country.VatCurrency, country.VatCurrencyRatesPolicy)
 	assert.Equal(suite.T(), amount, ref1)
 
-	worldAmount, err := suite.service.getTurnover(context.TODO(), now.BeginningOfYear(), time.Now(), "", "RUB", "on-day", curPkg.RateTypeOxr, "", suite.operatingCompany.Id)
+	worldAmount, err := suite.service.getTurnover(context.TODO(), now.BeginningOfYear(), now.EndOfYear(), "", "RUB", "on-day", currenciespb.RateTypeOxr, "", suite.operatingCompany.Id)
 	assert.NoError(suite.T(), err)
-	ref2 := suite.getTurnoverReference(now.BeginningOfYear(), time.Now(), suite.operatingCompany.Id, "", "RUB", "on-day")
+	ref2 := suite.getTurnoverReference(now.BeginningOfYear(), now.EndOfYear(), suite.operatingCompany.Id, "", "RUB", "on-day")
 	assert.Equal(suite.T(), worldAmount, ref2)
 	assert.True(suite.T(), ref2 > ref1)
 
 	suite.fillAccountingEntries(suite.operatingCompany.Id, "TR", 10)
-	worldAmount, err = suite.service.getTurnover(context.TODO(), now.BeginningOfYear(), time.Now(), "", "RUB", "on-day", curPkg.RateTypeOxr, "", suite.operatingCompany.Id)
+	err = suite.service.updateOrderView(context.TODO(), []string{})
 	assert.NoError(suite.T(), err)
-	ref3 := suite.getTurnoverReference(now.BeginningOfYear(), time.Now(), suite.operatingCompany.Id, "", "RUB", "on-day")
+
+	worldAmount, err = suite.service.getTurnover(context.TODO(), now.BeginningOfYear(), now.EndOfYear(), "", "RUB", "on-day", currenciespb.RateTypeOxr, "", suite.operatingCompany.Id)
+	assert.NoError(suite.T(), err)
+	ref3 := suite.getTurnoverReference(now.BeginningOfYear(), now.EndOfYear(), suite.operatingCompany.Id, "", "RUB", "on-day")
 	assert.Equal(suite.T(), worldAmount, ref3)
 	assert.True(suite.T(), ref3 > ref2)
 }
@@ -213,16 +220,18 @@ func (suite *TurnoversTestSuite) TestTurnovers_calcAnnualTurnover() {
 
 	suite.fillAccountingEntries(suite.operatingCompany.Id, countryCode, 10)
 	suite.fillAccountingEntries(suite.operatingCompany.Id, "TR", 10)
-
-	err := suite.service.calcAnnualTurnover(context.TODO(), countryCode, suite.operatingCompany.Id)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
 	assert.NoError(suite.T(), err)
 
-	at, err := suite.service.turnover.Get(context.TODO(), suite.operatingCompany.Id, countryCode, time.Now().Year())
+	err = suite.service.calcAnnualTurnover(context.TODO(), countryCode, suite.operatingCompany.Id)
+	assert.NoError(suite.T(), err)
+
+	at, err := suite.service.turnoverRepository.Get(context.TODO(), suite.operatingCompany.Id, countryCode, time.Now().Year())
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), at.Year, int32(time.Now().Year()))
 	assert.Equal(suite.T(), at.Country, countryCode)
 	assert.Equal(suite.T(), at.Currency, "RUB")
-	ref2 := suite.getTurnoverReference(now.BeginningOfYear(), time.Now(), suite.operatingCompany.Id, "RU", "RUB", "on-day")
+	ref2 := suite.getTurnoverReference(now.BeginningOfYear(), now.EndOfDay(), suite.operatingCompany.Id, "RU", "RUB", "on-day")
 	assert.Equal(suite.T(), at.Amount, ref2)
 }
 
@@ -231,11 +240,13 @@ func (suite *TurnoversTestSuite) TestTurnovers_CalcAnnualTurnovers() {
 
 	suite.fillAccountingEntries(suite.operatingCompany.Id, countryCode, 10)
 	suite.fillAccountingEntries(suite.operatingCompany.Id, "TR", 10)
-
-	err := suite.service.CalcAnnualTurnovers(context.TODO(), &grpc.EmptyRequest{}, &grpc.EmptyResponse{})
+	err := suite.service.updateOrderView(context.TODO(), []string{})
 	assert.NoError(suite.T(), err)
 
-	at, err := suite.service.turnover.Get(context.TODO(), suite.operatingCompany.Id, countryCode, time.Now().Year())
+	err = suite.service.CalcAnnualTurnovers(context.TODO(), &billingpb.EmptyRequest{}, &billingpb.EmptyResponse{})
+	assert.NoError(suite.T(), err)
+
+	at, err := suite.service.turnoverRepository.Get(context.TODO(), suite.operatingCompany.Id, countryCode, time.Now().Year())
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), at.Year, int32(time.Now().Year()))
 	assert.Equal(suite.T(), at.Country, countryCode)
@@ -243,24 +254,27 @@ func (suite *TurnoversTestSuite) TestTurnovers_CalcAnnualTurnovers() {
 	ref2 := suite.getTurnoverReference(now.BeginningOfYear(), time.Now(), suite.operatingCompany.Id, "RU", "RUB", "on-day")
 	assert.Equal(suite.T(), at.Amount, ref2)
 
-	at, err = suite.service.turnover.Get(context.TODO(), suite.operatingCompany.Id, "", time.Now().Year())
+	at, err = suite.service.turnoverRepository.Get(context.TODO(), suite.operatingCompany.Id, "", time.Now().Year())
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), at.Year, int32(time.Now().Year()))
 	assert.Equal(suite.T(), at.Country, "")
 	assert.Equal(suite.T(), at.Currency, "EUR")
 
-	worldAmount, err := suite.service.getTurnover(context.TODO(), now.BeginningOfYear(), time.Now(), "", "EUR", "on-day", curPkg.RateTypeOxr, "", suite.operatingCompany.Id)
-	assert.Equal(suite.T(), at.Amount, worldAmount)
+	worldAmount, err := suite.service.getTurnover(context.TODO(), now.BeginningOfYear(), time.Now(), "", "EUR", "on-day", currenciespb.RateTypeOxr, "", suite.operatingCompany.Id)
+	assert.Equal(suite.T(), tools.FormatAmount(at.Amount), tools.FormatAmount(worldAmount))
 
-	countries, err := suite.service.country.GetCountriesWithVatEnabled(context.TODO())
+	countries, err := suite.service.country.FindByVatEnabled(context.TODO())
 	assert.NoError(suite.T(), err)
 
-	n, err := suite.service.db.Collection(collectionAnnualTurnovers).CountDocuments(context.TODO(), bson.M{})
+	n, err := suite.service.turnoverRepository.CountAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), len(countries.Countries)+1, n)
 }
 
 func (suite *TurnoversTestSuite) fillAccountingEntries(operatingCompanyId, countryCode string, daysMultiplier int) {
+	maxEntries := 14
+	maxDays := maxEntries * daysMultiplier
+
 	country, err := suite.service.country.GetByIsoCodeA2(context.TODO(), countryCode)
 	assert.NoError(suite.T(), err)
 
@@ -271,34 +285,71 @@ func (suite *TurnoversTestSuite) fillAccountingEntries(operatingCompanyId, count
 		refund:   nil,
 		merchant: nil,
 		country:  country,
-		req:      &grpc.CreateAccountingEntryRequest{},
+		req:      &billingpb.CreateAccountingEntryRequest{},
 	}
 
 	currs := []string{"RUB", "USD"}
 	types := []string{pkg.AccountingEntryTypeRealGrossRevenue, pkg.AccountingEntryTypeRealTaxFee}
 
-	timeNow := time.Now()
+	multiplier := 1
+	startTime := time.Now()
+	diff := now.New(startTime).EndOfYear().Sub(startTime)
+
+	if int(diff.Hours()/24) < maxDays {
+		multiplier = -1
+	}
 
 	count := 0
-	for count <= 14 {
+	for count <= maxEntries {
 
-		date := timeNow.AddDate(0, 0, -1*count*daysMultiplier)
+		date := startTime.AddDate(0, 0, multiplier*count*daysMultiplier)
 		createdAt, err := ptypes.TimestampProto(date)
 		assert.NoError(suite.T(), err)
 
-		entry := &billing.AccountingEntry{
+		order := &billingpb.Order{
+			Id:                 primitive.NewObjectID().Hex(),
+			Status:             recurringpb.OrderPublicStatusProcessed,
+			PrivateStatus:      recurringpb.OrderStatusProjectComplete,
+			CreatedAt:          createdAt,
+			TotalPaymentAmount: float64(count + 1),
+			Currency:           currs[count%2],
+			BillingAddress: &billingpb.OrderBillingAddress{
+				Country: countryCode,
+			},
+			Tax: &billingpb.OrderTax{
+				Type:     "",
+				Rate:     0,
+				Amount:   0,
+				Currency: currs[count%2],
+			},
+			Project: &billingpb.ProjectOrder{
+				Id:         primitive.NewObjectID().Hex(),
+				MerchantId: primitive.NewObjectID().Hex(),
+			},
+			PaymentMethodOrderClosedAt: createdAt,
+			OrderAmount:                float64(count),
+			Type:                       pkg.OrderTypeOrder,
+			OperatingCompanyId:         operatingCompanyId,
+			ChargeCurrency:             currs[count%2],
+			ChargeAmount:               float64(count + 1),
+			IsProduction:               true,
+		}
+
+		_, err = suite.service.db.Collection(repository.CollectionOrder).InsertOne(context.TODO(), order)
+
+		entry := &billingpb.AccountingEntry{
 			Id:     primitive.NewObjectID().Hex(),
 			Object: pkg.ObjectTypeBalanceTransaction,
 			Type:   types[count%2],
-			Source: &billing.AccountingEntrySource{
-				Id:   primitive.NewObjectID().Hex(),
-				Type: collectionOrder,
+			Source: &billingpb.AccountingEntrySource{
+				Id:   order.Id,
+				Type: repository.CollectionOrder,
 			},
 			MerchantId:         primitive.NewObjectID().Hex(),
 			Status:             pkg.BalanceTransactionStatusAvailable,
 			CreatedAt:          createdAt,
 			Country:            countryCode,
-			Amount:             float64(count),
+			Amount:             float64(count + 1),
 			Currency:           currs[count%2],
 			OperatingCompanyId: operatingCompanyId,
 		}
@@ -313,14 +364,25 @@ func (suite *TurnoversTestSuite) fillAccountingEntries(operatingCompanyId, count
 
 func (suite *TurnoversTestSuite) getTurnoverReference(from, to time.Time, operatingCompanyId, countryCode, targetCurrency, currencyPolicy string) float64 {
 	matchQuery := bson.M{
-		"created_at":           bson.M{"$gte": from, "$lte": to},
-		"type":                 bson.M{"$in": accountingEntriesForTurnover},
+		"pm_order_close_date": bson.M{
+			"$gte": from,
+			"$lte": to,
+		},
 		"operating_company_id": operatingCompanyId,
+		"is_production":        true,
+		"type":                 pkg.OrderTypeOrder,
+		"status":               recurringpb.OrderPublicStatusProcessed,
+		"payment_gross_revenue_origin": bson.M{
+			"$ne": nil,
+		},
+		"payment_gross_revenue_local": bson.M{
+			"$ne": nil,
+		},
 	}
 	if countryCode != "" {
-		matchQuery["country"] = countryCode
+		matchQuery["country_code"] = countryCode
 	} else {
-		matchQuery["country"] = bson.M{"$ne": ""}
+		matchQuery["country_code"] = bson.M{"$ne": ""}
 	}
 
 	query := []bson.M{
@@ -331,18 +393,34 @@ func (suite *TurnoversTestSuite) getTurnoverReference(from, to time.Time, operat
 
 	switch currencyPolicy {
 	case pkg.VatCurrencyRatesPolicyOnDay:
-		query = append(query, bson.M{"$group": bson.M{"_id": "$local_currency", "amount": bson.M{"$sum": "$local_amount"}}})
+		query = append(query, bson.M{
+			"$group": bson.M{
+				"_id": "$payment_gross_revenue_local.currency",
+				"amount": bson.M{
+					"$sum": "$payment_gross_revenue_local.amount",
+				},
+			},
+		})
 		break
+
 	case pkg.VatCurrencyRatesPolicyLastDay:
-		query = append(query, bson.M{"$group": bson.M{"_id": "$original_currency", "amount": bson.M{"$sum": "$original_amount"}}})
+		query = append(query, bson.M{
+			"$group": bson.M{
+				"_id": "$payment_gross_revenue_origin.currency",
+				"amount": bson.M{
+					"$sum": "$payment_gross_revenue_origin.amount",
+				},
+			},
+		})
 		break
+
 	default:
 		return -1
 	}
 
 	var res []*turnoverQueryResItem
 
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Aggregate(context.TODO(), query)
+	cursor, err := suite.service.db.Collection(collectionOrderView).Aggregate(context.TODO(), query)
 	assert.NoError(suite.T(), err)
 
 	if err != nil {
@@ -362,11 +440,11 @@ func (suite *TurnoversTestSuite) getTurnoverReference(from, to time.Time, operat
 			continue
 		}
 
-		req := &currencies.ExchangeCurrencyByDateCommonRequest{
+		req := &currenciespb.ExchangeCurrencyByDateCommonRequest{
 			From:              v.Id,
 			To:                targetCurrency,
-			RateType:          curPkg.RateTypeOxr,
-			ExchangeDirection: curPkg.ExchangeDirectionBuy,
+			RateType:          currenciespb.RateTypeOxr,
+			ExchangeDirection: currenciespb.ExchangeDirectionBuy,
 			Amount:            v.Amount,
 			Datetime:          nil,
 		}

@@ -3,17 +3,18 @@ package service
 import (
 	"context"
 	"errors"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 )
 
@@ -21,7 +22,7 @@ type PayoutCostSystemTestSuite struct {
 	suite.Suite
 	service            *Service
 	log                *zap.Logger
-	cache              CacheInterface
+	cache              database.CacheInterface
 	PayoutCostSystemId string
 }
 
@@ -47,7 +48,7 @@ func (suite *PayoutCostSystemTestSuite) SetupTest() {
 	}
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -72,7 +73,7 @@ func (suite *PayoutCostSystemTestSuite) SetupTest() {
 
 	suite.PayoutCostSystemId = primitive.NewObjectID().Hex()
 
-	PayoutCostSystem := &billing.PayoutCostSystem{
+	PayoutCostSystem := &billingpb.PayoutCostSystem{
 		Id:                    suite.PayoutCostSystemId,
 		IntrabankCostAmount:   0,
 		IntrabankCostCurrency: "EUR",
@@ -111,7 +112,7 @@ func (suite *PayoutCostSystemTestSuite) TestPayoutCostSystem_Get_Ok() {
 }
 
 func (suite *PayoutCostSystemTestSuite) TestPayoutCostSystem_Set_Ok() {
-	req := &billing.PayoutCostSystem{
+	req := &billingpb.PayoutCostSystem{
 		IntrabankCostAmount:   2,
 		IntrabankCostCurrency: "EUR",
 		InterbankCostAmount:   7,
@@ -130,7 +131,7 @@ func (suite *PayoutCostSystemTestSuite) TestPayoutCostSystem_Set_Ok() {
 
 func (suite *PayoutCostSystemTestSuite) TestPayoutCostSystem_Insert_ErrorCacheUpdate() {
 	ci := &mocks.CacheInterface{}
-	obj := &billing.PayoutCostSystem{
+	obj := &billingpb.PayoutCostSystem{
 		IntrabankCostAmount:   2,
 		IntrabankCostCurrency: "EUR",
 		InterbankCostAmount:   7,

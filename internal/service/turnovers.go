@@ -2,26 +2,20 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	curPkg "github.com/paysuper/paysuper-currencies/pkg"
-	"github.com/paysuper/paysuper-currencies/pkg/proto/currencies"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/currenciespb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
+	tools "github.com/paysuper/paysuper-tools/number"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"time"
 )
 
 const (
-	collectionAnnualTurnovers = "annual_turnovers"
-	cacheTurnoverKey          = "turnover:company:%s:country:%s:year:%d"
-
 	errorCannotCalculateTurnoverCountry = "can not calculate turnover for country"
 	errorCannotCalculateTurnoverWorld   = "can not calculate turnover for world"
 )
@@ -29,10 +23,6 @@ const (
 var (
 	errorTurnoversCurrencyRatesPolicyNotSupported = newBillingServerErrorMsg("to000001", "vat currency rates policy not supported")
 	errorTurnoversExchangeFailed                  = newBillingServerErrorMsg("to000002", "currency exchange failed")
-
-	accountingEntriesForTurnover = []string{
-		pkg.AccountingEntryTypeRealGrossRevenue,
-	}
 )
 
 type turnoverQueryResItem struct {
@@ -40,18 +30,18 @@ type turnoverQueryResItem struct {
 	Amount float64 `bson:"amount"`
 }
 
-func (s *Service) CalcAnnualTurnovers(ctx context.Context, req *grpc.EmptyRequest, res *grpc.EmptyResponse) error {
+func (s *Service) CalcAnnualTurnovers(ctx context.Context, req *billingpb.EmptyRequest, res *billingpb.EmptyResponse) error {
 	operatingCompanies, err := s.operatingCompany.GetAll(ctx)
 	if err != nil {
 		return err
 	}
 
-	countries, err := s.country.GetCountriesWithVatEnabled(ctx)
+	countries, err := s.country.FindByVatEnabled(ctx)
 	if err != nil {
 		return err
 	}
 	for _, operatingCompany := range operatingCompanies {
-		var cnt []*billing.Country
+		var cnt []*billingpb.Country
 
 		if len(operatingCompany.PaymentCountries) == 0 {
 			cnt = countries.Countries
@@ -93,7 +83,7 @@ func (s *Service) calcAnnualTurnover(ctx context.Context, countryCode, operating
 
 	var (
 		targetCurrency = "EUR"
-		ratesType      = curPkg.RateTypeOxr
+		ratesType      = currenciespb.RateTypeOxr
 		ratesSource    = ""
 		currencyPolicy = pkg.VatCurrencyRatesPolicyOnDay
 		year           = now.BeginningOfYear()
@@ -117,7 +107,7 @@ func (s *Service) calcAnnualTurnover(ctx context.Context, countryCode, operating
 		}
 		VatPeriodMonth = country.VatPeriodMonth
 		currencyPolicy = country.VatCurrencyRatesPolicy
-		ratesType = curPkg.RateTypeCentralbanks
+		ratesType = currenciespb.RateTypeCentralbanks
 		ratesSource = country.VatCurrencyRatesSource
 	}
 
@@ -130,8 +120,13 @@ func (s *Service) calcAnnualTurnover(ctx context.Context, countryCode, operating
 		if err != nil {
 			return err
 		}
+
 		count := 0
 		for from.Unix() >= year.Unix() {
+			diff := to.Sub(time.Now())
+			if diff.Seconds() > 0 {
+				to = now.EndOfDay()
+			}
 			amnt, err := s.getTurnover(ctx, from, to, countryCode, targetCurrency, currencyPolicy, ratesType, ratesSource, operatingCompanyId)
 			if err != nil {
 				return err
@@ -149,7 +144,7 @@ func (s *Service) calcAnnualTurnover(ctx context.Context, countryCode, operating
 		return err
 	}
 
-	at := &billing.AnnualTurnover{
+	at := &billingpb.AnnualTurnover{
 		Year:               int32(year.Year()),
 		Country:            countryCode,
 		Amount:             tools.FormatAmount(amount),
@@ -157,15 +152,9 @@ func (s *Service) calcAnnualTurnover(ctx context.Context, countryCode, operating
 		OperatingCompanyId: operatingCompanyId,
 	}
 
-	err = s.turnover.Insert(ctx, at)
+	err = s.turnoverRepository.Upsert(ctx, at)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String("collection", collectionAnnualTurnovers),
-			zap.Any("value", at),
-		)
 		return err
 	}
 	return nil
@@ -179,14 +168,22 @@ func (s *Service) getTurnover(
 ) (amount float64, err error) {
 
 	matchQuery := bson.M{
-		"created_at":           bson.M{"$gte": from, "$lte": to},
-		"type":                 bson.M{"$in": accountingEntriesForTurnover},
+		"pm_order_close_date": bson.M{
+			"$gte": from,
+			"$lte": to,
+		},
 		"operating_company_id": operatingCompanyId,
+		"is_production":        true,
+		"type":                 pkg.OrderTypeOrder,
+		"status":               recurringpb.OrderPublicStatusProcessed,
+		"payment_gross_revenue_origin": bson.M{
+			"$ne": nil,
+		},
 	}
 	if countryCode != "" {
-		matchQuery["country"] = countryCode
+		matchQuery["country_code"] = countryCode
 	} else {
-		matchQuery["country"] = bson.M{"$ne": ""}
+		matchQuery["country_code"] = bson.M{"$ne": ""}
 	}
 
 	query := []bson.M{
@@ -197,17 +194,33 @@ func (s *Service) getTurnover(
 
 	switch currencyPolicy {
 	case pkg.VatCurrencyRatesPolicyOnDay:
-		query = append(query, bson.M{"$group": bson.M{"_id": "$local_currency", "amount": bson.M{"$sum": "$local_amount"}}})
+		query = append(query, bson.M{
+			"$group": bson.M{
+				"_id": "$payment_gross_revenue_local.currency",
+				"amount": bson.M{
+					"$sum": "$payment_gross_revenue_local.amount",
+				},
+			},
+		})
 		break
+
 	case pkg.VatCurrencyRatesPolicyLastDay:
-		query = append(query, bson.M{"$group": bson.M{"_id": "$original_currency", "amount": bson.M{"$sum": "$original_amount"}}})
+		query = append(query, bson.M{
+			"$group": bson.M{
+				"_id": "$payment_gross_revenue_origin.currency",
+				"amount": bson.M{
+					"$sum": "$payment_gross_revenue_origin.amount",
+				},
+			},
+		})
 		break
+
 	default:
 		err = errorTurnoversCurrencyRatesPolicyNotSupported
 		return
 	}
 
-	cursor, err := s.db.Collection(collectionAccountingEntry).Aggregate(ctx, query)
+	cursor, err := s.db.Collection(collectionOrderView).Aggregate(ctx, query)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -217,7 +230,7 @@ func (s *Service) getTurnover(
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return
@@ -230,7 +243,7 @@ func (s *Service) getTurnover(
 		zap.L().Error(
 			pkg.ErrorQueryCursorExecutionFailed,
 			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return
@@ -248,11 +261,11 @@ func (s *Service) getTurnover(
 			continue
 		}
 
-		req := &currencies.ExchangeCurrencyByDateCommonRequest{
+		req := &currenciespb.ExchangeCurrencyByDateCommonRequest{
 			From:              v.Id,
 			To:                targetCurrency,
 			RateType:          ratesType,
-			ExchangeDirection: curPkg.ExchangeDirectionBuy,
+			ExchangeDirection: currenciespb.ExchangeDirectionBuy,
 			Source:            ratesSource,
 			Amount:            v.Amount,
 			Datetime:          toTimestamp,
@@ -276,71 +289,4 @@ func (s *Service) getTurnover(
 	}
 
 	return
-}
-
-func newTurnoverService(svc *Service) *Turnover {
-	s := &Turnover{svc: svc}
-	return s
-}
-
-func (h *Turnover) Insert(ctx context.Context, turnover *billing.AnnualTurnover) error {
-	filter := bson.M{
-		"year":                 turnover.Year,
-		"country":              turnover.Country,
-		"operating_company_id": turnover.OperatingCompanyId,
-	}
-
-	_, err := h.svc.db.Collection(collectionAnnualTurnovers).ReplaceOne(ctx, filter, turnover, options.Replace().SetUpsert(true))
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAnnualTurnovers),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationUpsert),
-			zap.Any(pkg.ErrorDatabaseFieldDocument, turnover),
-		)
-		return err
-	}
-
-	key := fmt.Sprintf(cacheTurnoverKey, turnover.OperatingCompanyId, turnover.Country, turnover.Year)
-	err = h.svc.cacher.Set(key, turnover, 0)
-	if err != nil {
-		zap.S().Errorf("Unable to set cache", "err", err.Error(), "key", key, "data", turnover)
-		return err
-	}
-	return nil
-}
-
-func (h *Turnover) Update(ctx context.Context, turnover *billing.AnnualTurnover) error {
-	return h.Insert(ctx, turnover)
-}
-
-func (h *Turnover) Get(ctx context.Context, operatingCompanyId, country string, year int) (*billing.AnnualTurnover, error) {
-	var c billing.AnnualTurnover
-	key := fmt.Sprintf(cacheTurnoverKey, operatingCompanyId, country, year)
-
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	query := bson.M{"operating_company_id": operatingCompanyId, "country": country, "year": year}
-	err := h.svc.db.Collection(collectionAnnualTurnovers).FindOne(ctx, query).Decode(&c)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAnnualTurnovers),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, err
-	}
-
-	err = h.svc.cacher.Set(key, c, 0)
-	if err != nil {
-		zap.S().Errorf("Unable to set cache", "err", err.Error(), "key", key, "data", c)
-	}
-
-	return &c, nil
 }

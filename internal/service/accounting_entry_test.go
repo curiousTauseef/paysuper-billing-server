@@ -8,15 +8,15 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang/protobuf/ptypes"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
+	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson"
@@ -24,7 +24,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 	"time"
 )
@@ -33,12 +33,12 @@ type AccountingEntryTestSuite struct {
 	suite.Suite
 	service *Service
 	log     *zap.Logger
-	cache   CacheInterface
+	cache   database.CacheInterface
 
-	projectFixedAmount *billing.Project
-	paymentMethod      *billing.PaymentMethod
-	paymentSystem      *billing.PaymentSystem
-	merchant           *billing.Merchant
+	projectFixedAmount *billingpb.Project
+	paymentMethod      *billingpb.PaymentMethod
+	paymentSystem      *billingpb.PaymentSystem
+	merchant           *billingpb.Merchant
 }
 
 var ctx = context.TODO()
@@ -89,7 +89,7 @@ func (suite *AccountingEntryTestSuite) SetupTest() {
 	)
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -134,19 +134,19 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 	// Royalty currency RUB
 	// VAT currency RUB
 
-	req := &grpc.GetMerchantByRequest{
+	req := &billingpb.GetMerchantByRequest{
 		MerchantId: suite.projectFixedAmount.MerchantId,
 	}
-	rsp := &grpc.GetMerchantResponse{}
+	rsp := &billingpb.GetMerchantResponse{}
 	err := suite.service.GetMerchantBy(ctx, req, rsp)
 
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusOk, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.NotNil(suite.T(), rsp.Item)
 
 	merchant := rsp.Item
 	merchant.Banking.Currency = "RUB"
-	err = suite.service.merchant.Update(ctx, merchant)
+	err = suite.service.merchantRepository.Update(ctx, merchant)
 	assert.Nil(suite.T(), err)
 
 	orderAmount := float64(100)
@@ -212,7 +212,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
-	accountingEntries := suite.helperGetAccountingEntries(order.Id, collectionOrder)
+	accountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
 	assert.Equal(suite.T(), len(accountingEntries), len(orderControlResults)-11)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "RUB")
@@ -231,7 +231,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 		orderControlResults["ps_method_fee"] + orderControlResults["merchant_tax_fee"]
 	assert.Equal(suite.T(), orderControlResults["merchant_gross_revenue"], tools.ToPrecise(controlMerchantGrossRevenue))
 
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "RUB")
 	for _, entry := range refundAccountingEntries {
@@ -250,7 +250,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -323,7 +323,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
-	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, collectionOrder)
+	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
 	assert.Equal(suite.T(), len(orderAccountingEntries), len(orderControlResults)-11)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -342,7 +342,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 		orderControlResults["ps_method_fee"] + orderControlResults["merchant_tax_fee"]
 	assert.Equal(suite.T(), orderControlResults["merchant_gross_revenue"], tools.ToPrecise(controlMerchantGrossRevenue))
 
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
 	for _, entry := range refundAccountingEntries {
@@ -361,7 +361,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -434,7 +434,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
-	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, collectionOrder)
+	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
 	assert.Equal(suite.T(), len(orderAccountingEntries), len(orderControlResults)-11)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -453,7 +453,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 		orderControlResults["ps_method_fee"] + orderControlResults["merchant_tax_fee"]
 	assert.Equal(suite.T(), orderControlResults["merchant_gross_revenue"], tools.ToPrecise(controlMerchantGrossRevenue))
 
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
 	for _, entry := range refundAccountingEntries {
@@ -472,7 +472,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -537,7 +537,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 
 	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
-	assert.Equal(suite.T(), order.VatPayer, pkg.VatPayerBuyer)
+	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerBuyer)
 	assert.NotNil(suite.T(), order.Tax)
 	assert.Equal(suite.T(), order.Tax.Currency, "RUB")
 	assert.EqualValues(suite.T(), order.Tax.Rate, 0.2)
@@ -550,7 +550,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
-	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, collectionOrder)
+	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
 	assert.Equal(suite.T(), len(orderAccountingEntries), len(orderControlResults)-11)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -569,7 +569,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 		orderControlResults["ps_method_fee"] + orderControlResults["merchant_tax_fee"]
 	assert.Equal(suite.T(), orderControlResults["merchant_gross_revenue"], tools.ToPrecise(controlMerchantGrossRevenue))
 
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
 	for _, entry := range refundAccountingEntries {
@@ -588,13 +588,13 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPayer_Seller() {
-	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, pkg.VatPayerSeller)
+	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerSeller)
 
 	// Order currency RUB
 	// Royalty currency USD
@@ -655,7 +655,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 
 	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
-	assert.Equal(suite.T(), order.VatPayer, pkg.VatPayerSeller)
+	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerSeller)
 	assert.NotNil(suite.T(), order.Tax)
 	assert.Equal(suite.T(), order.Tax.Currency, "RUB")
 	assert.EqualValues(suite.T(), order.Tax.Rate, 0.2)
@@ -668,7 +668,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
-	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, collectionOrder)
+	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
 	assert.Equal(suite.T(), len(orderAccountingEntries), len(orderControlResults)-11)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -687,7 +687,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 		orderControlResults["ps_method_fee"] + orderControlResults["merchant_tax_fee"]
 	assert.Equal(suite.T(), orderControlResults["merchant_gross_revenue"], tools.ToPrecise(controlMerchantGrossRevenue))
 
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
 	for _, entry := range refundAccountingEntries {
@@ -706,13 +706,13 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPayer_Nobody() {
-	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, pkg.VatPayerNobody)
+	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerNobody)
 
 	// Order currency RUB
 	// Royalty currency USD
@@ -773,7 +773,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 
 	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
-	assert.Equal(suite.T(), order.VatPayer, pkg.VatPayerNobody)
+	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerNobody)
 	assert.NotNil(suite.T(), order.Tax)
 	assert.Equal(suite.T(), order.Tax.Currency, "RUB")
 	assert.EqualValues(suite.T(), order.Tax.Rate, 0)
@@ -786,7 +786,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
-	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, collectionOrder)
+	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
 	assert.Equal(suite.T(), len(orderAccountingEntries), len(orderControlResults)-11)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -805,7 +805,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 		orderControlResults["ps_method_fee"] + orderControlResults["merchant_tax_fee"]
 	assert.Equal(suite.T(), orderControlResults["merchant_gross_revenue"], tools.ToPrecise(controlMerchantGrossRevenue))
 
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
 	for _, entry := range refundAccountingEntries {
@@ -824,64 +824,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
-	assert.NoError(suite.T(), err)
-	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
-}
-
-func (suite *AccountingEntryTestSuite) TestAccountingEntry_PartialRefund_Ok_RUB_USD_EUR() {
-	orderAmount := float64(650)
-	orderCountry := "FI"
-	orderCurrency := "RUB"
-	refundControlResults := map[string]float64{
-		"real_refund":                          6,
-		"real_refund_tax_fee":                  1,
-		"real_refund_fee":                      0.6,
-		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      6.12,
-		"ps_merchant_refund_fx":                0.12,
-		"merchant_refund_fee":                  0,
-		"ps_markup_merchant_refund_fee":        -0.6,
-		"merchant_refund_fixed_fee_cost_value": 0,
-		"merchant_refund_fixed_fee":            0,
-		"ps_merchant_refund_fixed_fee_fx":      0,
-		"ps_merchant_refund_fixed_fee_profit":  -0.15,
-		"reverse_tax_fee":                      0.982218,
-		"reverse_tax_fee_delta":                0.002128,
-		"ps_reverse_tax_fee_delta":             0,
-		"merchant_reverse_tax_fee":             0.982218,
-		"merchant_reverse_revenue":             5.137782,
-		"ps_refund_profit":                     -0.712218,
-	}
-
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
-	assert.NotNil(suite.T(), order)
-
-	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
-	assert.NoError(suite.T(), err)
-
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount*0.5, false)
-	assert.NotNil(suite.T(), refund)
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
-	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
-	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
-	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
-	for _, entry := range refundAccountingEntries {
-		if !assert.Equal(suite.T(), entry.Amount, refundControlResults[entry.Type]) {
-			fmt.Println(entry.Type, entry.Amount, refundControlResults[entry.Type])
-		}
-		assert.Equal(suite.T(), entry.Currency, merchantRoyaltyCurrency)
-	}
-
-	controlRealRefund := refundControlResults["merchant_reverse_revenue"] + refundControlResults["merchant_reverse_tax_fee"] -
-		refundControlResults["merchant_refund_fixed_fee"] - refundControlResults["merchant_refund_fee"] - refundControlResults["ps_merchant_refund_fx"]
-	assert.Equal(suite.T(), refundControlResults["real_refund"], tools.ToPrecise(controlRealRefund))
-
-	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
-	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -891,19 +834,19 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 	// Royalty currency RUB
 	// VAT currency RUB
 
-	req := &grpc.GetMerchantByRequest{
+	req := &billingpb.GetMerchantByRequest{
 		MerchantId: suite.projectFixedAmount.MerchantId,
 	}
-	rsp := &grpc.GetMerchantResponse{}
+	rsp := &billingpb.GetMerchantResponse{}
 	err := suite.service.GetMerchantBy(context.TODO(), req, rsp)
 
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusOk, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.NotNil(suite.T(), rsp.Item)
 
 	merchant := rsp.Item
 	merchant.Banking.Currency = "RUB"
-	err = suite.service.merchant.Update(ctx, merchant)
+	err = suite.service.merchantRepository.Update(ctx, merchant)
 	assert.Nil(suite.T(), err)
 
 	orderAmount := float64(100)
@@ -940,7 +883,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "RUB")
@@ -958,7 +901,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1002,7 +945,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -1020,7 +963,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1064,7 +1007,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -1082,7 +1025,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1126,7 +1069,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
-	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, collectionRefund)
+	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
 	merchantRoyaltyCurrency := order.GetMerchantRoyaltyCurrency()
 	assert.Equal(suite.T(), merchantRoyaltyCurrency, "USD")
@@ -1144,7 +1087,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(collectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1164,7 +1107,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
-	req := &grpc.CreateAccountingEntryRequest{
+	req := &billingpb.CreateAccountingEntryRequest{
 		Type:       pkg.AccountingEntryTypeRealGrossRevenue,
 		OrderId:    order.Id,
 		RefundId:   refund.Id,
@@ -1175,14 +1118,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Date:       time.Now().Unix(),
 		Reason:     "unit test",
 	}
-	rsp := &grpc.CreateAccountingEntryResponse{}
+	rsp := &billingpb.CreateAccountingEntryResponse{}
 	err = suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusOk, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.Empty(suite.T(), rsp.Message)
 	assert.NotNil(suite.T(), rsp.Item)
 
-	var accountingEntry *billing.AccountingEntry
+	var accountingEntry *billingpb.AccountingEntry
 	oid, _ := primitive.ObjectIDFromHex(rsp.Item.Id)
 	err = suite.service.db.Collection(collectionAccountingEntry).FindOne(ctx, bson.M{"_id": oid}).Decode(&accountingEntry)
 	assert.NoError(suite.T(), err)
@@ -1190,7 +1133,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 
 	assert.Equal(suite.T(), req.Type, accountingEntry.Type)
 	assert.Equal(suite.T(), req.MerchantId, accountingEntry.Source.Id)
-	assert.Equal(suite.T(), collectionMerchant, accountingEntry.Source.Type)
+	assert.Equal(suite.T(), repository.CollectionMerchant, accountingEntry.Source.Type)
 	assert.Equal(suite.T(), req.Amount, accountingEntry.Amount)
 	assert.Equal(suite.T(), req.Currency, accountingEntry.Currency)
 	assert.Equal(suite.T(), req.Status, accountingEntry.Status)
@@ -1216,7 +1159,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
-	req := &grpc.CreateAccountingEntryRequest{
+	req := &billingpb.CreateAccountingEntryRequest{
 		Type:       pkg.AccountingEntryTypeRealGrossRevenue,
 		OrderId:    order.Id,
 		RefundId:   refund.Id,
@@ -1228,21 +1171,21 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Reason:     "unit test",
 	}
 
-	rsp := &grpc.CreateAccountingEntryResponse{}
+	rsp := &billingpb.CreateAccountingEntryResponse{}
 	err = suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
 	assert.Equal(suite.T(), accountingEntryErrorMerchantNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billing.AccountingEntry
+	var accountingEntry *billingpb.AccountingEntry
 	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.MerchantId, "source.type": collectionMerchant}).Decode(&accountingEntry)
+		FindOne(ctx, bson.M{"source.id": req.MerchantId, "source.type": repository.CollectionMerchant}).Decode(&accountingEntry)
 	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_OrderNotFound_Error() {
-	req := &grpc.CreateAccountingEntryRequest{
+	req := &billingpb.CreateAccountingEntryRequest{
 		Type:     pkg.AccountingEntryTypeRealGrossRevenue,
 		OrderId:  primitive.NewObjectID().Hex(),
 		Amount:   10,
@@ -1251,21 +1194,21 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Date:     time.Now().Unix(),
 		Reason:   "unit test",
 	}
-	rsp := &grpc.CreateAccountingEntryResponse{}
+	rsp := &billingpb.CreateAccountingEntryResponse{}
 	err := suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
 	assert.Equal(suite.T(), accountingEntryErrorOrderNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billing.AccountingEntry
+	var accountingEntry *billingpb.AccountingEntry
 	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": collectionOrder}).Decode(&accountingEntry)
+		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": repository.CollectionOrder}).Decode(&accountingEntry)
 	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_RefundNotFound_Error() {
-	req := &grpc.CreateAccountingEntryRequest{
+	req := &billingpb.CreateAccountingEntryRequest{
 		Type:     pkg.AccountingEntryTypeRealGrossRevenue,
 		RefundId: primitive.NewObjectID().Hex(),
 		Amount:   10,
@@ -1274,16 +1217,16 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Date:     time.Now().Unix(),
 		Reason:   "unit test",
 	}
-	rsp := &grpc.CreateAccountingEntryResponse{}
+	rsp := &billingpb.CreateAccountingEntryResponse{}
 	err := suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
 	assert.Equal(suite.T(), accountingEntryErrorRefundNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billing.AccountingEntry
+	var accountingEntry *billingpb.AccountingEntry
 	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": collectionRefund}).Decode(&accountingEntry)
+		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": repository.CollectionRefund}).Decode(&accountingEntry)
 	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
 }
 
@@ -1304,10 +1247,10 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 
 	refund.OriginalOrder.Id = primitive.NewObjectID().Hex()
 	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	_, err = suite.service.db.Collection(collectionRefund).ReplaceOne(ctx, bson.M{"_id": oid}, refund)
+	_, err = suite.service.db.Collection(repository.CollectionRefund).ReplaceOne(ctx, bson.M{"_id": oid}, refund)
 	assert.NoError(suite.T(), err)
 
-	req := &grpc.CreateAccountingEntryRequest{
+	req := &billingpb.CreateAccountingEntryRequest{
 		Type:     pkg.AccountingEntryTypeRealGrossRevenue,
 		RefundId: refund.Id,
 		Amount:   10,
@@ -1316,16 +1259,16 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Date:     time.Now().Unix(),
 		Reason:   "unit test",
 	}
-	rsp := &grpc.CreateAccountingEntryResponse{}
+	rsp := &billingpb.CreateAccountingEntryResponse{}
 	err = suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
 	assert.Equal(suite.T(), accountingEntryErrorOrderNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billing.AccountingEntry
+	var accountingEntry *billingpb.AccountingEntry
 	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": collectionRefund}).Decode(&accountingEntry)
+		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": repository.CollectionRefund}).Decode(&accountingEntry)
 	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
 }
 
@@ -1337,7 +1280,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
-	req := &grpc.CreateAccountingEntryRequest{
+	req := &billingpb.CreateAccountingEntryRequest{
 		Type:     "not_exist_accounting_entry_name",
 		OrderId:  order.Id,
 		Amount:   10,
@@ -1346,21 +1289,21 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Date:     time.Now().Unix(),
 		Reason:   "unit test",
 	}
-	rsp := &grpc.CreateAccountingEntryResponse{}
+	rsp := &billingpb.CreateAccountingEntryResponse{}
 	err := suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusBadData, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
 	assert.Equal(suite.T(), accountingEntryErrorUnknownEntry, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billing.AccountingEntry
+	var accountingEntry *billingpb.AccountingEntry
 	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": collectionOrder}).Decode(&accountingEntry)
+		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": repository.CollectionOrder}).Decode(&accountingEntry)
 	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
 }
 
-func (suite *AccountingEntryTestSuite) helperGetAccountingEntries(orderId, collection string) []*billing.AccountingEntry {
-	var accountingEntries []*billing.AccountingEntry
+func (suite *AccountingEntryTestSuite) helperGetAccountingEntries(orderId, collection string) []*billingpb.AccountingEntry {
+	var accountingEntries []*billingpb.AccountingEntry
 	oid, err := primitive.ObjectIDFromHex(orderId)
 	assert.NoError(suite.T(), err)
 	cursor, err := suite.service.db.Collection(collectionAccountingEntry).
@@ -1373,9 +1316,9 @@ func (suite *AccountingEntryTestSuite) helperGetAccountingEntries(orderId, colle
 }
 
 func (suite *AccountingEntryTestSuite) helperCheckOrderView(orderId, orderCurrency, royaltyCurrency, vatCurrency string, orderControlResults map[string]float64) {
-	ow, err := suite.service.orderView.GetOrderBy(ctx, orderId, "", "", new(billing.OrderViewPrivate))
+	ow, err := suite.service.orderView.GetOrderBy(ctx, orderId, "", "", new(billingpb.OrderViewPrivate))
 
-	orderView := ow.(*billing.OrderViewPrivate)
+	orderView := ow.(*billingpb.OrderViewPrivate)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderView)
 
@@ -1462,9 +1405,9 @@ func (suite *AccountingEntryTestSuite) helperCheckOrderView(orderId, orderCurren
 }
 
 func (suite *AccountingEntryTestSuite) helperCheckRefundView(orderId, orderCurrency, royaltyCurrency, vatCurrency string, refundControlResults map[string]float64) {
-	order, err := suite.service.orderView.GetOrderBy(ctx, orderId, "", "", new(billing.OrderViewPrivate))
+	order, err := suite.service.orderView.GetOrderBy(context.TODO(), orderId, "", "", new(billingpb.OrderViewPrivate))
 	assert.NoError(suite.T(), err)
-	orderView := order.(*billing.OrderViewPrivate)
+	orderView := order.(*billingpb.OrderViewPrivate)
 	assert.NotNil(suite.T(), orderView)
 
 	assert.Equal(suite.T(), orderView.PaymentRefundGrossRevenueOrigin.Currency, orderCurrency)
@@ -1517,12 +1460,12 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 	merchantCountry := "DE"
 
 	merchant := helperCreateMerchant(suite.Suite, suite.service, royaltyCurrency, merchantCountry, suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
-	project := helperCreateProject(suite.Suite, suite.service, merchant.Id, pkg.VatPayerBuyer)
+	project := helperCreateProject(suite.Suite, suite.service, merchant.Id, billingpb.VatPayerBuyer)
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
 
-	paymentMerCost := &billing.PaymentChannelCostMerchant{
+	paymentMerCost := &billingpb.PaymentChannelCostMerchant{
 		MerchantId:              merchant.Id,
 		Name:                    "MASTERCARD",
 		PayoutCurrency:          royaltyCurrency,
@@ -1535,7 +1478,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 		PsPercent:               0.05,
 		PsFixedFee:              0.05,
 		PsFixedFeeCurrency:      "EUR",
-		MccCode:                 pkg.MccCodeLowRisk,
+		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
 	err = suite.service.paymentChannelCostMerchant.Insert(ctx, paymentMerCost)
@@ -1544,6 +1487,6 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
-	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, collectionOrder)
+	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
 	assert.Equal(suite.T(), len(orderAccountingEntries), 15)
 }

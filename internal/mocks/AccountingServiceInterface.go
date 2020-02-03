@@ -2,7 +2,7 @@
 
 package mocks
 
-import billing "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
+import billingpb "github.com/paysuper/paysuper-proto/go/billingpb"
 import context "context"
 import mock "github.com/stretchr/testify/mock"
 
@@ -14,15 +14,15 @@ type AccountingServiceInterface struct {
 }
 
 // GetCorrectionsForRoyaltyReport provides a mock function with given fields: ctx, merchantId, currency, from, to
-func (_m *AccountingServiceInterface) GetCorrectionsForRoyaltyReport(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time) ([]*billing.AccountingEntry, error) {
+func (_m *AccountingServiceInterface) GetCorrectionsForRoyaltyReport(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time) ([]*billingpb.AccountingEntry, error) {
 	ret := _m.Called(ctx, merchantId, currency, from, to)
 
-	var r0 []*billing.AccountingEntry
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time) []*billing.AccountingEntry); ok {
+	var r0 []*billingpb.AccountingEntry
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time) []*billingpb.AccountingEntry); ok {
 		r0 = rf(ctx, merchantId, currency, from, to)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*billing.AccountingEntry)
+			r0 = ret.Get(0).([]*billingpb.AccountingEntry)
 		}
 	}
 
@@ -37,15 +37,15 @@ func (_m *AccountingServiceInterface) GetCorrectionsForRoyaltyReport(ctx context
 }
 
 // GetRollingReservesForRoyaltyReport provides a mock function with given fields: ctx, merchantId, currency, from, to
-func (_m *AccountingServiceInterface) GetRollingReservesForRoyaltyReport(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time) ([]*billing.AccountingEntry, error) {
+func (_m *AccountingServiceInterface) GetRollingReservesForRoyaltyReport(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time) ([]*billingpb.AccountingEntry, error) {
 	ret := _m.Called(ctx, merchantId, currency, from, to)
 
-	var r0 []*billing.AccountingEntry
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time) []*billing.AccountingEntry); ok {
+	var r0 []*billingpb.AccountingEntry
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time) []*billingpb.AccountingEntry); ok {
 		r0 = rf(ctx, merchantId, currency, from, to)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*billing.AccountingEntry)
+			r0 = ret.Get(0).([]*billingpb.AccountingEntry)
 		}
 	}
 

@@ -3,17 +3,16 @@ package service
 import (
 	"context"
 	"github.com/globalsign/mgo/bson"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 )
 
@@ -21,9 +20,9 @@ type PaymentMinLimitSystemTestSuite struct {
 	suite.Suite
 	service                *Service
 	log                    *zap.Logger
-	cache                  CacheInterface
-	PaymentMinLimitSystem  *billing.PaymentMinLimitSystem
-	PaymentMinLimitSystem2 *billing.PaymentMinLimitSystem
+	cache                  database.CacheInterface
+	PaymentMinLimitSystem  *billingpb.PaymentMinLimitSystem
+	PaymentMinLimitSystem2 *billingpb.PaymentMinLimitSystem
 }
 
 func Test_PaymentMinLimitSystem(t *testing.T) {
@@ -48,7 +47,7 @@ func (suite *PaymentMinLimitSystemTestSuite) SetupTest() {
 	}
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	casbin := &casbinMocks.CasbinService{}
 
 	suite.service = NewBillingService(
@@ -73,12 +72,12 @@ func (suite *PaymentMinLimitSystemTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.PaymentMinLimitSystem = &billing.PaymentMinLimitSystem{
+	suite.PaymentMinLimitSystem = &billingpb.PaymentMinLimitSystem{
 		Currency: "RUB",
 		Amount:   150,
 	}
 
-	suite.PaymentMinLimitSystem2 = &billing.PaymentMinLimitSystem{
+	suite.PaymentMinLimitSystem2 = &billingpb.PaymentMinLimitSystem{
 		Currency: "USD",
 		Amount:   2,
 	}
@@ -103,10 +102,10 @@ func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_AddOk() 
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), count, 0)
 
-	res := &grpc.EmptyResponseWithStatus{}
+	res := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.SetPaymentMinLimitSystem(context.TODO(), suite.PaymentMinLimitSystem, res)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, pkg.ResponseStatusOk)
+	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 
 	count, err = suite.service.db.Collection(collectionPaymentMinLimitSystem).CountDocuments(context.TODO(), bson.M{})
 	assert.NoError(suite.T(), err)
@@ -114,15 +113,15 @@ func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_AddOk() 
 }
 
 func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_ListOk() {
-	res := &grpc.EmptyResponseWithStatus{}
+	res := &billingpb.EmptyResponseWithStatus{}
 	err := suite.service.SetPaymentMinLimitSystem(context.TODO(), suite.PaymentMinLimitSystem, res)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, pkg.ResponseStatusOk)
+	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 
-	res2 := &grpc.GetPaymentMinLimitsSystemResponse{}
-	err = suite.service.GetPaymentMinLimitsSystem(context.TODO(), &grpc.EmptyRequest{}, res2)
+	res2 := &billingpb.GetPaymentMinLimitsSystemResponse{}
+	err = suite.service.GetPaymentMinLimitsSystem(context.TODO(), &billingpb.EmptyRequest{}, res2)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, pkg.ResponseStatusOk)
+	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 	assert.Len(suite.T(), res2.Items, 1)
 }
 
@@ -133,9 +132,9 @@ func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_AddFail_
 
 	suite.PaymentMinLimitSystem.Currency = "XXX"
 
-	res := &grpc.EmptyResponseWithStatus{}
+	res := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.SetPaymentMinLimitSystem(context.TODO(), suite.PaymentMinLimitSystem, res)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, pkg.ResponseStatusBadData)
+	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusBadData)
 	assert.Equal(suite.T(), res.Message, errorPaymentMinLimitSystemCurrencyUnknown)
 }

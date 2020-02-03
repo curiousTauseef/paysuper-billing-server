@@ -8,14 +8,13 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson"
@@ -24,7 +23,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 	"time"
 )
@@ -33,11 +32,11 @@ type VatReportsTestSuite struct {
 	suite.Suite
 	service *Service
 	log     *zap.Logger
-	cache   CacheInterface
+	cache   database.CacheInterface
 
-	projectFixedAmount *billing.Project
-	paymentMethod      *billing.PaymentMethod
-	paymentSystem      *billing.PaymentSystem
+	projectFixedAmount *billingpb.Project
+	paymentMethod      *billingpb.PaymentMethod
+	paymentSystem      *billingpb.PaymentSystem
 
 	logObserver *zap.Logger
 	zapRecorder *observer.ObservedLogs
@@ -92,7 +91,7 @@ func (suite *VatReportsTestSuite) SetupTest() {
 	)
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -156,9 +155,10 @@ func (suite *VatReportsTestSuite) TestVatReports_getLastVatReportTime() {
 	toRef := now.EndOfMonth()
 
 	if fromRef.Month()%2 == 0 {
-		fromRef = fromRef.AddDate(0, -1, 0)
+		fromRef = now.BeginningOfMonth().AddDate(0, 0, -1)
+		fromRef = now.New(fromRef).BeginningOfMonth()
 	} else {
-		toRef = toRef.AddDate(0, 1, 0)
+		toRef = now.EndOfMonth().AddDate(0, 0, 1)
 		toRef = now.New(toRef).EndOfMonth()
 	}
 
@@ -230,8 +230,13 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	amounts := []float64{100, 10}
 	currencies := []string{"RUB", "USD"}
 	countries := []string{"RU", "FI"}
-	var orders []*billing.Order
+	var orders []*billingpb.Order
 	numberOfOrders := 30
+
+	suite.projectFixedAmount.Status = billingpb.ProjectStatusInProduction
+	if err := suite.service.project.Update(context.TODO(), suite.projectFixedAmount); err != nil {
+		suite.FailNow("Update project test data failed", "%v", err)
+	}
 
 	count := 0
 	for count < numberOfOrders {
@@ -254,22 +259,25 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	err := suite.service.paymentSystem.Update(context.TODO(), suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	for _, order := range orders {
-		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount*0.5, false)
+	for i, order := range orders {
+		if i%3 == 0 {
+			continue
+		}
+		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 		assert.NotNil(suite.T(), refund)
 	}
 
-	req := &grpc.ProcessVatReportsRequest{
+	req := &billingpb.ProcessVatReportsRequest{
 		Date: ptypes.TimestampNow(),
 	}
-	err = suite.service.ProcessVatReports(context.TODO(), req, &grpc.EmptyResponse{})
+	err = suite.service.ProcessVatReports(context.TODO(), req, &billingpb.EmptyResponse{})
 	assert.NoError(suite.T(), err)
 
-	repRes := grpc.VatReportsResponse{}
+	repRes := billingpb.VatReportsResponse{}
 
-	err = suite.service.GetVatReportsForCountry(context.TODO(), &grpc.VatReportsRequest{Country: "RU"}, &repRes)
+	err = suite.service.GetVatReportsForCountry(context.TODO(), &billingpb.VatReportsRequest{Country: "RU"}, &repRes)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), repRes.Status, pkg.ResponseStatusOk)
+	assert.Equal(suite.T(), repRes.Status, billingpb.ResponseStatusOk)
 	assert.NotNil(suite.T(), repRes.Data)
 	assert.Equal(suite.T(), repRes.Data.Count, int32(1))
 
@@ -277,18 +285,18 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), report.Country, "RU")
 	assert.Equal(suite.T(), report.Currency, "RUB")
-	assert.EqualValues(suite.T(), report.TransactionsCount, numberOfOrders)
-	assert.EqualValues(suite.T(), report.GrossRevenue, 900)
-	assert.EqualValues(suite.T(), report.VatAmount, 150)
+	assert.EqualValues(suite.T(), report.TransactionsCount, 25)
+	assert.EqualValues(suite.T(), report.GrossRevenue, 600)
+	assert.EqualValues(suite.T(), report.VatAmount, 100)
 	assert.EqualValues(suite.T(), report.FeesAmount, 144.38)
 	assert.EqualValues(suite.T(), report.DeductionAmount, 0)
-	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 1800)
-	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 13183.1)
+	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 600)
+	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 4393.9)
 	assert.Equal(suite.T(), report.Status, pkg.VatReportStatusThreshold)
 
-	err = suite.service.GetVatReportsForCountry(context.TODO(), &grpc.VatReportsRequest{Country: "FI"}, &repRes)
+	err = suite.service.GetVatReportsForCountry(context.TODO(), &billingpb.VatReportsRequest{Country: "FI"}, &repRes)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), repRes.Status, pkg.ResponseStatusOk)
+	assert.Equal(suite.T(), repRes.Status, billingpb.ResponseStatusOk)
 	assert.NotNil(suite.T(), repRes.Data)
 	assert.Equal(suite.T(), repRes.Data.Count, int32(1))
 
@@ -296,13 +304,13 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), report.Country, "FI")
 	assert.Equal(suite.T(), report.Currency, "EUR")
-	assert.EqualValues(suite.T(), report.TransactionsCount, numberOfOrders)
-	assert.EqualValues(suite.T(), report.GrossRevenue, 81.31)
-	assert.EqualValues(suite.T(), report.VatAmount, 13.55)
+	assert.EqualValues(suite.T(), report.TransactionsCount, 25)
+	assert.EqualValues(suite.T(), report.GrossRevenue, 54.2)
+	assert.EqualValues(suite.T(), report.VatAmount, 9.03)
 	assert.EqualValues(suite.T(), report.FeesAmount, 8.89)
 	assert.EqualValues(suite.T(), report.DeductionAmount, 0)
-	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 162)
-	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 188.33)
+	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 54)
+	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 62.77)
 	assert.Equal(suite.T(), report.Status, pkg.VatReportStatusThreshold)
 
 	assert.NoError(suite.T(), err)
@@ -314,7 +322,7 @@ func (suite *VatReportsTestSuite) TestVatReports_PaymentDateSet() {
 
 	nowTimestamp := time.Now().Unix()
 
-	vatReport := &billing.VatReport{
+	vatReport := &billingpb.VatReport{
 		Id:                    primitive.NewObjectID().Hex(),
 		Country:               "RU",
 		VatRate:               20,
@@ -344,20 +352,20 @@ func (suite *VatReportsTestSuite) TestVatReports_PaymentDateSet() {
 	query := bson.M{
 		"_id": oid,
 	}
-	var vr *billing.VatReport
+	var vr *billingpb.VatReport
 	err = suite.service.db.Collection(collectionVatReports).FindOne(context.TODO(), query).Decode(&vr)
 	assert.NoError(suite.T(), err)
 	assert.NotEqual(suite.T(), vr.Status, pkg.VatReportStatusPaid)
 	assert.EqualValues(suite.T(), -62135596800, vr.PaidAt.Seconds)
 
-	req := &grpc.UpdateVatReportStatusRequest{
+	req := &billingpb.UpdateVatReportStatusRequest{
 		Id:     vr.Id,
 		Status: pkg.VatReportStatusPaid,
 	}
-	res := &grpc.ResponseError{}
+	res := &billingpb.ResponseError{}
 	err = suite.service.UpdateVatReportStatus(context.TODO(), req, res)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, pkg.ResponseStatusOk)
+	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 	assert.Empty(suite.T(), res.Message)
 
 	err = suite.service.db.Collection(collectionVatReports).FindOne(context.TODO(), query).Decode(&vr)
@@ -367,4 +375,88 @@ func (suite *VatReportsTestSuite) TestVatReports_PaymentDateSet() {
 
 	messages := suite.zapRecorder.All()
 	assert.Regexp(suite.T(), "dashboard", messages[0].Message)
+}
+
+func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports_OnlyTestOrders() {
+	amounts := []float64{100, 10}
+	currencies := []string{"RUB", "USD"}
+	countries := []string{"RU", "FI"}
+	var orders []*billingpb.Order
+	numberOfOrders := 30
+
+	assert.False(suite.T(), suite.projectFixedAmount.IsProduction())
+
+	count := 0
+	for count < numberOfOrders {
+		order := helperCreateAndPayOrder(
+			suite.Suite,
+			suite.service,
+			amounts[count%2],
+			currencies[count%2],
+			countries[count%2],
+			suite.projectFixedAmount,
+			suite.paymentMethod,
+		)
+		assert.NotNil(suite.T(), order)
+		orders = append(orders, order)
+
+		count++
+	}
+
+	suite.paymentSystem.Handler = "mock_ok"
+	err := suite.service.paymentSystem.Update(context.TODO(), suite.paymentSystem)
+	assert.NoError(suite.T(), err)
+
+	for _, order := range orders {
+		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount*0.5, false)
+		assert.NotNil(suite.T(), refund)
+	}
+
+	req := &billingpb.ProcessVatReportsRequest{
+		Date: ptypes.TimestampNow(),
+	}
+	err = suite.service.ProcessVatReports(context.TODO(), req, &billingpb.EmptyResponse{})
+	assert.NoError(suite.T(), err)
+
+	repRes := billingpb.VatReportsResponse{}
+
+	err = suite.service.GetVatReportsForCountry(context.TODO(), &billingpb.VatReportsRequest{Country: "RU"}, &repRes)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), repRes.Status, billingpb.ResponseStatusOk)
+	assert.NotNil(suite.T(), repRes.Data)
+	assert.Equal(suite.T(), repRes.Data.Count, int32(1))
+
+	report := repRes.Data.Items[0]
+	assert.NotNil(suite.T(), report)
+	assert.Equal(suite.T(), report.Country, "RU")
+	assert.Equal(suite.T(), report.Currency, "RUB")
+	assert.EqualValues(suite.T(), report.TransactionsCount, 0)
+	assert.EqualValues(suite.T(), report.GrossRevenue, 0)
+	assert.EqualValues(suite.T(), report.VatAmount, 0)
+	assert.EqualValues(suite.T(), report.FeesAmount, 0)
+	assert.EqualValues(suite.T(), report.DeductionAmount, 0)
+	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 0)
+	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 0)
+	assert.Equal(suite.T(), report.Status, pkg.VatReportStatusThreshold)
+
+	err = suite.service.GetVatReportsForCountry(context.TODO(), &billingpb.VatReportsRequest{Country: "FI"}, &repRes)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), repRes.Status, billingpb.ResponseStatusOk)
+	assert.NotNil(suite.T(), repRes.Data)
+	assert.Equal(suite.T(), repRes.Data.Count, int32(1))
+
+	report = repRes.Data.Items[0]
+	assert.NotNil(suite.T(), report)
+	assert.Equal(suite.T(), report.Country, "FI")
+	assert.Equal(suite.T(), report.Currency, "EUR")
+	assert.EqualValues(suite.T(), report.TransactionsCount, 0)
+	assert.EqualValues(suite.T(), report.GrossRevenue, 0)
+	assert.EqualValues(suite.T(), report.VatAmount, 0)
+	assert.EqualValues(suite.T(), report.FeesAmount, 0)
+	assert.EqualValues(suite.T(), report.DeductionAmount, 0)
+	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 0)
+	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 0)
+	assert.Equal(suite.T(), report.Status, pkg.VatReportStatusThreshold)
+
+	assert.NoError(suite.T(), err)
 }

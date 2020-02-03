@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/paylink"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
+	tools "github.com/paysuper/paysuper-tools/number"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -25,32 +25,33 @@ const (
 
 var (
 	statusForRoyaltySummary = []string{
-		constant.OrderPublicStatusProcessed,
-		constant.OrderPublicStatusRefunded,
-		constant.OrderPublicStatusChargeback,
+		recurringpb.OrderPublicStatusProcessed,
+		recurringpb.OrderPublicStatusRefunded,
+		recurringpb.OrderPublicStatusChargeback,
 	}
 )
 
 type royaltySummaryResult struct {
-	Items []*billing.RoyaltyReportProductSummaryItem `bson:"top"`
-	Total *billing.RoyaltyReportProductSummaryItem   `bson:"total"`
+	Items []*billingpb.RoyaltyReportProductSummaryItem `bson:"top"`
+	Total *billingpb.RoyaltyReportProductSummaryItem   `bson:"total"`
 }
 
-type conformPaylinkStatItemFn func(item *paylink.StatCommon)
+type conformPaylinkStatItemFn func(item *billingpb.StatCommon)
 
 type list []interface{}
 
 type OrderViewServiceInterface interface {
 	CountTransactions(ctx context.Context, match bson.M) (n int64, err error)
-	GetTransactionsPublic(ctx context.Context, match bson.M, limit, offset int64) (result []*billing.OrderViewPublic, err error)
-	GetTransactionsPrivate(ctx context.Context, match bson.M, limit, offset int64) (result []*billing.OrderViewPrivate, err error)
-	GetRoyaltySummary(ctx context.Context, merchantId, currency string, from, to time.Time) (items []*billing.RoyaltyReportProductSummaryItem, total *billing.RoyaltyReportProductSummaryItem, err error)
+	GetTransactionsPublic(ctx context.Context, match bson.M, limit, offset int64) (result []*billingpb.OrderViewPublic, err error)
+	GetTransactionsPrivate(ctx context.Context, match bson.M, limit, offset int64) (result []*billingpb.OrderViewPrivate, err error)
+	GetRoyaltySummary(ctx context.Context, merchantId, currency string, from, to time.Time) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, err error)
 	GetOrderBy(ctx context.Context, id, uuid, merchantId string, receiver interface{}) (interface{}, error)
-	GetPaylinkStat(ctx context.Context, paylinkId, merchantId string, from, to int64) (*paylink.StatCommon, error)
-	GetPaylinkStatByCountry(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *paylink.GroupStatCommon, err error)
-	GetPaylinkStatByReferrer(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *paylink.GroupStatCommon, err error)
-	GetPaylinkStatByDate(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *paylink.GroupStatCommon, err error)
-	GetPaylinkStatByUtm(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *paylink.GroupStatCommon, err error)
+	GetPaylinkStat(ctx context.Context, paylinkId, merchantId string, from, to int64) (*billingpb.StatCommon, error)
+	GetPaylinkStatByCountry(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *billingpb.GroupStatCommon, err error)
+	GetPaylinkStatByReferrer(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *billingpb.GroupStatCommon, err error)
+	GetPaylinkStatByDate(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *billingpb.GroupStatCommon, err error)
+	GetPaylinkStatByUtm(ctx context.Context, paylinkId, merchantId string, from, to int64) (result *billingpb.GroupStatCommon, err error)
+	GetPublicByOrderId(ctx context.Context, merchantId string) (*billingpb.OrderViewPublic, error)
 }
 
 func newOrderView(svc *Service) OrderViewServiceInterface {
@@ -135,6 +136,40 @@ func (s *Service) doUpdateOrderView(ctx context.Context, match bson.M) error {
 
 	orderViewQuery := []bson.M{
 		match,
+		{
+			"$lookup": bson.M{
+				"from": "merchant",
+				"let": bson.M{
+					"merchant_id": "$project.merchant_id",
+				},
+				"pipeline": []bson.M{
+					{
+						"$match": bson.M{
+							"$expr": bson.M{
+								"$eq": []string{
+									"$_id",
+									"$$merchant_id",
+								},
+							},
+						},
+					},
+					{
+						"$project": bson.M{
+							"company_name":     "$company.name",
+							"agreement_number": "$agreement_number",
+							"_id":              0,
+						},
+					},
+				},
+				"as": "merchant_info",
+			},
+		},
+		{
+			"$unwind": bson.M{
+				"path":                       "$merchant_info",
+				"preserveNullAndEmptyArrays": true,
+			},
+		},
 		{
 			"$lookup": bson.M{
 				"from": "accounting_entry",
@@ -3068,6 +3103,25 @@ func (s *Service) doUpdateOrderView(ctx context.Context, match bson.M) error {
 			},
 		},
 		{
+			"$addFields": bson.M{
+				"order_charge_before_vat": bson.M{
+					"amount": bson.M{
+						"$cond": list{
+							bson.M{
+								"$eq": []string{
+									"$type",
+									"order",
+								},
+							},
+							bson.M{"$subtract": list{"$charge_amount", "$payment_tax_fee_origin.amount"}},
+							bson.M{"$subtract": list{"$charge_amount", "$payment_refund_tax_fee_origin.amount"}},
+						},
+					},
+					"currency": "$charge_currency",
+				},
+			},
+		},
+		{
 			"$project": bson.M{
 				"_id":                  1,
 				"uuid":                 1,
@@ -3085,6 +3139,8 @@ func (s *Service) doUpdateOrderView(ctx context.Context, match bson.M) error {
 				"country_code":         1,
 				"merchant_id":          "$project.merchant_id",
 				"status":               1,
+				"tax_rate":             "$tax.rate",
+				"merchant_info":        1,
 				"locale": bson.M{
 					"$cond": list{
 						bson.M{
@@ -3161,9 +3217,11 @@ func (s *Service) doUpdateOrderView(ctx context.Context, match bson.M) error {
 				"payment_ip_country":                                1,
 				"is_ip_country_mismatch_bin":                        1,
 				"order_charge":                                      1,
+				"order_charge_before_vat":                           1,
 				"billing_country_changed_by_user":                   1,
 				"refund_allowed":                                    "$is_refund_allowed",
 				"vat_payer":                                         1,
+				"is_production":                                     1,
 				"merchant_payout_currency": bson.M{
 					"$ifNull": list{"$net_revenue.currency", "$refund_reverse_revenue.currency"},
 				},
@@ -3183,13 +3241,13 @@ func (s *Service) doUpdateOrderView(ctx context.Context, match bson.M) error {
 		},
 	}
 
-	cursor, err := s.db.Collection(collectionOrder).Aggregate(ctx, orderViewQuery)
+	cursor, err := s.db.Collection(repository.CollectionOrder).Aggregate(ctx, orderViewQuery)
 
 	if err != nil {
 		zap.L().Error(
 			errorOrderViewUpdateQuery,
 			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrder),
+			zap.String(pkg.ErrorDatabaseFieldCollection, repository.CollectionOrder),
 		)
 		return err
 	}
@@ -3200,7 +3258,7 @@ func (s *Service) doUpdateOrderView(ctx context.Context, match bson.M) error {
 			zap.L().Error(
 				errorDbCurdorCloseFailed,
 				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrder),
+				zap.String(pkg.ErrorDatabaseFieldCollection, repository.CollectionOrder),
 			)
 		}
 	}()
@@ -3212,7 +3270,7 @@ func (s *Service) doUpdateOrderView(ctx context.Context, match bson.M) error {
 		zap.L().Error(
 			errorOrderViewUpdateQuery,
 			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrder),
+			zap.String(pkg.ErrorDatabaseFieldCollection, repository.CollectionOrder),
 		)
 		return err
 	}
@@ -3253,7 +3311,7 @@ func (ow *OrderView) GetTransactionsPublic(
 	ctx context.Context,
 	match bson.M,
 	limit, offset int64,
-) ([]*billing.OrderViewPublic, error) {
+) ([]*billingpb.OrderViewPublic, error) {
 	sort := bson.M{"created_at": 1}
 	opts := options.Find().
 		SetSort(sort).
@@ -3273,7 +3331,7 @@ func (ow *OrderView) GetTransactionsPublic(
 		return nil, err
 	}
 
-	var result []*billing.OrderViewPublic
+	var result []*billingpb.OrderViewPublic
 	err = cursor.All(ctx, &result)
 
 	if err != nil {
@@ -3295,7 +3353,7 @@ func (ow *OrderView) GetTransactionsPrivate(
 	ctx context.Context,
 	match bson.M,
 	limit, offset int64,
-) ([]*billing.OrderViewPrivate, error) {
+) ([]*billingpb.OrderViewPrivate, error) {
 	sort := bson.M{"created_at": 1}
 	opts := options.Find().
 		SetSort(sort).
@@ -3315,7 +3373,7 @@ func (ow *OrderView) GetTransactionsPrivate(
 		return nil, err
 	}
 
-	var result []*billing.OrderViewPrivate
+	var result []*billingpb.OrderViewPrivate
 	err = cursor.All(ctx, &result)
 
 	if err != nil {
@@ -3379,9 +3437,9 @@ func (ow *OrderView) GetRoyaltySummary(
 	ctx context.Context,
 	merchantId, currency string,
 	from, to time.Time,
-) (items []*billing.RoyaltyReportProductSummaryItem, total *billing.RoyaltyReportProductSummaryItem, err error) {
-	items = []*billing.RoyaltyReportProductSummaryItem{}
-	total = &billing.RoyaltyReportProductSummaryItem{}
+) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, err error) {
+	items = []*billingpb.RoyaltyReportProductSummaryItem{}
+	total = &billingpb.RoyaltyReportProductSummaryItem{}
 	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
 
 	query := []bson.M{
@@ -3391,6 +3449,7 @@ func (ow *OrderView) GetRoyaltySummary(
 				"merchant_payout_currency": currency,
 				"pm_order_close_date":      bson.M{"$gte": from, "$lte": to},
 				"status":                   bson.M{"$in": statusForRoyaltySummary},
+				"is_production":            true,
 			},
 		},
 		{
@@ -3505,7 +3564,7 @@ func (ow *OrderView) GetRoyaltySummary(
 			zap.L().Error(
 				errorDbCurdorCloseFailed,
 				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrder),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
 			)
 		}
 	}()
@@ -3541,7 +3600,7 @@ func (ow *OrderView) GetRoyaltySummary(
 	return
 }
 
-func (ow *OrderView) royaltySummaryItemPrecise(item *billing.RoyaltyReportProductSummaryItem) {
+func (ow *OrderView) royaltySummaryItemPrecise(item *billingpb.RoyaltyReportProductSummaryItem) {
 	item.GrossSalesAmount = tools.ToPrecise(item.GrossSalesAmount)
 	item.GrossReturnsAmount = tools.ToPrecise(item.GrossReturnsAmount)
 	item.GrossTotalAmount = tools.ToPrecise(item.GrossTotalAmount)
@@ -3640,13 +3699,13 @@ func (ow *OrderView) GetPaylinkStat(
 	ctx context.Context,
 	paylinkId, merchantId string,
 	from, to int64,
-) (*paylink.StatCommon, error) {
+) (*billingpb.StatCommon, error) {
 	query := append(
 		ow.GetPaylinkStatMatchQuery(paylinkId, merchantId, from, to),
 		ow.getPaylinkStatGroupingQuery("$merchant_payout_currency")...,
 	)
 
-	var results []*paylink.StatCommon
+	var results []*billingpb.StatCommon
 	cursor, err := ow.svc.db.Collection(collectionOrderView).Aggregate(ctx, query)
 
 	if err != nil {
@@ -3680,7 +3739,7 @@ func (ow *OrderView) GetPaylinkStat(
 	}
 
 	if resultsCount == 0 {
-		return &paylink.StatCommon{}, nil
+		return &billingpb.StatCommon{}, nil
 	}
 
 	zap.L().Error(
@@ -3694,8 +3753,8 @@ func (ow *OrderView) GetPaylinkStatByCountry(
 	ctx context.Context,
 	paylinkId, merchantId string,
 	from, to int64,
-) (result *paylink.GroupStatCommon, err error) {
-	return ow.getPaylinkGroupStat(ctx, paylinkId, merchantId, from, to, "$country_code", func(item *paylink.StatCommon) {
+) (result *billingpb.GroupStatCommon, err error) {
+	return ow.getPaylinkGroupStat(ctx, paylinkId, merchantId, from, to, "$country_code", func(item *billingpb.StatCommon) {
 		item.PaylinkId = paylinkId
 		item.CountryCode = item.Id
 	})
@@ -3705,8 +3764,8 @@ func (ow *OrderView) GetPaylinkStatByReferrer(
 	ctx context.Context,
 	paylinkId, merchantId string,
 	from, to int64,
-) (result *paylink.GroupStatCommon, err error) {
-	return ow.getPaylinkGroupStat(ctx, paylinkId, merchantId, from, to, "$issuer.referrer_host", func(item *paylink.StatCommon) {
+) (result *billingpb.GroupStatCommon, err error) {
+	return ow.getPaylinkGroupStat(ctx, paylinkId, merchantId, from, to, "$issuer.referrer_host", func(item *billingpb.StatCommon) {
 		item.PaylinkId = paylinkId
 		item.ReferrerHost = item.Id
 	})
@@ -3716,12 +3775,12 @@ func (ow *OrderView) GetPaylinkStatByDate(
 	ctx context.Context,
 	paylinkId, merchantId string,
 	from, to int64,
-) (result *paylink.GroupStatCommon, err error) {
+) (result *billingpb.GroupStatCommon, err error) {
 	return ow.getPaylinkGroupStat(ctx, paylinkId, merchantId, from, to,
 		bson.M{
 			"$dateToString": bson.M{"format": "%Y-%m-%d", "date": "$pm_order_close_date"},
 		},
-		func(item *paylink.StatCommon) {
+		func(item *billingpb.StatCommon) {
 			item.Date = item.Id
 			item.PaylinkId = paylinkId
 		})
@@ -3731,15 +3790,15 @@ func (ow *OrderView) GetPaylinkStatByUtm(
 	ctx context.Context,
 	paylinkId, merchantId string,
 	from, to int64,
-) (result *paylink.GroupStatCommon, err error) {
+) (result *billingpb.GroupStatCommon, err error) {
 	return ow.getPaylinkGroupStat(ctx, paylinkId, merchantId, from, to,
 		bson.M{
 			"$concat": list{"$issuer.utm_source", "&", "$issuer.utm_medium", "&", "$issuer.utm_campaign"},
 		},
-		func(item *paylink.StatCommon) {
+		func(item *billingpb.StatCommon) {
 			if item.Id != "" {
 				utm := strings.Split(item.Id, "&")
-				item.Utm = &paylink.Utm{
+				item.Utm = &billingpb.Utm{
 					UtmSource:   utm[0],
 					UtmMedium:   utm[1],
 					UtmCampaign: utm[2],
@@ -3756,7 +3815,7 @@ func (ow *OrderView) getPaylinkGroupStat(
 	from, to int64,
 	groupingId interface{},
 	conformFn conformPaylinkStatItemFn,
-) (result *paylink.GroupStatCommon, err error) {
+) (result *billingpb.GroupStatCommon, err error) {
 	query := ow.GetPaylinkStatMatchQuery(paylinkId, merchantId, from, to)
 	query = append(query, bson.M{
 		"$facet": bson.M{
@@ -3793,7 +3852,7 @@ func (ow *OrderView) getPaylinkGroupStat(
 			zap.L().Error(
 				errorDbCurdorCloseFailed,
 				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrder),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
 			)
 		}
 	}()
@@ -3822,7 +3881,7 @@ func (ow *OrderView) getPaylinkGroupStat(
 	}
 
 	if result.Total == nil {
-		result.Total = &paylink.StatCommon{
+		result.Total = &billingpb.StatCommon{
 			PaylinkId: paylinkId,
 		}
 	}
@@ -3833,8 +3892,19 @@ func (ow *OrderView) getPaylinkGroupStat(
 	return
 }
 
-func (ow *OrderView) paylinkStatItemPrecise(item *paylink.StatCommon) {
+func (ow *OrderView) paylinkStatItemPrecise(item *billingpb.StatCommon) {
 	item.GrossSalesAmount = tools.ToPrecise(item.GrossSalesAmount)
 	item.GrossReturnsAmount = tools.ToPrecise(item.GrossReturnsAmount)
 	item.GrossTotalAmount = tools.ToPrecise(item.GrossTotalAmount)
+}
+
+func (ow *OrderView) GetPublicByOrderId(ctx context.Context, orderId string) (*billingpb.OrderViewPublic, error) {
+	order := &billingpb.OrderViewPublic{}
+	err := ow.svc.db.Collection(collectionOrderView).FindOne(ctx, bson.M{"uuid": orderId}).Decode(order)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return order, nil
 }

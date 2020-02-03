@@ -3,25 +3,16 @@ package service
 import (
 	"context"
 	"fmt"
-	casbinProto "github.com/paysuper/casbin-server/pkg/generated/api/proto/casbinpb"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinProto "github.com/paysuper/paysuper-proto/go/casbinpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 )
 
-const (
-	cacheMerchantId       = "merchant:id:%s"
-	cacheMerchantCommonId = "merchant:common:id:%s"
-
-	collectionMerchant                     = "merchant"
-	collectionMerchantPaymentMethodHistory = "payment_method_history"
-)
-
 func (s *Service) MerchantsMigrate(ctx context.Context) error {
-	merchants, err := s.merchant.GetAll(ctx)
+	merchants, err := s.merchantRepository.GetAll(ctx)
 
 	if err != nil {
 		zap.L().Error("[task merchants migrate] Unable to get merchants", zap.Error(err))
@@ -37,14 +28,14 @@ func (s *Service) MerchantsMigrate(ctx context.Context) error {
 			continue
 		}
 
-		userRole := &billing.UserRole{
+		userRole := &billingpb.UserRole{
 			Id:         primitive.NewObjectID().Hex(),
 			MerchantId: merchant.Id,
 			UserId:     merchant.User.Id,
 			Email:      merchant.User.Email,
 			FirstName:  merchant.User.FirstName,
 			LastName:   merchant.User.LastName,
-			Role:       pkg.RoleMerchantOwner,
+			Role:       billingpb.RoleMerchantOwner,
 			Status:     pkg.UserRoleStatusAccepted,
 		}
 
@@ -61,7 +52,7 @@ func (s *Service) MerchantsMigrate(ctx context.Context) error {
 
 		casbinRole := &casbinProto.UserRoleRequest{
 			User: fmt.Sprintf(pkg.CasbinMerchantUserMask, merchant.Id, merchant.User.Id),
-			Role: pkg.RoleMerchantOwner,
+			Role: billingpb.RoleMerchantOwner,
 		}
 
 		roles, err := s.casbinService.GetRolesForUser(context.TODO(), casbinRole)
@@ -80,245 +71,27 @@ func (s *Service) MerchantsMigrate(ctx context.Context) error {
 	return nil
 }
 
-type MerchantRepositoryInterface interface {
-	Update(ctx context.Context, merchant *billing.Merchant) error
-	Insert(ctx context.Context, merchant *billing.Merchant) error
-	Upsert(ctx context.Context, merchant *billing.Merchant) error
-	MultipleInsert(ctx context.Context, merchants []*billing.Merchant) error
-	GetById(ctx context.Context, id string) (*billing.Merchant, error)
-	GetCommonById(ctx context.Context, id string) (*billing.MerchantCommon, error)
-	GetPaymentMethod(ctx context.Context, merchantId string, method string) (*billing.MerchantPaymentMethod, error)
-	GetMerchantsWithAutoPayouts(ctx context.Context) ([]*billing.Merchant, error)
-	GetAll(ctx context.Context) ([]*billing.Merchant, error)
-}
-
-func newMerchantService(svc *Service) MerchantRepositoryInterface {
-	return &Merchant{svc: svc}
-}
-
-func (h *Merchant) GetMerchantsWithAutoPayouts(ctx context.Context) (merchants []*billing.Merchant, err error) {
-	query := bson.M{
-		"manual_payouts_enabled": false,
-	}
-	cursor, err := h.svc.db.Collection(collectionMerchant).Find(ctx, query)
+func (s *Service) getMerchantPaymentMethod(ctx context.Context, merchantId, method string) (*billingpb.MerchantPaymentMethod, error) {
+	merchant, err := s.merchantRepository.GetById(ctx, merchantId)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return
+		return nil, merchantErrorNotFound
 	}
 
-	err = cursor.All(ctx, &merchants)
+	merchantPaymentMethods := make(map[string]*billingpb.MerchantPaymentMethod)
 
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return
-	}
-
-	return
-}
-
-func (h *Merchant) Update(ctx context.Context, merchant *billing.Merchant) error {
-	oid, _ := primitive.ObjectIDFromHex(merchant.Id)
-	filter := bson.M{"_id": oid}
-	opts := options.FindOneAndReplace().SetUpsert(true)
-	err := h.svc.db.Collection(collectionMerchant).FindOneAndReplace(ctx, filter, merchant, opts).Err()
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
-		)
-
-		return err
-	}
-
-	key := fmt.Sprintf(cacheMerchantId, merchant.Id)
-	err = h.svc.cacher.Set(key, merchant, 0)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
-		)
-
-		return err
-	}
-
-	return nil
-}
-
-func (h *Merchant) Insert(ctx context.Context, merchant *billing.Merchant) error {
-	_, err := h.svc.db.Collection(collectionMerchant).InsertOne(ctx, merchant)
-
-	if err != nil {
-		return err
-	}
-
-	err = h.svc.cacher.Set(fmt.Sprintf(cacheMerchantId, merchant.Id), merchant, 0)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *Merchant) Upsert(ctx context.Context, merchant *billing.Merchant) error {
-	oid, _ := primitive.ObjectIDFromHex(merchant.Id)
-	filter := bson.M{"_id": oid}
-	opts := options.Replace().SetUpsert(true)
-	_, err := h.svc.db.Collection(collectionMerchant).ReplaceOne(ctx, filter, merchant, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
-		)
-
-		return err
-	}
-
-	key := fmt.Sprintf(cacheMerchantId, merchant.Id)
-	err = h.svc.cacher.Set(key, merchant, 0)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
-		)
-
-		return err
-	}
-
-	return nil
-}
-
-func (h *Merchant) MultipleInsert(ctx context.Context, merchants []*billing.Merchant) error {
-	m := make([]interface{}, len(merchants))
-	for i, v := range merchants {
-		m[i] = v
-	}
-
-	_, err := h.svc.db.Collection(collectionMerchant).InsertMany(ctx, m)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *Merchant) GetById(ctx context.Context, id string) (*billing.Merchant, error) {
-	var c billing.Merchant
-	key := fmt.Sprintf(cacheMerchantId, id)
-
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	oid, _ := primitive.ObjectIDFromHex(id)
-	query := bson.M{"_id": oid}
-	err := h.svc.db.Collection(collectionMerchant).FindOne(ctx, query).Decode(&c)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil,	merchantErrorNotFound
-	}
-
-	if err := h.svc.cacher.Set(key, c, 0); err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, c),
-		)
-	}
-
-	return &c, nil
-}
-
-func (h *Merchant) GetCommonById(ctx context.Context, id string) (*billing.MerchantCommon, error) {
-	var c billing.MerchantCommon
-	key := fmt.Sprintf(cacheMerchantCommonId, id)
-
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	oid, _ := primitive.ObjectIDFromHex(id)
-	query := bson.M{"_id": oid}
-	err := h.svc.db.Collection(collectionMerchant).FindOne(ctx, query).Decode(&c)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, fmt.Errorf(errorNotFound, collectionMerchant)
-	}
-
-	if err := h.svc.cacher.Set(key, c, 0); err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, c),
-		)
-	}
-
-	return &c, nil
-}
-
-func (h Merchant) GetPaymentMethod(
-	ctx context.Context,
-	merchantId string,
-	method string,
-) (*billing.MerchantPaymentMethod, error) {
-	m, err := h.GetById(ctx, merchantId)
-	if err != nil {
-		return nil, err
-	}
-
-	merchantPaymentMethods := make(map[string]*billing.MerchantPaymentMethod)
-	if len(m.PaymentMethods) > 0 {
-		for k, v := range m.PaymentMethods {
+	if len(merchant.PaymentMethods) > 0 {
+		for k, v := range merchant.PaymentMethods {
 			merchantPaymentMethods[k] = v
 		}
 	}
 
-	pm, err := h.svc.paymentMethod.GetAll(ctx)
+	pm, err := s.paymentMethod.GetAll(ctx)
+
 	if err != nil {
 		return nil, err
 	}
+
 	if len(merchantPaymentMethods) != len(pm) {
 		for k, v := range pm {
 			_, ok := merchantPaymentMethods[k]
@@ -327,54 +100,27 @@ func (h Merchant) GetPaymentMethod(
 				continue
 			}
 
-			merchantPaymentMethods[k] = &billing.MerchantPaymentMethod{
-				PaymentMethod: &billing.MerchantPaymentMethodIdentification{
+			merchantPaymentMethods[k] = &billingpb.MerchantPaymentMethod{
+				PaymentMethod: &billingpb.MerchantPaymentMethodIdentification{
 					Id:   k,
 					Name: v.Name,
 				},
-				Commission: &billing.MerchantPaymentMethodCommissions{
-					Fee: DefaultPaymentMethodFee,
-					PerTransaction: &billing.MerchantPaymentMethodPerTransactionCommission{
-						Fee:      DefaultPaymentMethodPerTransactionFee,
-						Currency: DefaultPaymentMethodCurrency,
+				Commission: &billingpb.MerchantPaymentMethodCommissions{
+					Fee: pkg.DefaultPaymentMethodFee,
+					PerTransaction: &billingpb.MerchantPaymentMethodPerTransactionCommission{
+						Fee:      pkg.DefaultPaymentMethodPerTransactionFee,
+						Currency: pkg.DefaultPaymentMethodCurrency,
 					},
 				},
-				Integration: &billing.MerchantPaymentMethodIntegration{},
+				Integration: &billingpb.MerchantPaymentMethodIntegration{},
 				IsActive:    true,
 			}
 		}
 	}
 
 	if _, ok := merchantPaymentMethods[method]; !ok {
-		return nil, fmt.Errorf(errorNotFound, collectionMerchant)
+		return nil, fmt.Errorf(errorNotFound, repository.CollectionMerchant)
 	}
 
 	return merchantPaymentMethods[method], nil
-}
-
-func (h *Merchant) GetAll(ctx context.Context) ([]*billing.Merchant, error) {
-	var c []*billing.Merchant
-	cursor, err := h.svc.db.Collection(collectionMerchant).Find(ctx, nil)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-		)
-		return nil, fmt.Errorf(errorNotFound, collectionMerchant)
-	}
-
-	err = cursor.All(ctx, &c)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchant),
-		)
-		return nil, fmt.Errorf(errorNotFound, collectionMerchant)
-	}
-
-	return c, nil
 }

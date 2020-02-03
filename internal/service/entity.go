@@ -16,29 +16,21 @@ type Entity struct {
 
 type Currency Entity
 type Commission Entity
-type Country Entity
-type Project Entity
 type PaymentMethod Entity
-type Merchant Entity
+
 type PayoutDocument Entity
 type OrderView Entity
 type Accounting Entity
-type MerchantBalance Entity
 type RoyaltyReport Entity
-type PriceGroup Entity
 type PaymentSystemService Entity
-type ZipCode Entity
 type PaymentChannelCostSystem Entity
 type PaymentChannelCostMerchant Entity
-type MoneyBackCostSystem Entity
-type MoneyBackCostMerchant Entity
 type Paylink Entity
 type OperatingCompany Entity
 type PaymentMinLimitSystem Entity
 type PayoutCostSystem Entity
 type PriceTable Entity
 type Product Entity
-type Turnover Entity
 type Key Entity
 
 type Repository struct {
@@ -46,11 +38,8 @@ type Repository struct {
 }
 
 type MerchantsTariffRatesRepository Repository
-type OrderRepository Repository
-type DashboardRepository Entity
-type UserRoleRepository Entity
-type UserProfileRepository Entity
-type KeyProductRepository Entity
+type DashboardRepository Repository
+type KeyProductRepository Repository
 
 type kvIntFloat struct {
 	Key   int
@@ -64,15 +53,6 @@ type kvIntInt struct {
 
 type balanceQueryResItem struct {
 	Amount float64 `bson:"amount"`
-}
-
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
 }
 
 func timeTrack(start time.Time, name string) {

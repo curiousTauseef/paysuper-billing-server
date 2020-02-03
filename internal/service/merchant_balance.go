@@ -2,22 +2,13 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
-)
-
-const (
-	collectionMerchantBalances = "merchant_balances"
-
-	cacheKeyMerchantBalances = "balance:merchant_id:%s:currency:%s"
 )
 
 var (
@@ -34,23 +25,13 @@ type reserveQueryResItem struct {
 	Amount float64 `bson:"amount"`
 }
 
-type MerchantBalanceServiceInterface interface {
-	Insert(ctx context.Context, document *billing.MerchantBalance) error
-	GetByMerchantIdAndCurrency(ctx context.Context, merchantId, currency string) (*billing.MerchantBalance, error)
-}
-
-func newMerchantBalance(svc *Service) MerchantBalanceServiceInterface {
-	s := &MerchantBalance{svc: svc}
-	return s
-}
-
 func (s *Service) GetMerchantBalance(
 	ctx context.Context,
-	req *grpc.GetMerchantBalanceRequest,
-	res *grpc.GetMerchantBalanceResponse,
+	req *billingpb.GetMerchantBalanceRequest,
+	res *billingpb.GetMerchantBalanceResponse,
 ) error {
 	var err error
-	res.Status = pkg.ResponseStatusOk
+	res.Status = billingpb.ResponseStatusOk
 
 	res.Item, err = s.getMerchantBalance(ctx, req.MerchantId)
 	if err == nil {
@@ -60,16 +41,16 @@ func (s *Service) GetMerchantBalance(
 	if err == mongo.ErrNoDocuments {
 		res.Item, err = s.updateMerchantBalance(ctx, req.MerchantId)
 		if err != nil {
-			if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-				res.Status = pkg.ResponseStatusSystemError
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				res.Status = billingpb.ResponseStatusSystemError
 				res.Message = e
 				return nil
 			}
 			return err
 		}
 	} else {
-		if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-			res.Status = pkg.ResponseStatusSystemError
+		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+			res.Status = billingpb.ResponseStatusSystemError
 			res.Message = e
 			return nil
 		}
@@ -79,10 +60,10 @@ func (s *Service) GetMerchantBalance(
 	return nil
 }
 
-func (s *Service) getMerchantBalance(ctx context.Context, merchantId string) (*billing.MerchantBalance, error) {
-	merchant, err := s.merchant.GetById(ctx, merchantId)
+func (s *Service) getMerchantBalance(ctx context.Context, merchantId string) (*billingpb.MerchantBalance, error) {
+	merchant, err := s.merchantRepository.GetById(ctx, merchantId)
 	if err != nil {
-		return nil, err
+		return nil, merchantErrorNotFound
 	}
 
 	if merchant.GetPayoutCurrency() == "" {
@@ -90,13 +71,13 @@ func (s *Service) getMerchantBalance(ctx context.Context, merchantId string) (*b
 		return nil, errorMerchantPayoutCurrencyNotSet
 	}
 
-	return s.merchantBalance.GetByMerchantIdAndCurrency(ctx, merchant.Id, merchant.GetPayoutCurrency())
+	return s.merchantBalanceRepository.GetByIdAndCurrency(ctx, merchant.Id, merchant.GetPayoutCurrency())
 }
 
-func (s *Service) updateMerchantBalance(ctx context.Context, merchantId string) (*billing.MerchantBalance, error) {
-	merchant, err := s.merchant.GetById(ctx, merchantId)
+func (s *Service) updateMerchantBalance(ctx context.Context, merchantId string) (*billingpb.MerchantBalance, error) {
+	merchant, err := s.merchantRepository.GetById(ctx, merchantId)
 	if err != nil {
-		return nil, err
+		return nil, merchantErrorNotFound
 	}
 
 	if merchant.GetPayoutCurrency() == "" {
@@ -119,7 +100,7 @@ func (s *Service) updateMerchantBalance(ctx context.Context, merchantId string) 
 		return nil, err
 	}
 
-	balance := &billing.MerchantBalance{
+	balance := &billingpb.MerchantBalance{
 		Id:             primitive.NewObjectID().Hex(),
 		MerchantId:     merchantId,
 		Currency:       merchant.GetPayoutCurrency(),
@@ -131,14 +112,9 @@ func (s *Service) updateMerchantBalance(ctx context.Context, merchantId string) 
 
 	balance.Total = balance.Debit - balance.Credit - balance.RollingReserve
 
-	err = s.merchantBalance.Insert(ctx, balance)
+	err = s.merchantBalanceRepository.Insert(ctx, balance)
+
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String("collection", collectionMerchantBalances),
-			zap.Any("balance", balance),
-		)
 		return nil, err
 	}
 
@@ -221,84 +197,4 @@ func (s *Service) getRollingReserveForBalance(ctx context.Context, merchantId, c
 	}
 
 	return result, nil
-}
-
-func (m MerchantBalance) Insert(ctx context.Context, mb *billing.MerchantBalance) (err error) {
-	_, err = m.svc.db.Collection(collectionMerchantBalances).InsertOne(ctx, mb)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchantBalances),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationInsert),
-			zap.Any(pkg.ErrorDatabaseFieldDocument, mb),
-		)
-		return
-	}
-
-	key := fmt.Sprintf(cacheKeyMerchantBalances, mb.MerchantId, mb.Currency)
-	err = m.svc.cacher.Set(key, mb, 0)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, mb),
-		)
-		// suppress error returning here
-		err = nil
-	}
-
-	return
-}
-
-func (m MerchantBalance) GetByMerchantIdAndCurrency(
-	ctx context.Context,
-	merchantId, currency string,
-) (mb *billing.MerchantBalance, err error) {
-	var c billing.MerchantBalance
-	key := fmt.Sprintf(cacheKeyMerchantBalances, merchantId, currency)
-
-	if err := m.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := bson.M{
-		"merchant_id": merchantOid,
-		"currency":    currency,
-	}
-
-	sorts := bson.M{"_id": -1}
-	opts := options.FindOne().SetSort(sorts)
-	err = m.svc.db.Collection(collectionMerchantBalances).FindOne(ctx, query, opts).Decode(&mb)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			zap.Any(pkg.ErrorDatabaseFieldSorts, sorts),
-		)
-		return
-	}
-
-	err = m.svc.cacher.Set(key, mb, 0)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, mb),
-		)
-		// suppress error returning here
-		err = nil
-	}
-
-	return
 }

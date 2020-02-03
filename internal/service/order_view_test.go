@@ -8,23 +8,20 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/paylink"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
+	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 	"time"
 )
@@ -33,14 +30,14 @@ type OrderViewTestSuite struct {
 	suite.Suite
 	service *Service
 	log     *zap.Logger
-	cache   CacheInterface
+	cache   database.CacheInterface
 
-	merchant            *billing.Merchant
-	projectFixedAmount  *billing.Project
-	projectWithProducts *billing.Project
-	paymentMethod       *billing.PaymentMethod
-	paymentSystem       *billing.PaymentSystem
-	paylink1            *paylink.Paylink
+	merchant            *billingpb.Merchant
+	projectFixedAmount  *billingpb.Project
+	projectWithProducts *billingpb.Project
+	paymentMethod       *billingpb.PaymentMethod
+	paymentSystem       *billingpb.PaymentSystem
+	paylink1            *billingpb.Paylink
 }
 
 func Test_OrderView(t *testing.T) {
@@ -93,7 +90,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 	)
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -118,7 +115,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 
 	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
 
-	suite.projectWithProducts = &billing.Project{
+	suite.projectWithProducts = &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
 		CallbackCurrency:         "RUB",
 		CallbackProtocol:         "default",
@@ -129,9 +126,9 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		IsProductsCheckout:       true,
 		AllowDynamicRedirectUrls: true,
 		SecretKey:                "test project 1 secret key",
-		Status:                   pkg.ProjectStatusDraft,
+		Status:                   billingpb.ProjectStatusDraft,
 		MerchantId:               suite.merchant.Id,
-		VatPayer:                 pkg.VatPayerBuyer,
+		VatPayer:                 billingpb.VatPayerBuyer,
 		WebhookTesting: &billing.WebHookTesting {
 			Products:             &billing.ProductsTesting{
 				NonExistingUser:      true,
@@ -159,7 +156,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 	paylinkBod, _ := ptypes.TimestampProto(now.BeginningOfDay())
 	paylinkExpiresAt, _ := ptypes.TimestampProto(time.Now().Add(1 * time.Hour))
 
-	suite.paylink1 = &paylink.Paylink{
+	suite.paylink1 = &billingpb.Paylink{
 		Id:                   primitive.NewObjectID().Hex(),
 		Object:               "paylink",
 		Products:             []string{products[0].Id},
@@ -206,7 +203,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_updateOrderView() {
 	amounts := []float64{100, 10}
 	currencies := []string{"RUB", "USD"}
 	countries := []string{"RU", "FI"}
-	var orders []*billing.Order
+	var orders []*billingpb.Order
 
 	count := 0
 	for count < suite.service.cfg.OrderViewUpdateBatchSize+10 {
@@ -238,10 +235,54 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Ok() {
 		suite.projectFixedAmount,
 		suite.paymentMethod,
 	)
-	orderPublic, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billing.OrderViewPublic))
+
+	assert.False(suite.T(), suite.projectFixedAmount.IsProduction())
+	orderPublic, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderPublic)
-	assert.IsType(suite.T(), &billing.OrderViewPublic{}, orderPublic)
+	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, orderPublic)
+	op := orderPublic.(*billingpb.OrderViewPublic)
+	assert.False(suite.T(), op.IsProduction)
+}
+
+func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_ProductionProject_Ok() {
+	productionProject := &billingpb.Project{
+		Id:                       primitive.NewObjectID().Hex(),
+		CallbackCurrency:         "RUB",
+		CallbackProtocol:         "default",
+		LimitsCurrency:           "USD",
+		MaxPaymentAmount:         15000,
+		MinPaymentAmount:         1,
+		Name:                     map[string]string{"en": "test prod project 1"},
+		IsProductsCheckout:       false,
+		AllowDynamicRedirectUrls: true,
+		SecretKey:                "test prod project 1 secret key",
+		Status:                   billingpb.ProjectStatusInProduction,
+		MerchantId:               suite.merchant.Id,
+		VatPayer:                 billingpb.VatPayerBuyer,
+	}
+
+	if err := suite.service.project.Insert(context.TODO(), productionProject); err != nil {
+		suite.FailNow("Insert project test data failed", "%v", err)
+	}
+
+	order := helperCreateAndPayOrder(
+		suite.Suite,
+		suite.service,
+		100,
+		"USD",
+		"RU",
+		productionProject,
+		suite.paymentMethod,
+	)
+
+	assert.True(suite.T(), productionProject.IsProduction())
+	orderPublic, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), orderPublic)
+	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, orderPublic)
+	op := orderPublic.(*billingpb.OrderViewPublic)
+	assert.True(suite.T(), op.IsProduction)
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
@@ -255,10 +296,17 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
 		suite.paymentMethod,
 	)
 
-	orderPrivate, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billing.OrderViewPrivate))
+	orderPrivate, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPrivate))
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderPrivate)
-	assert.IsType(suite.T(), &billing.OrderViewPrivate{}, orderPrivate)
+	assert.IsType(suite.T(), &billingpb.OrderViewPrivate{}, orderPrivate)
+	op := orderPrivate.(*billingpb.OrderViewPrivate)
+	assert.False(suite.T(), op.IsProduction)
+	assert.NotNil(suite.T(), op.MerchantInfo)
+	assert.NotEmpty(suite.T(), op.MerchantInfo.CompanyName)
+	assert.NotEmpty(suite.T(), op.MerchantInfo.AgreementNumber)
+	assert.NotNil(suite.T(), op.OrderChargeBeforeVat)
+	assert.NotNil(suite.T(), op.TaxRate)
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
@@ -308,7 +356,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPublic_Ok() {
 	transactions, err = suite.service.orderView.GetTransactionsPublic(context.TODO(), bson.M{}, 10, 0)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 1)
-	assert.IsType(suite.T(), &billing.OrderViewPublic{}, transactions[0])
+	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, transactions[0])
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPrivate_Ok() {
@@ -329,7 +377,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPrivate_Ok() {
 	transactions, err = suite.service.orderView.GetTransactionsPrivate(context.TODO(), bson.M{}, 10, 0)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 1)
-	assert.IsType(suite.T(), &billing.OrderViewPrivate{}, transactions[0])
+	assert.IsType(suite.T(), &billingpb.OrderViewPrivate{}, transactions[0])
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_NoTransactions() {
@@ -360,8 +408,13 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_NoTransacti
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales() {
 	countries := []string{"RU", "FI"}
-	var orders []*billing.Order
+	var orders []*billingpb.Order
 	numberOfOrders := 3
+
+	suite.projectFixedAmount.Status = billingpb.ProjectStatusInProduction
+	if err := suite.service.project.Update(context.TODO(), suite.projectFixedAmount); err != nil {
+		suite.FailNow("Update project test data failed", "%v", err)
+	}
 
 	count := 0
 	for count < numberOfOrders {
@@ -437,8 +490,13 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRefunds() {
 	countries := []string{"RU", "FI"}
-	var orders []*billing.Order
+	var orders []*billingpb.Order
 	numberOfOrders := 3
+
+	suite.projectFixedAmount.Status = billingpb.ProjectStatusInProduction
+	if err := suite.service.project.Update(context.TODO(), suite.projectFixedAmount); err != nil {
+		suite.FailNow("Update project test data failed", "%v", err)
+	}
 
 	count := 0
 	for count < numberOfOrders {
@@ -532,7 +590,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 	maxVisits := 3
 	maxOrders := 4
 	maxRefunds := 1
-	var orders []*billing.Order
+	var orders []*billingpb.Order
 
 	oid, err := primitive.ObjectIDFromHex(suite.paylink1.Id)
 	assert.NoError(suite.T(), err)
@@ -543,20 +601,20 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 0)
 
-	visitsReq := &grpc.PaylinkRequestById{
+	visitsReq := &billingpb.PaylinkRequestById{
 		Id: suite.paylink1.Id,
 	}
 
 	count := 0
 	for count < maxVisits {
-		err = suite.service.IncrPaylinkVisits(context.TODO(), visitsReq, &grpc.EmptyResponse{})
+		err = suite.service.IncrPaylinkVisits(context.TODO(), visitsReq, &billingpb.EmptyResponse{})
 		assert.NoError(suite.T(), err)
 		count++
 	}
 
 	count = 0
 	for count < maxOrders {
-		err = suite.service.IncrPaylinkVisits(context.TODO(), visitsReq, &grpc.EmptyResponse{})
+		err = suite.service.IncrPaylinkVisits(context.TODO(), visitsReq, &billingpb.EmptyResponse{})
 		assert.NoError(suite.T(), err)
 
 		order := helperCreateAndPayPaylinkOrder(
@@ -565,7 +623,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 			suite.paylink1.Id,
 			countries[count%2],
 			suite.paymentMethod,
-			&billing.OrderIssuer{
+			&billingpb.OrderIssuer{
 				Url:         referrers[count%2],
 				UtmSource:   utmSources[count%2],
 				UtmMedium:   utmMedias[count%2],
@@ -588,15 +646,15 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, maxVisits+maxOrders)
 
-	req := &grpc.PaylinkRequest{
+	req := &billingpb.PaylinkRequest{
 		Id:         suite.paylink1.Id,
 		MerchantId: suite.paylink1.MerchantId,
 	}
 
-	res := &grpc.GetPaylinkResponse{}
+	res := &billingpb.GetPaylinkResponse{}
 	err = suite.service.GetPaylink(context.TODO(), req, res)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, pkg.ResponseStatusOk)
+	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 	assert.Equal(suite.T(), res.Item.Visits, int32(maxVisits+maxOrders))
 	assert.Equal(suite.T(), res.Item.TotalTransactions, int32(maxOrders+maxRefunds))
 	assert.EqualValues(suite.T(), res.Item.SalesCount, maxOrders)
