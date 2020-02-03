@@ -100,6 +100,7 @@ type Service struct {
 	priceTableRepository            repository.PriceTableRepositoryInterface
 	notificationRepository          repository.NotificationRepositoryInterface
 	operatingCompanyRepository      repository.OperatingCompanyRepositoryInterface
+	bankBinRepository               repository.BankBinRepositoryInterface
 	notifySalesRepository           repository.NotifySalesRepositoryInterface
 	notifyRegionRepository          repository.NotifyRegionRepositoryInterface
 }
@@ -191,6 +192,7 @@ func (s *Service) Init() (err error) {
 	s.priceTableRepository = repository.NewPriceTableRepository(s.db)
 	s.notificationRepository = repository.NewNotificationRepository(s.db)
 	s.operatingCompanyRepository = repository.NewOperatingCompanyRepository(s.db, s.cacher)
+	s.bankBinRepository = repository.NewBankBinRepository(s.db)
 	s.notifySalesRepository = repository.NewNotifySalesRepository(s.db)
 	s.notifyRegionRepository = repository.NewNotifyRegionRepository(s.db)
 

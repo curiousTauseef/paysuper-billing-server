@@ -15,6 +15,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -1355,7 +1356,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		PaymentSystemId: ps5.Id,
 	}
 
-	bin := &BinData{
+	bin := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            400000,
 		CardBrand:          "MASTERCARD",
@@ -1366,7 +1367,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		BankCountryIsoCode: "UA",
 	}
 
-	bin2 := &BinData{
+	bin2 := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            408300,
 		CardBrand:          "VISA",
@@ -1375,21 +1376,6 @@ func (suite *OrderTestSuite) SetupTest() {
 		BankName:           "ALFA BANK",
 		BankCountryName:    "UKRAINE",
 		BankCountryIsoCode: "UA",
-	}
-
-	_, err = db.Collection(collectionBinData).InsertOne(context.TODO(), bin)
-
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
-	_, err = db.Collection(collectionBinData).InsertOne(context.TODO(), bin2)
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
-	if err != nil {
-		suite.FailNow("Insert zip codes test data failed", "%v", err)
 	}
 
 	suite.log, err = zap.NewProduction()
@@ -2187,10 +2173,20 @@ func (suite *OrderTestSuite) SetupTest() {
 	}
 	err = suite.service.zipCodeRepository.Insert(context.TODO(), zipCode)
 
+	if err != nil {
+		suite.FailNow("Insert zip codes test data failed", "%v", err)
+	}
+
 	err = suite.service.operatingCompanyRepository.Upsert(context.TODO(), suite.operatingCompany)
 
 	if err != nil {
 		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
+
+	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), []*intPkg.BinData{bin, bin2})
+
+	if err != nil {
+		suite.FailNow("Insert BIN test data failed", "%v", err)
 	}
 }
 

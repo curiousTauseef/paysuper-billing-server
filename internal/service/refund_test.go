@@ -10,6 +10,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -775,8 +776,8 @@ func (suite *RefundTestSuite) SetupTest() {
 		suite.FailNow("Insert MoneyBackCostMerchant test data failed", "%v", err)
 	}
 
-	bins := []interface{}{
-		&BinData{
+	bins := []*intPkg.BinData{
+		{
 			Id:                 primitive.NewObjectID(),
 			CardBin:            400000,
 			CardBrand:          "VISA",
@@ -786,7 +787,7 @@ func (suite *RefundTestSuite) SetupTest() {
 			BankCountryName:    "UKRAINE",
 			BankCountryIsoCode: "UA",
 		},
-		&BinData{
+		{
 			Id:                 primitive.NewObjectID(),
 			CardBin:            500000,
 			CardBrand:          "JCB",
@@ -798,7 +799,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		},
 	}
 
-	_, err = db.Collection(collectionBinData).InsertMany(context.TODO(), bins)
+	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), bins)
 
 	if err != nil {
 		suite.FailNow("Insert BIN test data failed", "%v", err)
