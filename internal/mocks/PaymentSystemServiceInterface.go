@@ -2,7 +2,7 @@
 
 package mocks
 
-import billing "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
+import billingpb "github.com/paysuper/paysuper-proto/go/billingpb"
 import context "context"
 import mock "github.com/stretchr/testify/mock"
 
@@ -12,15 +12,15 @@ type PaymentSystemServiceInterface struct {
 }
 
 // GetById provides a mock function with given fields: _a0, _a1
-func (_m *PaymentSystemServiceInterface) GetById(_a0 context.Context, _a1 string) (*billing.PaymentSystem, error) {
+func (_m *PaymentSystemServiceInterface) GetById(_a0 context.Context, _a1 string) (*billingpb.PaymentSystem, error) {
 	ret := _m.Called(_a0, _a1)
 
-	var r0 *billing.PaymentSystem
-	if rf, ok := ret.Get(0).(func(context.Context, string) *billing.PaymentSystem); ok {
+	var r0 *billingpb.PaymentSystem
+	if rf, ok := ret.Get(0).(func(context.Context, string) *billingpb.PaymentSystem); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*billing.PaymentSystem)
+			r0 = ret.Get(0).(*billingpb.PaymentSystem)
 		}
 	}
 
@@ -35,11 +35,11 @@ func (_m *PaymentSystemServiceInterface) GetById(_a0 context.Context, _a1 string
 }
 
 // Insert provides a mock function with given fields: _a0, _a1
-func (_m *PaymentSystemServiceInterface) Insert(_a0 context.Context, _a1 *billing.PaymentSystem) error {
+func (_m *PaymentSystemServiceInterface) Insert(_a0 context.Context, _a1 *billingpb.PaymentSystem) error {
 	ret := _m.Called(_a0, _a1)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *billing.PaymentSystem) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *billingpb.PaymentSystem) error); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		r0 = ret.Error(0)
@@ -49,11 +49,11 @@ func (_m *PaymentSystemServiceInterface) Insert(_a0 context.Context, _a1 *billin
 }
 
 // MultipleInsert provides a mock function with given fields: _a0, _a1
-func (_m *PaymentSystemServiceInterface) MultipleInsert(_a0 context.Context, _a1 []*billing.PaymentSystem) error {
+func (_m *PaymentSystemServiceInterface) MultipleInsert(_a0 context.Context, _a1 []*billingpb.PaymentSystem) error {
 	ret := _m.Called(_a0, _a1)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*billing.PaymentSystem) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, []*billingpb.PaymentSystem) error); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		r0 = ret.Error(0)
@@ -63,11 +63,11 @@ func (_m *PaymentSystemServiceInterface) MultipleInsert(_a0 context.Context, _a1
 }
 
 // Update provides a mock function with given fields: _a0, _a1
-func (_m *PaymentSystemServiceInterface) Update(_a0 context.Context, _a1 *billing.PaymentSystem) error {
+func (_m *PaymentSystemServiceInterface) Update(_a0 context.Context, _a1 *billingpb.PaymentSystem) error {
 	ret := _m.Called(_a0, _a1)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *billing.PaymentSystem) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *billingpb.PaymentSystem) error); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		r0 = ret.Error(0)

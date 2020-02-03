@@ -2,17 +2,17 @@ package service
 
 import (
 	"context"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 )
 
@@ -33,7 +33,7 @@ func (suite *RecurringTestSuite) SetupTest() {
 	assert.NoError(suite.T(), err, "Database connection failed")
 
 	redisdb := mocks.NewTestRedis()
-	cache, err := NewCacheRedis(redisdb, "cache")
+	cache, err := database.NewCacheRedis(redisdb, "cache")
 	casbin := &casbinMocks.CasbinService{}
 
 	suite.service = NewBillingService(
@@ -84,26 +84,26 @@ func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), cookie)
 
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: cookie,
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusOk, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.Empty(suite.T(), rsp.Message)
 }
 
 func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_IncorrectCookie_Error() {
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: primitive.NewObjectID().Hex(),
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err := suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusBadData, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
 	assert.Equal(suite.T(), recurringErrorIncorrectCookie, rsp.Message)
 }
 
@@ -118,34 +118,34 @@ func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_DontHaveCustomerI
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), cookie)
 
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: cookie,
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
 	assert.Equal(suite.T(), recurringCustomerNotFound, rsp.Message)
 }
 
 func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_RealCustomer_Ok() {
-	project := &billing.Project{
+	project := &billingpb.Project{
 		Id:         primitive.NewObjectID().Hex(),
 		MerchantId: primitive.NewObjectID().Hex(),
 	}
-	req0 := &grpc.TokenRequest{
-		User: &billing.TokenUser{
+	req0 := &billingpb.TokenRequest{
+		User: &billingpb.TokenUser{
 			Id: primitive.NewObjectID().Hex(),
-			Locale: &billing.TokenUserLocaleValue{
+			Locale: &billingpb.TokenUserLocaleValue{
 				Value: "en",
 			},
 		},
-		Settings: &billing.TokenSettings{
+		Settings: &billingpb.TokenSettings{
 			ProjectId: project.Id,
 			Amount:    100,
 			Currency:  "USD",
-			Type:      billing.OrderType_simple,
+			Type:      pkg.OrderType_simple,
 		},
 	}
 	customer, err := suite.service.createCustomer(context.TODO(), req0, project)
@@ -163,14 +163,14 @@ func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_RealCustomer_Ok()
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), cookie)
 
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: cookie,
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusOk, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.Empty(suite.T(), rsp.Message)
 }
 
@@ -186,14 +186,14 @@ func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_RealCustomerNotFo
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), cookie)
 
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: cookie,
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
 	assert.Equal(suite.T(), recurringCustomerNotFound, rsp.Message)
 }
 
@@ -211,14 +211,14 @@ func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_RecurringServiceS
 
 	suite.service.rep = mocks.NewRepositoryServiceError()
 
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: cookie,
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
 	assert.Equal(suite.T(), recurringErrorUnknown, rsp.Message)
 }
 
@@ -236,14 +236,14 @@ func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_RecurringServiceR
 
 	suite.service.rep = mocks.NewRepositoryServiceEmpty()
 
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: cookie,
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusBadData, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
 	assert.Equal(suite.T(), recurringSavedCardNotFount, rsp.Message)
 }
 
@@ -261,13 +261,13 @@ func (suite *RecurringTestSuite) TestRecurring_DeleteSavedCard_RecurringServiceR
 
 	suite.service.rep = mocks.NewRepositoryServiceEmpty()
 
-	req := &grpc.DeleteSavedCardRequest{
+	req := &billingpb.DeleteSavedCardRequest{
 		Id:     primitive.NewObjectID().Hex(),
 		Cookie: cookie,
 	}
-	rsp := &grpc.EmptyResponseWithStatus{}
+	rsp := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.DeleteSavedCard(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), pkg.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
 	assert.Equal(suite.T(), recurringErrorUnknown, rsp.Message)
 }

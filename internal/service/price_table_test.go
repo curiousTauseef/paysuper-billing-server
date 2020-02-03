@@ -2,18 +2,18 @@ package service
 
 import (
 	"context"
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 )
 
@@ -21,7 +21,7 @@ type PriceTableTestSuite struct {
 	suite.Suite
 	service *Service
 	log     *zap.Logger
-	cache   CacheInterface
+	cache   database.CacheInterface
 }
 
 func Test_PriceTable(t *testing.T) {
@@ -46,7 +46,7 @@ func (suite *PriceTableTestSuite) SetupTest() {
 	}
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -84,21 +84,21 @@ func (suite *PriceTableTestSuite) TearDownTest() {
 }
 
 func (suite *PriceTableTestSuite) TestPriceTable_Insert_Ok() {
-	assert.NoError(suite.T(), suite.service.priceTable.Insert(context.TODO(), &billing.PriceTable{Id: primitive.NewObjectID().Hex()}))
+	assert.NoError(suite.T(), suite.service.priceTableRepository.Insert(context.TODO(), &billingpb.PriceTable{Id: primitive.NewObjectID().Hex()}))
 }
 
 func (suite *PriceTableTestSuite) TestPriceTable_GetByRegion_Ok() {
-	table := &billing.PriceTable{Id: primitive.NewObjectID().Hex(), Currency: "TST"}
-	assert.NoError(suite.T(), suite.service.priceTable.Insert(context.TODO(), table))
+	table := &billingpb.PriceTable{Id: primitive.NewObjectID().Hex(), Currency: "TST"}
+	assert.NoError(suite.T(), suite.service.priceTableRepository.Insert(context.TODO(), table))
 
-	t, err := suite.service.priceTable.GetByRegion(context.TODO(), table.Currency)
+	t, err := suite.service.priceTableRepository.GetByRegion(context.TODO(), table.Currency)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), table.Id, t.Id)
 	assert.Equal(suite.T(), table.Currency, t.Currency)
 }
 
 func (suite *PriceTableTestSuite) TestPriceTable_GetByRegion_Error_NotFound() {
-	_, err := suite.service.priceTable.GetByRegion(context.TODO(), "TST")
+	_, err := suite.service.priceTableRepository.GetByRegion(context.TODO(), "TST")
 	assert.Error(suite.T(), err)
 }
 
@@ -106,18 +106,18 @@ func (suite *PriceTableTestSuite) TestPriceTable_GetRecommendedPriceTable_Ok() {
 	rep := &mocks.PriceTableServiceInterface{}
 	rep.
 		On("GetByRegion", mock.Anything, mock.Anything).
-		Return(&billing.PriceTable{Ranges: []*billing.PriceTableRange{{From: 0, To: 0, Position: 0}}}, nil)
-	suite.service.priceTable = rep
+		Return(&billingpb.PriceTable{Ranges: []*billingpb.PriceTableRange{{From: 0, To: 0, Position: 0}}}, nil)
+	suite.service.priceTableRepository = rep
 
-	res := grpc.RecommendedPriceTableResponse{}
-	err := suite.service.GetRecommendedPriceTable(context.TODO(), &grpc.RecommendedPriceTableRequest{}, &res)
+	res := billingpb.RecommendedPriceTableResponse{}
+	err := suite.service.GetRecommendedPriceTable(context.TODO(), &billingpb.RecommendedPriceTableRequest{}, &res)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), res.Ranges, 1)
 }
 
 func (suite *PriceTableTestSuite) TestPriceTable_GetRecommendedPriceTable_Ok_Empty() {
-	res := grpc.RecommendedPriceTableResponse{}
-	err := suite.service.GetRecommendedPriceTable(context.TODO(), &grpc.RecommendedPriceTableRequest{}, &res)
+	res := billingpb.RecommendedPriceTableResponse{}
+	err := suite.service.GetRecommendedPriceTable(context.TODO(), &billingpb.RecommendedPriceTableRequest{}, &res)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), res.Ranges, 0)
 }
