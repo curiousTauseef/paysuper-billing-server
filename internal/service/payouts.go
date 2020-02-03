@@ -650,7 +650,7 @@ func (s *Service) PayoutDocumentPdfUploaded(
 		return err
 	}
 
-	operatingCompany, err := s.operatingCompany.GetById(ctx, pd.OperatingCompanyId)
+	operatingCompany, err := s.operatingCompanyRepository.GetById(ctx, pd.OperatingCompanyId)
 
 	if err != nil {
 		zap.L().Error("Operating company not found", zap.Error(err), zap.String("operating_company_id", pd.OperatingCompanyId))

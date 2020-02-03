@@ -381,7 +381,7 @@ func helperOperatingCompany(
 		PaymentCountries:   []string{},
 	}
 
-	err := service.operatingCompany.Upsert(context.TODO(), operatingCompany)
+	err := service.operatingCompanyRepository.Upsert(context.TODO(), operatingCompany)
 	if err != nil {
 		suite.FailNow("Insert operatingCompany failed", "%v", err)
 	}

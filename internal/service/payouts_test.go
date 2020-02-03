@@ -91,11 +91,6 @@ func (suite *PayoutsTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(context.TODO(), suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
-	}
-
 	country := &billingpb.Country{
 		IsoCodeA2:       "RU",
 		Region:          "Russia",
@@ -472,6 +467,12 @@ func (suite *PayoutsTestSuite) SetupTest() {
 	lvl := zap.NewAtomicLevel()
 	core, suite.zapRecorder = observer.New(lvl)
 	suite.logObserver = zap.New(core)
+
+	err = suite.service.operatingCompanyRepository.Upsert(context.TODO(), suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
 }
 
 func (suite *PayoutsTestSuite) TearDownTest() {

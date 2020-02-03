@@ -84,11 +84,6 @@ func (suite *OnboardingTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(ctx, suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
-	}
-
 	country := &billingpb.Country{
 		IsoCodeA2:         "RU",
 		Region:            "Russia",
@@ -655,6 +650,12 @@ func (suite *OnboardingTestSuite) SetupTest() {
 	centrifugoMock.On("GetChannelToken", mock2.Anything, mock2.Anything).Return("token")
 	centrifugoMock.On("Publish", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil)
 	suite.service.centrifugoDashboard = centrifugoMock
+
+	err = suite.service.operatingCompanyRepository.Upsert(ctx, suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
 }
 
 func (suite *OnboardingTestSuite) TearDownTest() {
@@ -2225,7 +2226,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantS3Agreement_Ok() {
 
 	ocRep := &mocks.OperatingCompanyInterface{}
 	ocRep.On("GetById", mock2.Anything, mock2.Anything).Return(&billingpb.OperatingCompany{SignatoryName: "name", Email: "email"}, nil)
-	suite.service.operatingCompany = ocRep
+	suite.service.operatingCompanyRepository = ocRep
 
 	req1 := &billingpb.SetMerchantS3AgreementRequest{
 		MerchantId:      rsp.Id,
@@ -3581,7 +3582,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantS3Agreement_Agreemen
 
 	ocRep := &mocks.OperatingCompanyInterface{}
 	ocRep.On("GetById", mock2.Anything, mock2.Anything).Return(&billingpb.OperatingCompany{SignatoryName: "name", Email: "email"}, nil)
-	suite.service.operatingCompany = ocRep
+	suite.service.operatingCompanyRepository = ocRep
 
 	req1 := &billingpb.SetMerchantS3AgreementRequest{
 		MerchantId:      rsp.Item.Id,
@@ -3683,7 +3684,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_GenerateMerchantAgreement_Check
 			SignatoryName:      "sig name",
 			SignatoryPosition:  "sig position",
 		}, nil)
-	suite.service.operatingCompany = ocMock
+	suite.service.operatingCompanyRepository = ocMock
 
 	err = suite.service.generateMerchantAgreement(context.TODO(), merchant)
 	assert.NoError(suite.T(), err)
@@ -3781,7 +3782,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_GenerateMerchantAgreement_Check
 			SignatoryName:      "sig name",
 			SignatoryPosition:  "sig position",
 		}, nil)
-	suite.service.operatingCompany = ocMock
+	suite.service.operatingCompanyRepository = ocMock
 
 	err = suite.service.generateMerchantAgreement(context.TODO(), merchant)
 	assert.NoError(suite.T(), err)

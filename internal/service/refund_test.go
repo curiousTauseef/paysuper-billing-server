@@ -75,11 +75,6 @@ func (suite *RefundTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(context.TODO(), suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
-	}
-
 	keyRubVisa := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
 	keyRubBitcoin := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
 	keyRubQiwi := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
@@ -811,6 +806,12 @@ func (suite *RefundTestSuite) SetupTest() {
 
 	suite.project = project
 	suite.pmBankCard = pmBankCard
+
+	err = suite.service.operatingCompanyRepository.Upsert(context.TODO(), suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
 }
 
 func (suite *RefundTestSuite) TearDownTest() {

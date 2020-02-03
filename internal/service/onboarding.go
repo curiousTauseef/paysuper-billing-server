@@ -532,7 +532,7 @@ func (s *Service) SetMerchantOperatingCompany(
 		return nil
 	}
 
-	oc, err := s.operatingCompany.GetById(ctx, req.OperatingCompanyId)
+	oc, err := s.operatingCompanyRepository.GetById(ctx, req.OperatingCompanyId)
 
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -1097,7 +1097,7 @@ func (s *Service) getMerchantAgreementSignature(
 	ctx context.Context,
 	merchant *billingpb.Merchant,
 ) (*billingpb.MerchantAgreementSignatureData, error) {
-	op, err := s.operatingCompany.GetById(ctx, merchant.OperatingCompanyId)
+	op, err := s.operatingCompanyRepository.GetById(ctx, merchant.OperatingCompanyId)
 
 	if err != nil {
 		return nil, err
@@ -1483,7 +1483,7 @@ func (s *Service) generateMerchantAgreement(ctx context.Context, merchant *billi
 	payoutCost := fmt.Sprintf("%s (%d) %s", payoutCostWord, payoutCostInt, merchant.Tariff.Payout.MethodFixedFeeCurrency)
 	minPayoutLimit := fmt.Sprintf("%s (%d) %s", minPayoutLimitWord, minPayoutLimitInt, merchant.GetPayoutCurrency())
 
-	operatingCompany, err := s.operatingCompany.GetById(ctx, merchant.OperatingCompanyId)
+	operatingCompany, err := s.operatingCompanyRepository.GetById(ctx, merchant.OperatingCompanyId)
 	if err != nil {
 		zap.L().Error("Operating company not found", zap.Error(err), zap.String("operating_company_id", merchant.OperatingCompanyId))
 		return err

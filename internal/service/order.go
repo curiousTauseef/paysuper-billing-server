@@ -1120,9 +1120,10 @@ func (s *Service) getOrderOperatingCompanyId(
 	orderCountry string,
 	merchant *billingpb.Merchant,
 ) (string, error) {
-	orderOperatingCompany, err := s.operatingCompany.GetByPaymentCountry(ctx, orderCountry)
+	orderOperatingCompany, err := s.operatingCompanyRepository.GetByPaymentCountry(ctx, orderCountry)
+
 	if err != nil {
-		if err == errorOperatingCompanyNotFound {
+		if err == mongo.ErrNoDocuments {
 			return merchant.OperatingCompanyId, nil
 		}
 
@@ -4244,7 +4245,7 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 		platformName = platform.Name
 	}
 
-	oc, err := s.operatingCompany.GetById(ctx, order.OperatingCompanyId)
+	oc, err := s.operatingCompanyRepository.GetById(ctx, order.OperatingCompanyId)
 
 	if err != nil {
 		zap.L().Error(pkg.MethodFinishedWithError, zap.Error(err))

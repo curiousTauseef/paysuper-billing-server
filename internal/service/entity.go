@@ -26,10 +26,7 @@ type PaymentSystemService Entity
 type PaymentChannelCostSystem Entity
 type PaymentChannelCostMerchant Entity
 type Paylink Entity
-type OperatingCompany Entity
 type PaymentMinLimitSystem Entity
-type PayoutCostSystem Entity
-type PriceTable Entity
 type Product Entity
 type Key Entity
 

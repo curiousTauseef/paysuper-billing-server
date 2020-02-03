@@ -149,11 +149,6 @@ func (suite *OrderTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(context.TODO(), suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
-	}
-
 	keyRubVisa := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
 	keyUsdVisa := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
 	keyUahVisa := billingpb.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
@@ -2191,6 +2186,12 @@ func (suite *OrderTestSuite) SetupTest() {
 		CreatedAt: ptypes.TimestampNow(),
 	}
 	err = suite.service.zipCodeRepository.Insert(context.TODO(), zipCode)
+
+	err = suite.service.operatingCompanyRepository.Upsert(context.TODO(), suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
 }
 
 func (suite *OrderTestSuite) TearDownTest() {

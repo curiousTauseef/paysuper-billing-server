@@ -81,7 +81,6 @@ type Service struct {
 	reporterService                 reporterpb.ReporterService
 	postmarkBroker                  rabbitmq.BrokerInterface
 	paylinkService                  PaylinkServiceInterface
-	operatingCompany                OperatingCompanyInterface
 	paymentMinLimitSystem           PaymentMinLimitSystemInterface
 	casbinService                   casbinpb.CasbinService
 	paymentSystemGateway            *Gateway
@@ -100,6 +99,7 @@ type Service struct {
 	project                         repository.ProjectRepositoryInterface
 	priceTableRepository            repository.PriceTableRepositoryInterface
 	notificationRepository          repository.NotificationRepositoryInterface
+	operatingCompanyRepository      repository.OperatingCompanyRepositoryInterface
 	notifySalesRepository           repository.NotifySalesRepositoryInterface
 	notifyRegionRepository          repository.NotifyRegionRepositoryInterface
 }
@@ -172,7 +172,6 @@ func (s *Service) Init() (err error) {
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
 	s.paylinkService = newPaylinkService(s)
-	s.operatingCompany = newOperatingCompanyService(s)
 	s.paymentMinLimitSystem = newPaymentMinLimitSystem(s)
 	s.paymentSystemGateway = s.newPaymentSystemGateway()
 
@@ -191,6 +190,7 @@ func (s *Service) Init() (err error) {
 	s.project = repository.NewProjectRepository(s.db, s.cacher)
 	s.priceTableRepository = repository.NewPriceTableRepository(s.db)
 	s.notificationRepository = repository.NewNotificationRepository(s.db)
+	s.operatingCompanyRepository = repository.NewOperatingCompanyRepository(s.db, s.cacher)
 	s.notifySalesRepository = repository.NewNotifySalesRepository(s.db)
 	s.notifyRegionRepository = repository.NewNotifyRegionRepository(s.db)
 
