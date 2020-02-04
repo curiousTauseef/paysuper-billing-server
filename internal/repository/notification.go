@@ -11,6 +11,10 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionNotification = "notification"
+)
+
 type notificationRepository repository
 
 // NewNotificationRepository create and return an object for working with the notification repository.

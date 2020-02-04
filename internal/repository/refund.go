@@ -11,6 +11,11 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	// CollectionRefund is name of table for collection the refund.
+	CollectionRefund = "refund"
+)
+
 type refundRepository repository
 
 // NewRefundRepository create and return an object for working with the refund repository.

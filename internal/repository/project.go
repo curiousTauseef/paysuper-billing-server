@@ -13,6 +13,12 @@ import (
 	"strings"
 )
 
+const (
+	collectionProject = "project"
+
+	cacheProjectId = "project:id:%s"
+)
+
 type projectRepository repository
 
 // NewProjectRepository create and return an object for working with the price group repository.

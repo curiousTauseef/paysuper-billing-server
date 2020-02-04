@@ -16,6 +16,14 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionMoneyBackCostMerchant = "money_back_cost_merchant"
+
+	cacheMoneyBackCostMerchantKey   = "pucm:m:%s:n:%s:pc:%s:ur:%s:r:%s:c:%s:ps:%d:mcc:%s"
+	cacheMoneyBackCostMerchantKeyId = "pucm:id:%s"
+	cacheMoneyBackCostMerchantAll   = "pucm:all:m:%s"
+)
+
 type moneyBackCostMerchantRepository repository
 
 // NewMoneyBackCostMerchantRepository create and return an object for working with the cost of merchant for money back.

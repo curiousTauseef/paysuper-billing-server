@@ -15,6 +15,17 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	// CollectionCountry is name of table for collection the country.
+	CollectionCountry = "country"
+
+	cacheCountryCodeA2           = "country:code_a2:%s"
+	cacheCountryRisk             = "country:risk:%t"
+	cacheCountryAll              = "country:all"
+	cacheCountryRegions          = "country:regions"
+	cacheCountriesWithVatEnabled = "country:with_vat"
+)
+
 type countryRepository repository
 
 // NewCountryRepository create and return an object for working with the country repository.

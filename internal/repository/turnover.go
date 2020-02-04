@@ -12,6 +12,12 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionAnnualTurnovers = "annual_turnovers"
+
+	cacheTurnoverKey = "turnover:company:%s:country:%s:year:%d"
+)
+
 type turnoverRepository repository
 
 // NewTurnoverRepository create and return an object for working with the annual turnover repository.

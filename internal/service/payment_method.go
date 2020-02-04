@@ -41,7 +41,7 @@ func (s *Service) CreateOrUpdatePaymentMethod(
 	var pm *billingpb.PaymentMethod
 	var err error
 
-	if _, err = s.paymentSystem.GetById(ctx, req.PaymentSystemId); err != nil {
+	if _, err = s.paymentSystemRepository.GetById(ctx, req.PaymentSystemId); err != nil {
 		zap.S().Errorf("Invalid payment system id for update payment method", "err", err.Error(), "data", req)
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = paymentMethodErrorPaymentSystem

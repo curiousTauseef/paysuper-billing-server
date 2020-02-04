@@ -265,7 +265,7 @@ func (suite *FinanceTestSuite) SetupTest() {
 		suite.FailNow("Insert country test data failed", "%v", err)
 	}
 
-	if err := suite.service.paymentSystem.Insert(ctx, ps1); err != nil {
+	if err := suite.service.paymentSystemRepository.Insert(ctx, ps1); err != nil {
 		suite.FailNow("Insert project test data failed", "%v", err)
 	}
 

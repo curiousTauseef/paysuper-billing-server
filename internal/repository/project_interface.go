@@ -5,12 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionProject = "project"
-
-	cacheProjectId = "project:id:%s"
-)
-
 // ProjectRepositoryInterface is abstraction layer for working with project and representation in database.
 type ProjectRepositoryInterface interface {
 	// Insert adds the project to the collection.

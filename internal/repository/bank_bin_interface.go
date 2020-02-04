@@ -5,10 +5,6 @@ import (
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 )
 
-const (
-	collectionBinData = "bank_bin"
-)
-
 // BankBinRepositoryInterface is abstraction layer for working with bank bin and representation in database.
 type BankBinRepositoryInterface interface {
 	// Insert adds the price table to the collection.

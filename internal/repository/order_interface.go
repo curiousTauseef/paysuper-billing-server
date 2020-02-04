@@ -5,11 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	// CollectionOrder is name of table for collection the order.
-	CollectionOrder = "order"
-)
-
 // OrderRepositoryInterface is abstraction layer for working with order and representation in database.
 type OrderRepositoryInterface interface {
 	// Insert adds order to the collection.

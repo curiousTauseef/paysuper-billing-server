@@ -9,6 +9,10 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionPriceTable = "price_table"
+)
+
 type priceTableRepository repository
 
 // NewPriceTableRepository create and return an object for working with the price table repository.

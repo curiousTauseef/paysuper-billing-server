@@ -942,7 +942,7 @@ func (s *Service) PaymentCreateProcess(
 		}
 	}
 
-	ps, err := s.paymentSystem.GetById(ctx, processor.checked.paymentMethod.PaymentSystemId)
+	ps, err := s.paymentSystemRepository.GetById(ctx, processor.checked.paymentMethod.PaymentSystemId)
 	if err != nil {
 		rsp.Message = orderErrorPaymentSystemInactive
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -1132,7 +1132,7 @@ func (s *Service) PaymentCallbackProcess(
 
 	var data protobuf.Message
 
-	ps, err := s.paymentSystem.GetById(ctx, order.PaymentMethod.PaymentSystemId)
+	ps, err := s.paymentSystemRepository.GetById(ctx, order.PaymentMethod.PaymentSystemId)
 	if err != nil {
 		return orderErrorPaymentSystemInactive
 	}
@@ -1341,7 +1341,7 @@ func (s *Service) PaymentFormPaymentAccountChanged(
 		return nil
 	}
 
-	ps, err := s.paymentSystem.GetById(ctx, pm.PaymentSystemId)
+	ps, err := s.paymentSystemRepository.GetById(ctx, pm.PaymentSystemId)
 	if err != nil {
 		rsp.Message = orderErrorPaymentSystemInactive
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -2187,7 +2187,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 	}
 
 	if v.checked.paymentMethod != nil {
-		ps, err := v.paymentSystem.GetById(v.ctx, v.checked.paymentMethod.PaymentSystemId)
+		ps, err := v.paymentSystemRepository.GetById(v.ctx, v.checked.paymentMethod.PaymentSystemId)
 		if err != nil {
 			return nil, err
 		}
@@ -2438,7 +2438,7 @@ func (v *OrderCreateRequestProcessor) processPaymentMethod(pm *billingpb.Payment
 		return orderErrorPaymentMethodInactive
 	}
 
-	if _, err := v.paymentSystem.GetById(v.ctx, pm.PaymentSystemId); err != nil {
+	if _, err := v.paymentSystemRepository.GetById(v.ctx, pm.PaymentSystemId); err != nil {
 		return orderErrorPaymentSystemInactive
 	}
 
@@ -2733,7 +2733,7 @@ func (v *PaymentFormProcessor) processRenderFormPaymentMethods(
 			continue
 		}
 
-		ps, err := v.service.paymentSystem.GetById(ctx, pm.PaymentSystemId)
+		ps, err := v.service.paymentSystemRepository.GetById(ctx, pm.PaymentSystemId)
 
 		if err != nil {
 			zap.S().Errorw("GetById failed", "error", err, "order_id", v.order.Id, "order_uuid", v.order.Uuid)
@@ -2974,7 +2974,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 		return orderErrorPaymentMethodInactive
 	}
 
-	ps, err := v.service.paymentSystem.GetById(ctx, pm.PaymentSystemId)
+	ps, err := v.service.paymentSystemRepository.GetById(ctx, pm.PaymentSystemId)
 	if err != nil {
 		return orderErrorPaymentSystemInactive
 	}

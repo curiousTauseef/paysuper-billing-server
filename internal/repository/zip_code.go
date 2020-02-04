@@ -13,6 +13,12 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionZipCode = "zip_code"
+
+	cacheZipCodeByZipAndCountry = "zip_code:zip_country:%s_%s"
+)
+
 type zipCodeRepository repository
 
 // NewZipCodeRepository create and return an object for working with the zip codes repository.

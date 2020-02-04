@@ -16,6 +16,14 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionMoneyBackCostSystem = "money_back_cost_system"
+
+	cacheMoneyBackCostSystemKey   = "pucs:n:%s:pc:%s:ur:%s:r:%s:c:%s:ps:%d:mcc:%s:oc:%s"
+	cacheMoneyBackCostSystemKeyId = "pucs:id:%s"
+	cacheMoneyBackCostSystemAll   = "pucs:all"
+)
+
 type moneyBackCostSystemRepository repository
 
 // moneyBackCostSystemRepository create and return an object for working with the cost of system for money back.

@@ -12,6 +12,14 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	cachePriceGroupId     = "price_group:id:%s"
+	cachePriceGroupAll    = "price_group:all"
+	cachePriceGroupRegion = "price_group:region:%s"
+
+	collectionPriceGroup = "price_group"
+)
+
 type priceGroupRepository repository
 
 // NewPriceGroupRepository create and return an object for working with the price group repository.

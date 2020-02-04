@@ -13,6 +13,14 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionOperatingCompanies = "operating_companies"
+
+	cacheKeyOperatingCompany                 = "operating_company:id:%s"
+	cacheKeyOperatingCompanyByPaymentCountry = "operating_company:country:%s"
+	cacheKeyAllOperatingCompanies            = "operating_company:all"
+)
+
 type operatingCompanyRepository repository
 
 // NewOperatingCompanyRepository create and return an object for working with the operating company repository.

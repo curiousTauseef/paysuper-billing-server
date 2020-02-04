@@ -5,14 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionOperatingCompanies = "operating_companies"
-
-	cacheKeyOperatingCompany                 = "operating_company:id:%s"
-	cacheKeyOperatingCompanyByPaymentCountry = "operating_company:country:%s"
-	cacheKeyAllOperatingCompanies            = "operating_company:all"
-)
-
 // OperatingCompanyRepositoryInterface is abstraction layer for working with operating company and representation in database.
 type OperatingCompanyRepositoryInterface interface {
 	// GetById returns the operating company by unique identifier.

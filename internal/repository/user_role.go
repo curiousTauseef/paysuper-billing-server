@@ -12,6 +12,13 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionMerchantUsersTable = "user_merchant"
+	collectionAdminUsersTable    = "user_admin"
+
+	cacheUserMerchants = "user:merchants:%s"
+)
+
 type userRoleRepository repository
 
 // NewUserRoleRepository create and return an object for working with the user role repository.

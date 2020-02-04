@@ -9,6 +9,10 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionBinData = "bank_bin"
+)
+
 type bankBinRepository repository
 
 // NewBankBinRepository create and return an object for working with the bank bin repository.

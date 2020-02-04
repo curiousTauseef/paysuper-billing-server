@@ -5,10 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionNotifySales = "notify_sales"
-)
-
 // NotifySalesRepositoryInterface is abstraction layer for working with notify sales and representation in database.
 type NotifySalesRepositoryInterface interface {
 	// Insert adds the notify sales to the collection.

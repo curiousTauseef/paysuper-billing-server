@@ -6,14 +6,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionMoneyBackCostSystem = "money_back_cost_system"
-
-	cacheMoneyBackCostSystemKey   = "pucs:n:%s:pc:%s:ur:%s:r:%s:c:%s:ps:%d:mcc:%s:oc:%s"
-	cacheMoneyBackCostSystemKeyId = "pucs:id:%s"
-	cacheMoneyBackCostSystemAll   = "pucs:all"
-)
-
 // MoneyBackCostSystemRepositoryInterface is abstraction layer for working with cost of system in money back case
 // and representation in database.
 type MoneyBackCostSystemRepositoryInterface interface {

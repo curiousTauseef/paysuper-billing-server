@@ -496,7 +496,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		suite.FailNow("Insert country test data failed", "%v", err)
 	}
 
-	if err := suite.service.paymentSystem.MultipleInsert(context.TODO(), []*billingpb.PaymentSystem{suite.paySys, psErr}); err != nil {
+	if err := suite.service.paymentSystemRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentSystem{suite.paySys, psErr}); err != nil {
 		suite.FailNow("Insert payment system test data failed", "%v", err)
 	}
 

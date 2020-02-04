@@ -5,10 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionNotification = "notification"
-)
-
 // NotificationRepositoryInterface is abstraction layer for working with notification and representation in database.
 type NotificationRepositoryInterface interface {
 	// Insert adds the price table to the collection.

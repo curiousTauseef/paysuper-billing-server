@@ -13,6 +13,12 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionMerchantBalances = "merchant_balances"
+
+	cacheKeyMerchantBalances = "balance:merchant_id:%s:currency:%s"
+)
+
 type merchantBalanceRepository repository
 
 // NewMerchantBalanceRepository create and return an object for working with the merchant balance repository.

@@ -5,10 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionUserProfile = "user_profile"
-)
-
 // UserProfileRepositoryInterface is abstraction layer for working with user profile information and representation in database.
 type UserProfileRepositoryInterface interface {
 	// Add adds user profile to the collection.

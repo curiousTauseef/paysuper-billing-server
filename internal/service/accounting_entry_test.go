@@ -205,7 +205,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err = suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
@@ -316,7 +316,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
@@ -427,7 +427,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
@@ -543,7 +543,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.EqualValues(suite.T(), order.Tax.Amount, 130)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
@@ -661,7 +661,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.EqualValues(suite.T(), order.Tax.Amount, 108.33)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
@@ -779,7 +779,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.EqualValues(suite.T(), order.Tax.Amount, 0)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
@@ -877,7 +877,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err = suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
@@ -939,7 +939,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
@@ -1001,7 +1001,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
@@ -1063,7 +1063,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
@@ -1100,7 +1100,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
@@ -1152,7 +1152,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
@@ -1238,7 +1238,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)

@@ -127,7 +127,7 @@ func (suite *PaymentMethodTestSuite) SetupTest() {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
-	if err := suite.service.paymentSystem.Insert(context.TODO(), ps); err != nil {
+	if err := suite.service.paymentSystemRepository.Insert(context.TODO(), ps); err != nil {
 		suite.FailNow("Insert payment system test data failed", "%v", err)
 	}
 
@@ -359,10 +359,10 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_CreateOrUpdatePaymentMeth
 		PaymentSystemId: primitive.NewObjectID().Hex(),
 	}
 	rsp := &billingpb.ChangePaymentMethodResponse{}
-	paymentSystem := &mocks.PaymentSystemServiceInterface{}
+	paymentSystem := &mocks.PaymentSystemRepositoryInterface{}
 
 	paymentSystem.On("GetById", mock2.Anything, req.PaymentSystemId).Return(nil, errors.New("not found"))
-	suite.service.paymentSystem = paymentSystem
+	suite.service.paymentSystemRepository = paymentSystem
 
 	err := suite.service.CreateOrUpdatePaymentMethod(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -376,10 +376,10 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_CreateOrUpdatePaymentMeth
 		PaymentSystemId: primitive.NewObjectID().Hex(),
 	}
 	rsp := &billingpb.ChangePaymentMethodResponse{}
-	paymentSystem := &mocks.PaymentSystemServiceInterface{}
+	paymentSystem := &mocks.PaymentSystemRepositoryInterface{}
 
 	paymentSystem.On("GetById", mock2.Anything, req.PaymentSystemId).Return(&billingpb.PaymentSystem{}, nil)
-	suite.service.paymentSystem = paymentSystem
+	suite.service.paymentSystemRepository = paymentSystem
 
 	err := suite.service.CreateOrUpdatePaymentMethod(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -393,10 +393,10 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_CreateOrUpdatePaymentMeth
 		IsActive:        true,
 	}
 	rsp := &billingpb.ChangePaymentMethodResponse{}
-	paymentSystem := &mocks.PaymentSystemServiceInterface{}
+	paymentSystem := &mocks.PaymentSystemRepositoryInterface{}
 
 	paymentSystem.On("GetById", mock2.Anything, req.PaymentSystemId).Return(&billingpb.PaymentSystem{}, nil)
-	suite.service.paymentSystem = paymentSystem
+	suite.service.paymentSystemRepository = paymentSystem
 
 	err := suite.service.CreateOrUpdatePaymentMethod(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -453,10 +453,10 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_CreateOrUpdatePaymentMeth
 		ProductionSettings: map[string]*billingpb.PaymentMethodParams{"RUB": {Currency: "RUB"}},
 	}
 	rsp := &billingpb.ChangePaymentMethodResponse{}
-	paymentSystem := &mocks.PaymentSystemServiceInterface{}
+	paymentSystem := &mocks.PaymentSystemRepositoryInterface{}
 
 	paymentSystem.On("GetById", mock2.Anything, req.PaymentSystemId).Return(&billingpb.PaymentSystem{}, nil)
-	suite.service.paymentSystem = paymentSystem
+	suite.service.paymentSystemRepository = paymentSystem
 
 	err := suite.service.CreateOrUpdatePaymentMethod(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -468,10 +468,10 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_CreateOrUpdatePaymentMeth
 		PaymentSystemId: primitive.NewObjectID().Hex(),
 	}
 	rsp := &billingpb.ChangePaymentMethodResponse{}
-	paymentSystem := &mocks.PaymentSystemServiceInterface{}
+	paymentSystem := &mocks.PaymentSystemRepositoryInterface{}
 
 	paymentSystem.On("GetById", mock2.Anything, req.PaymentSystemId).Return(&billingpb.PaymentSystem{}, nil)
-	suite.service.paymentSystem = paymentSystem
+	suite.service.paymentSystemRepository = paymentSystem
 
 	err := suite.service.CreateOrUpdatePaymentMethod(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)

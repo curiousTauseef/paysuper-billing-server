@@ -1454,7 +1454,7 @@ func (suite *OrderTestSuite) SetupTest() {
 	}
 
 	ps := []*billingpb.PaymentSystem{ps0, ps1, ps2, ps3, ps4, ps5}
-	if err := suite.service.paymentSystem.MultipleInsert(context.TODO(), ps); err != nil {
+	if err := suite.service.paymentSystemRepository.MultipleInsert(context.TODO(), ps); err != nil {
 		suite.FailNow("Insert payment system test data failed", "%v", err)
 	}
 
@@ -8182,11 +8182,11 @@ func (suite *OrderTestSuite) TestOrder_DeclineOrder_Ok() {
 	buf, err := json.Marshal(req2)
 	assert.Nil(suite.T(), err)
 
-	paymentSystem, err := suite.service.paymentSystem.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
+	paymentSystem, err := suite.service.paymentSystemRepository.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), paymentSystem)
 	paymentSystem.Handler = billingpb.PaymentSystemHandlerCardPay
-	err = suite.service.paymentSystem.Update(context.TODO(), paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(context.TODO(), paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	hash := sha512.New()
@@ -8310,11 +8310,11 @@ func (suite *OrderTestSuite) TestOrder_SuccessOrderCentrifugoPaymentSystemError_
 	buf, err := json.Marshal(req2)
 	assert.Nil(suite.T(), err)
 
-	paymentSystem, err := suite.service.paymentSystem.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
+	paymentSystem, err := suite.service.paymentSystemRepository.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), paymentSystem)
 	paymentSystem.Handler = billingpb.PaymentSystemHandlerCardPay
-	err = suite.service.paymentSystem.Update(context.TODO(), paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(context.TODO(), paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	hash := sha512.New()
