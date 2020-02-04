@@ -339,7 +339,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		OperatingCompanyId: operatingCompany.Id,
 	}
 
-	err = service.paymentChannelCostSystem.MultipleInsert(
+	err = service.paymentChannelCostSystemRepository.MultipleInsert(
 		context.TODO(),
 		[]*billingpb.PaymentChannelCostSystem{
 			paymentSysCost1,

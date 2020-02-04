@@ -4306,7 +4306,7 @@ func (s *Service) hasPaymentCosts(ctx context.Context, order *billingpb.Order) b
 		return false
 	}
 
-	_, err = s.paymentChannelCostSystem.Get(
+	_, err = s.paymentChannelCostSystemRepository.Find(
 		ctx,
 		methodName,
 		country.PayerTariffRegion,

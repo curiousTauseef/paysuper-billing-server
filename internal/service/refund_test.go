@@ -526,7 +526,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		OperatingCompanyId: merchant.OperatingCompanyId,
 	}
 
-	err = suite.service.paymentChannelCostSystem.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostSystem{sysCost, sysCost1})
+	err = suite.service.paymentChannelCostSystemRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostSystem{sysCost, sysCost1})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostSystem test data failed", "%v", err)

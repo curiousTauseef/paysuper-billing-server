@@ -22,7 +22,6 @@ type OrderView Entity
 type Accounting Entity
 type RoyaltyReport Entity
 type PaymentSystemService Entity
-type PaymentChannelCostSystem Entity
 type PaymentChannelCostMerchant Entity
 type Paylink Entity
 type PaymentMinLimitSystem Entity
