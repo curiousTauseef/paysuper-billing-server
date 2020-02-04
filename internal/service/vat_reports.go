@@ -635,7 +635,7 @@ func (h *vatReportProcessor) getCountry(countryCode string) *billingpb.Country {
 }
 
 func (h *vatReportProcessor) ProcessVatReports(ctx context.Context) error {
-	operatingCompanies, err := h.Service.operatingCompany.GetAll(ctx)
+	operatingCompanies, err := h.Service.operatingCompanyRepository.GetAll(ctx)
 	if err != nil {
 		return err
 	}

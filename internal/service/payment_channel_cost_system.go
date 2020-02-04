@@ -137,7 +137,7 @@ func (s *Service) SetPaymentChannelCostSystem(
 		res.Message = errorPaymentChannelSystemMccCode
 		return nil
 	}
-	if !s.operatingCompany.Exists(ctx, req.OperatingCompanyId) {
+	if !s.operatingCompanyRepository.Exists(ctx, req.OperatingCompanyId) {
 		res.Status = billingpb.ResponseStatusBadData
 		res.Message = errorPaymentChannelSystemOperatingCompanyNotExists
 		return nil

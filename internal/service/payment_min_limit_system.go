@@ -230,7 +230,7 @@ func (p PaymentMinLimitSystem) Upsert(ctx context.Context, pmls *billingpb.Payme
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "DELETE"),
-			zap.String(pkg.ErrorCacheFieldKey, cacheKeyAllOperatingCompanies),
+			zap.String(pkg.ErrorCacheFieldKey, cacheKeyAllPaymentMinLimitSystem),
 		)
 	}
 

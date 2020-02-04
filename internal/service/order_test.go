@@ -15,6 +15,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -147,11 +148,6 @@ func (suite *OrderTestSuite) SetupTest() {
 		SignatoryPosition:  "CEO",
 		BankingDetails:     "bank details including bank, bank address, account number, swift/ bic, intermediary bank",
 		PaymentCountries:   []string{},
-	}
-
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(context.TODO(), suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
 	}
 
 	keyRubVisa := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
@@ -1360,7 +1356,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		PaymentSystemId: ps5.Id,
 	}
 
-	bin := &BinData{
+	bin := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            400000,
 		CardBrand:          "MASTERCARD",
@@ -1371,7 +1367,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		BankCountryIsoCode: "UA",
 	}
 
-	bin2 := &BinData{
+	bin2 := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            408300,
 		CardBrand:          "VISA",
@@ -1380,21 +1376,6 @@ func (suite *OrderTestSuite) SetupTest() {
 		BankName:           "ALFA BANK",
 		BankCountryName:    "UKRAINE",
 		BankCountryIsoCode: "UA",
-	}
-
-	_, err = db.Collection(collectionBinData).InsertOne(context.TODO(), bin)
-
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
-	_, err = db.Collection(collectionBinData).InsertOne(context.TODO(), bin2)
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
-	if err != nil {
-		suite.FailNow("Insert zip codes test data failed", "%v", err)
 	}
 
 	suite.log, err = zap.NewProduction()
@@ -2191,6 +2172,22 @@ func (suite *OrderTestSuite) SetupTest() {
 		CreatedAt: ptypes.TimestampNow(),
 	}
 	err = suite.service.zipCodeRepository.Insert(context.TODO(), zipCode)
+
+	if err != nil {
+		suite.FailNow("Insert zip codes test data failed", "%v", err)
+	}
+
+	err = suite.service.operatingCompanyRepository.Upsert(context.TODO(), suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
+
+	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), []*intPkg.BinData{bin, bin2})
+
+	if err != nil {
+		suite.FailNow("Insert BIN test data failed", "%v", err)
+	}
 }
 
 func (suite *OrderTestSuite) TearDownTest() {
@@ -6982,10 +6979,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifySales_Ok() {
 	assert.False(suite.T(), rsp.NotifySale)
 	assert.Empty(suite.T(), rsp.NotifySaleEmail)
 
-	var data []*billingpb.NotifyUserSales
-	cursor, err := suite.service.db.Collection(collectionNotifySales).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err := suite.service.notifySalesRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 0)
 
@@ -7003,9 +6997,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifySales_Ok() {
 	assert.True(suite.T(), order.NotifySale)
 	assert.Equal(suite.T(), order.NotifySaleEmail, notifyEmail)
 
-	cursor, err = suite.service.db.Collection(collectionNotifySales).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err = suite.service.notifySalesRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 1)
 
@@ -7043,10 +7035,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifyNewRegion_Ok() {
 	assert.False(suite.T(), rsp.User.NotifyNewRegion)
 	assert.Empty(suite.T(), rsp.User.NotifyNewRegionEmail)
 
-	var data []*billingpb.NotifyUserNewRegion
-	cursor, err := suite.service.db.Collection(collectionNotifyNewRegion).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err := suite.service.notifyRegionRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 0)
 
@@ -7071,9 +7060,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifyNewRegion_Ok() {
 	assert.True(suite.T(), order.User.NotifyNewRegion)
 	assert.Equal(suite.T(), order.User.NotifyNewRegionEmail, notifyEmail)
 
-	cursor, err = suite.service.db.Collection(collectionNotifyNewRegion).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err = suite.service.notifyRegionRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 1)
 

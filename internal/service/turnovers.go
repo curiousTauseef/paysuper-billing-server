@@ -31,7 +31,7 @@ type turnoverQueryResItem struct {
 }
 
 func (s *Service) CalcAnnualTurnovers(ctx context.Context, req *billingpb.EmptyRequest, res *billingpb.EmptyResponse) error {
-	operatingCompanies, err := s.operatingCompany.GetAll(ctx)
+	operatingCompanies, err := s.operatingCompanyRepository.GetAll(ctx)
 	if err != nil {
 		return err
 	}

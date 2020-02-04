@@ -10,6 +10,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -73,11 +74,6 @@ func (suite *RefundTestSuite) SetupTest() {
 		SignatoryPosition:  "CEO",
 		BankingDetails:     "bank details including bank, bank address, account number, swift/ bic, intermediary bank",
 		PaymentCountries:   []string{},
-	}
-
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(context.TODO(), suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
 	}
 
 	keyRubVisa := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
@@ -780,8 +776,8 @@ func (suite *RefundTestSuite) SetupTest() {
 		suite.FailNow("Insert MoneyBackCostMerchant test data failed", "%v", err)
 	}
 
-	bins := []interface{}{
-		&BinData{
+	bins := []*intPkg.BinData{
+		{
 			Id:                 primitive.NewObjectID(),
 			CardBin:            400000,
 			CardBrand:          "VISA",
@@ -791,7 +787,7 @@ func (suite *RefundTestSuite) SetupTest() {
 			BankCountryName:    "UKRAINE",
 			BankCountryIsoCode: "UA",
 		},
-		&BinData{
+		{
 			Id:                 primitive.NewObjectID(),
 			CardBin:            500000,
 			CardBrand:          "JCB",
@@ -803,7 +799,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		},
 	}
 
-	_, err = db.Collection(collectionBinData).InsertMany(context.TODO(), bins)
+	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), bins)
 
 	if err != nil {
 		suite.FailNow("Insert BIN test data failed", "%v", err)
@@ -811,6 +807,12 @@ func (suite *RefundTestSuite) SetupTest() {
 
 	suite.project = project
 	suite.pmBankCard = pmBankCard
+
+	err = suite.service.operatingCompanyRepository.Upsert(context.TODO(), suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
 }
 
 func (suite *RefundTestSuite) TearDownTest() {

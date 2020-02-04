@@ -81,7 +81,6 @@ type Service struct {
 	reporterService                 reporterpb.ReporterService
 	postmarkBroker                  rabbitmq.BrokerInterface
 	paylinkService                  PaylinkServiceInterface
-	operatingCompany                OperatingCompanyInterface
 	paymentMinLimitSystem           PaymentMinLimitSystemInterface
 	casbinService                   casbinpb.CasbinService
 	paymentSystemGateway            *Gateway
@@ -99,6 +98,11 @@ type Service struct {
 	moneyBackCostSystemRepository   repository.MoneyBackCostSystemRepositoryInterface
 	project                         repository.ProjectRepositoryInterface
 	priceTableRepository            repository.PriceTableRepositoryInterface
+	notificationRepository          repository.NotificationRepositoryInterface
+	operatingCompanyRepository      repository.OperatingCompanyRepositoryInterface
+	bankBinRepository               repository.BankBinRepositoryInterface
+	notifySalesRepository           repository.NotifySalesRepositoryInterface
+	notifyRegionRepository          repository.NotifyRegionRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -169,7 +173,6 @@ func (s *Service) Init() (err error) {
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
 	s.paylinkService = newPaylinkService(s)
-	s.operatingCompany = newOperatingCompanyService(s)
 	s.paymentMinLimitSystem = newPaymentMinLimitSystem(s)
 	s.paymentSystemGateway = s.newPaymentSystemGateway()
 
@@ -187,6 +190,11 @@ func (s *Service) Init() (err error) {
 	s.moneyBackCostSystemRepository = repository.NewMoneyBackCostSystemRepository(s.db, s.cacher)
 	s.project = repository.NewProjectRepository(s.db, s.cacher)
 	s.priceTableRepository = repository.NewPriceTableRepository(s.db)
+	s.notificationRepository = repository.NewNotificationRepository(s.db)
+	s.operatingCompanyRepository = repository.NewOperatingCompanyRepository(s.db, s.cacher)
+	s.bankBinRepository = repository.NewBankBinRepository(s.db)
+	s.notifySalesRepository = repository.NewNotifySalesRepository(s.db)
+	s.notifyRegionRepository = repository.NewNotifyRegionRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

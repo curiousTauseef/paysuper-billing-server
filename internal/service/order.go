@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
@@ -26,7 +27,6 @@ import (
 	stringTools "github.com/paysuper/paysuper-tools/string"
 	"github.com/streadway/amqp"
 	"github.com/ttacon/libphonenumber"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
@@ -54,10 +54,6 @@ const (
 
 	taxTypeVat      = "vat"
 	taxTypeSalesTax = "sales_tax"
-
-	collectionBinData         = "bank_bin"
-	collectionNotifySales     = "notify_sales"
-	collectionNotifyNewRegion = "notify_new_region"
 )
 
 var (
@@ -183,19 +179,6 @@ type PaymentCreateProcessor struct {
 		project       *billingpb.Project
 		paymentMethod *billingpb.PaymentMethod
 	}
-}
-
-type BinData struct {
-	Id                 primitive.ObjectID `bson:"_id"`
-	CardBin            int32              `bson:"card_bin"`
-	CardBrand          string             `bson:"card_brand"`
-	CardType           string             `bson:"card_type"`
-	CardCategory       string             `bson:"card_category"`
-	BankName           string             `bson:"bank_name"`
-	BankCountryName    string             `bson:"bank_country_name"`
-	BankCountryIsoCode string             `bson:"bank_country_code_a2"`
-	BankSite           string             `bson:"bank_site"`
-	BankPhone          string             `bson:"bank_phone"`
 }
 
 func (s *Service) OrderCreateByPaylink(
@@ -1124,9 +1107,10 @@ func (s *Service) getOrderOperatingCompanyId(
 	orderCountry string,
 	merchant *billingpb.Merchant,
 ) (string, error) {
-	orderOperatingCompany, err := s.operatingCompany.GetByPaymentCountry(ctx, orderCountry)
+	orderOperatingCompany, err := s.operatingCompanyRepository.GetByPaymentCountry(ctx, orderCountry)
+
 	if err != nil {
-		if err == errorOperatingCompanyNotFound {
+		if err == mongo.ErrNoDocuments {
 			return merchant.OperatingCompanyId, nil
 		}
 
@@ -2060,7 +2044,7 @@ func (s *Service) getOrderByUuidToForm(ctx context.Context, uuid string) (*billi
 	return order, nil
 }
 
-func (s *Service) getBinData(ctx context.Context, pan string) (data *BinData) {
+func (s *Service) getBinData(ctx context.Context, pan string) (data *intPkg.BinData) {
 	if len(pan) < 6 {
 		zap.S().Errorf("Incorrect PAN to get BIN data", "pan", pan)
 		return
@@ -2073,7 +2057,7 @@ func (s *Service) getBinData(ctx context.Context, pan string) (data *BinData) {
 		return
 	}
 
-	err = s.db.Collection(collectionBinData).FindOne(ctx, bson.M{"card_bin": int32(i)}).Decode(&data)
+	data, err = s.bankBinRepository.GetByBin(ctx, int32(i))
 
 	if err != nil {
 		zap.S().Errorf("Query to get bank card BIN data failed", "error", err.Error(), "pan", pan)
@@ -3865,15 +3849,8 @@ func (s *Service) SetUserNotifySales(
 	if order.User != nil {
 		data.UserId = order.User.Id
 	}
-	_, err = s.db.Collection(collectionNotifySales).InsertOne(ctx, data)
-	if err != nil {
 
-		zap.S().Errorf(
-			"Save email to collection failed",
-			"error", err.Error(),
-			"request", req,
-			"collection", collectionNotifySales,
-		)
+	if err = s.notifySalesRepository.Insert(ctx, data); err != nil {
 		return err
 	}
 
@@ -3942,14 +3919,8 @@ func (s *Service) SetUserNotifyNewRegion(
 		Date:             time.Now().Format(time.RFC3339),
 		CountryIsoCodeA2: order.CountryRestriction.IsoCodeA2,
 	}
-	_, err = s.db.Collection(collectionNotifyNewRegion).InsertOne(ctx, data)
-	if err != nil {
-		zap.S().Errorf(
-			"Save email to collection failed",
-			"error", err.Error(),
-			"request", req,
-			"collection", collectionNotifyNewRegion,
-		)
+
+	if err = s.notifyRegionRepository.Insert(ctx, data); err != nil {
 		return err
 	}
 
@@ -4269,7 +4240,7 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 		platformName = platform.Name
 	}
 
-	oc, err := s.operatingCompany.GetById(ctx, order.OperatingCompanyId)
+	oc, err := s.operatingCompanyRepository.GetById(ctx, order.OperatingCompanyId)
 
 	if err != nil {
 		zap.L().Error(pkg.MethodFinishedWithError, zap.Error(err))

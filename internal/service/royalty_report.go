@@ -922,7 +922,7 @@ func (s *Service) RoyaltyReportPdfUploaded(
 		return err
 	}
 
-	operatingCompany, err := s.operatingCompany.GetById(ctx, report.OperatingCompanyId)
+	operatingCompany, err := s.operatingCompanyRepository.GetById(ctx, report.OperatingCompanyId)
 	if err != nil {
 		zap.L().Error("Operating company not found", zap.Error(err), zap.String("operating_company_id", report.OperatingCompanyId))
 		return err

@@ -26,7 +26,6 @@ import (
 )
 
 const (
-	collectionNotification                 = "notification"
 	collectionMerchantPaymentMethodHistory = "payment_method_history"
 
 	merchantStatusSigningMessage  = "We've got your license agreement signing request. If we will need your further assistance, processing this request, our onboarding manager will contact you directly."
@@ -541,7 +540,7 @@ func (s *Service) SetMerchantOperatingCompany(
 		return nil
 	}
 
-	oc, err := s.operatingCompany.GetById(ctx, req.OperatingCompanyId)
+	oc, err := s.operatingCompanyRepository.GetById(ctx, req.OperatingCompanyId)
 
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -760,74 +759,18 @@ func (s *Service) ListNotifications(
 	req *billingpb.ListingNotificationRequest,
 	rsp *billingpb.Notifications,
 ) error {
-	var notifications []*billingpb.Notification
+	var err error
 
-	query := make(bson.M)
-
-	if req.MerchantId != "" {
-		merchantOid, err := primitive.ObjectIDFromHex(req.MerchantId)
-
-		if err == nil {
-			query["merchant_id"] = merchantOid
-		}
-	}
-
-	if req.UserId != "" {
-		query["user_id"] = req.UserId
-	}
-
-	if req.IsSystem > 0 {
-		if req.IsSystem == 1 {
-			query["is_system"] = false
-		} else {
-			query["is_system"] = true
-		}
-	}
-
-	count, err := s.db.Collection(collectionNotification).CountDocuments(ctx, query)
+	rsp.Count, err = s.notificationRepository.FindCount(ctx, req.MerchantId, req.UserId, req.IsSystem)
 
 	if err != nil {
-		zap.S().Errorf("Query to count merchant notifications failed", "err", err.Error(), "query", query)
 		return merchantErrorUnknown
 	}
 
-	opts := options.Find().
-		SetSort(mongodb.ToSortOption(req.Sort)).
-		SetLimit(req.Limit).
-		SetSkip(req.Offset)
-	cursor, err := s.db.Collection(collectionNotification).Find(ctx, query, opts)
+	rsp.Items, err = s.notificationRepository.Find(ctx, req.MerchantId, req.UserId, req.IsSystem, req.Sort, req.Offset, req.Limit)
 
 	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionNotification),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-			return merchantErrorUnknown
-		}
-
-		return nil
-	}
-
-	err = cursor.All(ctx, &notifications)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionNotification),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return merchantErrorUnknown
-	}
-
-	rsp.Count = count
-	rsp.Items = []*billingpb.Notification{}
-
-	if len(notifications) > 0 {
-		rsp.Items = notifications
 	}
 
 	return nil
@@ -846,12 +789,7 @@ func (s *Service) MarkNotificationAsRead(
 
 	notification.IsRead = true
 
-	oid, _ := primitive.ObjectIDFromHex(notification.Id)
-	filter := bson.M{"_id": oid}
-	_, err = s.db.Collection(collectionNotification).ReplaceOne(ctx, filter, notification)
-
-	if err != nil {
-		zap.S().Errorf("Update notification failed", "err", err.Error(), "query", notification)
+	if err := s.notificationRepository.Update(ctx, notification); err != nil {
 		return merchantErrorUnknown
 	}
 
@@ -1091,14 +1029,7 @@ func (s *Service) addNotification(
 		Statuses:   nStatuses,
 	}
 
-	_, err = s.db.Collection(collectionNotification).InsertOne(ctx, notification)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, notification),
-		)
+	if err = s.notificationRepository.Insert(ctx, notification); err != nil {
 		return nil, merchantErrorUnknown
 	}
 
@@ -1116,21 +1047,10 @@ func (s *Service) getNotificationById(
 	ctx context.Context,
 	merchantId, notificationId string,
 ) (notification *billingpb.Notification, err error) {
-	oid, _ := primitive.ObjectIDFromHex(notificationId)
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := bson.M{"merchant_id": merchantOid, "_id": oid}
-	err = s.db.Collection(collectionNotification).FindOne(ctx, query).Decode(&notification)
+	notification, err = s.notificationRepository.GetById(ctx, notificationId)
 
-	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.S().Errorf("Query to find notification by id failed", "err", err.Error(), "query", query)
-		}
-
-		return notification, notificationErrorNotFound
-	}
-
-	if notification == nil {
-		return notification, notificationErrorNotFound
+	if err != nil || notification.MerchantId != merchantId {
+		return nil, notificationErrorNotFound
 	}
 
 	return
@@ -1185,7 +1105,7 @@ func (s *Service) getMerchantAgreementSignature(
 	ctx context.Context,
 	merchant *billingpb.Merchant,
 ) (*billingpb.MerchantAgreementSignatureData, error) {
-	op, err := s.operatingCompany.GetById(ctx, merchant.OperatingCompanyId)
+	op, err := s.operatingCompanyRepository.GetById(ctx, merchant.OperatingCompanyId)
 
 	if err != nil {
 		return nil, err
@@ -1571,7 +1491,7 @@ func (s *Service) generateMerchantAgreement(ctx context.Context, merchant *billi
 	payoutCost := fmt.Sprintf("%s (%d) %s", payoutCostWord, payoutCostInt, merchant.Tariff.Payout.MethodFixedFeeCurrency)
 	minPayoutLimit := fmt.Sprintf("%s (%d) %s", minPayoutLimitWord, minPayoutLimitInt, merchant.GetPayoutCurrency())
 
-	operatingCompany, err := s.operatingCompany.GetById(ctx, merchant.OperatingCompanyId)
+	operatingCompany, err := s.operatingCompanyRepository.GetById(ctx, merchant.OperatingCompanyId)
 	if err != nil {
 		zap.L().Error("Operating company not found", zap.Error(err), zap.String("operating_company_id", merchant.OperatingCompanyId))
 		return err

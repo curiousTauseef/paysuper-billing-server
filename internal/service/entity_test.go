@@ -66,11 +66,6 @@ func (suite *EntityTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(ctx, suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
-	}
-
 	ps1 := &billingpb.PaymentSystem{
 		Id:                 primitive.NewObjectID().Hex(),
 		Name:               "CardPay",
@@ -345,6 +340,12 @@ func (suite *EntityTestSuite) SetupTest() {
 	}
 
 	suite.paymentMethod = pmBankCard
+
+	err = suite.service.operatingCompanyRepository.Upsert(ctx, suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
 }
 
 func (suite *EntityTestSuite) TearDownTest() {

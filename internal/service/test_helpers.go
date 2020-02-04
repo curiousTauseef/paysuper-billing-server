@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -142,7 +143,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 
 	projectFixedAmount := helperCreateProject(suite, service, merchant.Id, billingpb.VatPayerBuyer)
 
-	bin := &BinData{
+	bin := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            400000,
 		CardBrand:          "MASTERCARD",
@@ -151,12 +152,6 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		BankName:           "ALFA BANK",
 		BankCountryName:    "UKRAINE",
 		BankCountryIsoCode: "UA",
-	}
-
-	_, err = service.db.Collection(collectionBinData).InsertOne(context.TODO(), bin)
-
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
 	}
 
 	pms := []*billingpb.PaymentMethod{pmBankCard}
@@ -359,6 +354,12 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		suite.FailNow("Insert PaymentChannelCostSystem test data failed", "%v", err)
 	}
 
+	err = service.bankBinRepository.Insert(context.TODO(), bin)
+
+	if err != nil {
+		suite.FailNow("Insert BIN test data failed", "%v", err)
+	}
+
 	return merchant, projectFixedAmount, pmBankCard, paymentSystem
 }
 
@@ -381,7 +382,7 @@ func helperOperatingCompany(
 		PaymentCountries:   []string{},
 	}
 
-	err := service.operatingCompany.Upsert(context.TODO(), operatingCompany)
+	err := service.operatingCompanyRepository.Upsert(context.TODO(), operatingCompany)
 	if err != nil {
 		suite.FailNow("Insert operatingCompany failed", "%v", err)
 	}

@@ -84,11 +84,6 @@ func (suite *OnboardingTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(ctx, suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
-	}
-
 	country := &billingpb.Country{
 		IsoCodeA2:         "RU",
 		Region:            "Russia",
@@ -655,6 +650,12 @@ func (suite *OnboardingTestSuite) SetupTest() {
 	centrifugoMock.On("GetChannelToken", mock2.Anything, mock2.Anything).Return("token")
 	centrifugoMock.On("Publish", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil)
 	suite.service.centrifugoDashboard = centrifugoMock
+
+	err = suite.service.operatingCompanyRepository.Upsert(ctx, suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
 }
 
 func (suite *OnboardingTestSuite) TearDownTest() {
@@ -1763,16 +1764,9 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchantPaymentMethod_Cur
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_CreateNotification_Ok() {
-	var notification *billingpb.Notification
-
-	oid, err := primitive.ObjectIDFromHex(suite.merchant.Id)
+	notifications, err := suite.service.notificationRepository.Find(context.TODO(), suite.merchant.Id, "", 2, []string{}, 0, 1)
 	assert.NoError(suite.T(), err)
-
-	query := bson.M{
-		"merchant_id": oid,
-	}
-	err = suite.service.db.Collection(collectionNotification).FindOne(context.TODO(), query).Decode(&notification)
-	assert.Nil(suite.T(), notification)
+	assert.Nil(suite.T(), notifications)
 
 	req := &billingpb.NotificationRequest{
 		MerchantId: suite.merchant.Id,
@@ -1791,12 +1785,13 @@ func (suite *OnboardingTestSuite) TestOnboarding_CreateNotification_Ok() {
 	assert.Equal(suite.T(), req.UserId, rsp.UserId)
 	assert.Equal(suite.T(), req.Message, rsp.Message)
 
-	err = suite.service.db.Collection(collectionNotification).FindOne(context.TODO(), query).Decode(&notification)
-	assert.NotNil(suite.T(), notification)
-	assert.Equal(suite.T(), rsp.Id, notification.Id)
-	assert.Equal(suite.T(), rsp.MerchantId, notification.MerchantId)
-	assert.Equal(suite.T(), rsp.UserId, notification.UserId)
-	assert.Equal(suite.T(), rsp.Message, notification.Message)
+	notifications, err = suite.service.notificationRepository.Find(context.TODO(), suite.merchant.Id, "", 2, []string{}, 0, 1)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), notifications)
+	assert.Equal(suite.T(), rsp.Id, notifications[0].Id)
+	assert.Equal(suite.T(), rsp.MerchantId, notifications[0].MerchantId)
+	assert.Equal(suite.T(), rsp.UserId, notifications[0].UserId)
+	assert.Equal(suite.T(), rsp.Message, notifications[0].Message)
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_CreateNotification_MessageEmpty_Error() {
@@ -2027,13 +2022,8 @@ func (suite *OnboardingTestSuite) TestOnboarding_MarkNotificationAsRead_Ok() {
 	assert.True(suite.T(), rsp2.IsRead)
 	assert.Equal(suite.T(), rsp1.Item.Id, rsp2.Id)
 
-	oid, err := primitive.ObjectIDFromHex(rsp1.Item.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-	var notification *billingpb.Notification
-	err = suite.service.db.Collection(collectionNotification).FindOne(context.TODO(), filter).Decode(&notification)
+	notification, err := suite.service.notificationRepository.GetById(context.TODO(), rsp1.Item.Id)
 	assert.NotNil(suite.T(), notification)
-
 	assert.True(suite.T(), notification.IsRead)
 }
 
@@ -2237,7 +2227,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantS3Agreement_Ok() {
 
 	ocRep := &mocks.OperatingCompanyInterface{}
 	ocRep.On("GetById", mock2.Anything, mock2.Anything).Return(&billingpb.OperatingCompany{SignatoryName: "name", Email: "email"}, nil)
-	suite.service.operatingCompany = ocRep
+	suite.service.operatingCompanyRepository = ocRep
 
 	req1 := &billingpb.SetMerchantS3AgreementRequest{
 		MerchantId:      rsp.Id,
@@ -3593,7 +3583,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantS3Agreement_Agreemen
 
 	ocRep := &mocks.OperatingCompanyInterface{}
 	ocRep.On("GetById", mock2.Anything, mock2.Anything).Return(&billingpb.OperatingCompany{SignatoryName: "name", Email: "email"}, nil)
-	suite.service.operatingCompany = ocRep
+	suite.service.operatingCompanyRepository = ocRep
 
 	req1 := &billingpb.SetMerchantS3AgreementRequest{
 		MerchantId:      rsp.Item.Id,
@@ -3695,7 +3685,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_GenerateMerchantAgreement_Check
 			SignatoryName:      "sig name",
 			SignatoryPosition:  "sig position",
 		}, nil)
-	suite.service.operatingCompany = ocMock
+	suite.service.operatingCompanyRepository = ocMock
 
 	err = suite.service.generateMerchantAgreement(context.TODO(), merchant)
 	assert.NoError(suite.T(), err)
@@ -3793,7 +3783,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_GenerateMerchantAgreement_Check
 			SignatoryName:      "sig name",
 			SignatoryPosition:  "sig position",
 		}, nil)
-	suite.service.operatingCompany = ocMock
+	suite.service.operatingCompanyRepository = ocMock
 
 	err = suite.service.generateMerchantAgreement(context.TODO(), merchant)
 	assert.NoError(suite.T(), err)
