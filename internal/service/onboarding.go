@@ -18,7 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"strings"
@@ -820,7 +819,7 @@ func (s *Service) GetMerchantPaymentMethod(
 		return nil
 	}
 
-	pm, err := s.paymentMethod.GetById(ctx, req.PaymentMethodId)
+	pm, err := s.paymentMethodRepository.GetById(ctx, req.PaymentMethodId)
 
 	if err != nil {
 		s.logError(
@@ -861,40 +860,9 @@ func (s *Service) ListMerchantPaymentMethods(
 		return nil
 	}
 
-	var pms []*billingpb.PaymentMethod
+	pms, err := s.paymentMethodRepository.FindByName(ctx, req.PaymentMethodName, req.Sort)
 
-	query := bson.M{"is_active": true}
-
-	if req.PaymentMethodName != "" {
-		query["name"] = primitive.Regex{Pattern: ".*" + req.PaymentMethodName + ".*", Options: "i"}
-	}
-
-	opts := options.Find().SetSort(mongodb.ToSortOption(req.Sort))
-	cursor, err := s.db.Collection(collectionPaymentMethod).Find(ctx, query, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentMethod),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil
-	}
-
-	err = cursor.All(ctx, &pms)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentMethod),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil
-	}
-
-	if len(pms) <= 0 {
+	if err != nil || len(pms) <= 0 {
 		return nil
 	}
 
@@ -940,7 +908,7 @@ func (s *Service) ChangeMerchantPaymentMethod(
 		return err
 	}
 
-	pm, e := s.paymentMethod.GetById(ctx, req.PaymentMethod.Id)
+	pm, e := s.paymentMethodRepository.GetById(ctx, req.PaymentMethod.Id)
 	if e != nil {
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = orderErrorPaymentMethodNotFound

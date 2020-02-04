@@ -155,7 +155,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 	}
 
 	pms := []*billingpb.PaymentMethod{pmBankCard}
-	if err := service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 

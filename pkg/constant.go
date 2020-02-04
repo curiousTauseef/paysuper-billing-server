@@ -121,6 +121,7 @@ const (
 	ErrorDatabaseFieldOperationInsert = "insert"
 	ErrorDatabaseFieldOperationUpdate = "update"
 	ErrorDatabaseFieldOperationUpsert = "upsert"
+	ErrorDatabaseFieldOperationDelete = "delete"
 	ErrorDatabaseFieldDocument        = "document"
 
 	ErrorJsonMarshallingFailed = "json marshalling failed"

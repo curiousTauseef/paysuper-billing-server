@@ -476,7 +476,7 @@ func (suite *RefundTestSuite) SetupTest() {
 	assert.NoError(suite.T(), err)
 
 	pms := []*billingpb.PaymentMethod{pmBankCard, pmQiwi, pmBitcoin}
-	if err := suite.service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := suite.service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 

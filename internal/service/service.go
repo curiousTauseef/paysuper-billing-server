@@ -65,7 +65,6 @@ type Service struct {
 	royaltyReport                   RoyaltyReportServiceInterface
 	orderView                       OrderViewServiceInterface
 	accounting                      AccountingServiceInterface
-	paymentMethod                   PaymentMethodInterface
 	paymentChannelCostSystem        *PaymentChannelCostSystem
 	paymentChannelCostMerchant      *PaymentChannelCostMerchant
 	productService                  ProductServiceInterface
@@ -103,6 +102,7 @@ type Service struct {
 	notifySalesRepository           repository.NotifySalesRepositoryInterface
 	notifyRegionRepository          repository.NotifyRegionRepositoryInterface
 	paymentSystemRepository         repository.PaymentSystemRepositoryInterface
+	paymentMethodRepository         repository.PaymentMethodRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -157,7 +157,6 @@ func NewBillingService(
 }
 
 func (s *Service) Init() (err error) {
-	s.paymentMethod = newPaymentMethodService(s)
 	s.payoutDocument = newPayoutService(s)
 	s.royaltyReport = newRoyaltyReport(s)
 	s.orderView = newOrderView(s)
@@ -195,6 +194,7 @@ func (s *Service) Init() (err error) {
 	s.notifySalesRepository = repository.NewNotifySalesRepository(s.db)
 	s.notifyRegionRepository = repository.NewNotifyRegionRepository(s.db)
 	s.paymentSystemRepository = repository.NewPaymentSystemRepository(s.db, s.cacher)
+	s.paymentMethodRepository = repository.NewPaymentMethodRepository(s.db, s.cacher)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

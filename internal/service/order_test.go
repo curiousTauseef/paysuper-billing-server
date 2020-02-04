@@ -1435,7 +1435,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		pmBankCardNotUsed,
 		pmBitcoin2,
 	}
-	if err := suite.service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := suite.service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
@@ -2849,7 +2849,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethod_Ok() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -2874,7 +2874,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethod_PaymentMethodInactiv
 	err := processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -2900,7 +2900,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethod_PaymentSystemInactiv
 	err := processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -2936,7 +2936,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_Ok() {
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -2973,7 +2973,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_ConvertAmount_Ok() {
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3010,7 +3010,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_ProjectMinAmount_Erro
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3048,7 +3048,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_ProjectMaxAmount_Erro
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3086,7 +3086,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_PaymentMethodMinAmoun
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3124,7 +3124,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_PaymentMethodMaxAmoun
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3380,7 +3380,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_PaymentMethod_Ok() {
 	err = processor.processLimitAmounts()
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 

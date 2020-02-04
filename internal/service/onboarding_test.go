@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
@@ -349,7 +348,7 @@ func (suite *OnboardingTestSuite) SetupTest() {
 	}
 
 	pms := []*billingpb.PaymentMethod{pmBankCard, pmQiwi}
-	if err := suite.service.paymentMethod.MultipleInsert(ctx, pms); err != nil {
+	if err := suite.service.paymentMethodRepository.MultipleInsert(ctx, pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
@@ -1339,7 +1338,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantPaymentMethods_Merc
 
 	assert.Nil(suite.T(), err)
 	assert.True(suite.T(), len(rsp.PaymentMethods) > 0)
-	pm, err := suite.service.paymentMethod.GetAll(context.TODO())
+	pm, err := suite.service.paymentMethodRepository.GetAll(context.TODO())
 	assert.Len(suite.T(), rsp.PaymentMethods, len(pm))
 
 	for _, v := range rsp.PaymentMethods {
@@ -1365,7 +1364,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantPaymentMethods_Exis
 
 	assert.Nil(suite.T(), err)
 	assert.True(suite.T(), len(rsp.PaymentMethods) > 0)
-	pm, err := suite.service.paymentMethod.GetAll(context.TODO())
+	pm, err := suite.service.paymentMethodRepository.GetAll(context.TODO())
 	assert.Len(suite.T(), rsp.PaymentMethods, len(pm))
 
 	for _, v := range rsp.PaymentMethods {
@@ -1436,7 +1435,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantPaymentMethods_NewM
 
 	assert.Nil(suite.T(), err)
 	assert.True(suite.T(), len(rspListMerchantPaymentMethods.PaymentMethods) > 0)
-	pma, err := suite.service.paymentMethod.GetAll(context.TODO())
+	pma, err := suite.service.paymentMethodRepository.GetAll(context.TODO())
 	assert.Len(suite.T(), rspListMerchantPaymentMethods.PaymentMethods, len(pma))
 
 	for _, v := range rspListMerchantPaymentMethods.PaymentMethods {
@@ -1553,7 +1552,14 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantPaymentMethods_Upda
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantPaymentMethods_PaymentMethodsIsEmpty_Ok() {
-	_, err := suite.service.db.Collection(collectionPaymentMethod).DeleteMany(context.TODO(), bson.M{})
+	list, err := suite.service.paymentMethodRepository.GetAll(context.TODO())
+	assert.Nil(suite.T(), err)
+
+	if len(list) > 0 {
+		for _, pm := range list {
+			_ = suite.service.paymentMethodRepository.Delete(context.TODO(), pm)
+		}
+	}
 
 	req := &billingpb.ListMerchantPaymentMethodsRequest{
 		MerchantId: suite.merchant1.Id,
