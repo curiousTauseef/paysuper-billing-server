@@ -76,6 +76,14 @@ var (
 			{Id: billingpb.RoleSystemViewOnly, Name: roleNameSystemViewOnly},
 		},
 	}
+
+	merchantUserRolesNames = map[string]string{
+		billingpb.RoleMerchantOwner:      roleNameMerchantOwner,
+		billingpb.RoleMerchantDeveloper:  roleNameMerchantDeveloper,
+		billingpb.RoleMerchantAccounting: roleNameMerchantAccounting,
+		billingpb.RoleMerchantSupport:    roleNameMerchantSupport,
+		billingpb.RoleMerchantViewOnly:   roleNameMerchantViewOnly,
+	}
 )
 
 func (s *Service) GetMerchantUsers(ctx context.Context, req *billingpb.GetMerchantUsersRequest, res *billingpb.GetMerchantUsersResponse) error {
@@ -241,7 +249,9 @@ func (s *Service) InviteUserMerchant(
 		return nil
 	}
 
-	if err = s.sendInviteEmail(req.Email, owner.Email, owner.FirstName, owner.LastName, merchant.Company.Name, tokenString); err != nil {
+	err = s.sendInviteEmail(req.Email, owner.Email, owner.FirstName, owner.LastName, merchant.Company.Name, tokenString, role.Role)
+
+	if err != nil {
 		zap.L().Error(
 			errorUserUnableToSendInvite.Message,
 			zap.Error(err),
@@ -321,7 +331,9 @@ func (s *Service) InviteUserAdmin(
 		return nil
 	}
 
-	if err = s.sendInviteEmail(req.Email, owner.Email, owner.FirstName, owner.LastName, defaultCompanyName, tokenString); err != nil {
+	err = s.sendInviteEmail(req.Email, owner.Email, owner.FirstName, owner.LastName, defaultCompanyName, tokenString, "")
+
+	if err != nil {
 		zap.L().Error(
 			errorUserUnableToSendInvite.Message,
 			zap.Error(err),
@@ -396,7 +408,9 @@ func (s *Service) ResendInviteMerchant(
 		return nil
 	}
 
-	if err = s.sendInviteEmail(role.Email, owner.Email, owner.FirstName, owner.LastName, merchant.Company.Name, token); err != nil {
+	err = s.sendInviteEmail(role.Email, owner.Email, owner.FirstName, owner.LastName, merchant.Company.Name, token, role.Role)
+
+	if err != nil {
 		zap.L().Error(
 			errorUserUnableToSendInvite.Message,
 			zap.Error(err),
@@ -453,7 +467,9 @@ func (s *Service) ResendInviteAdmin(
 		return nil
 	}
 
-	if err = s.sendInviteEmail(role.Email, owner.Email, owner.FirstName, owner.LastName, defaultCompanyName, token); err != nil {
+	err = s.sendInviteEmail(role.Email, owner.Email, owner.FirstName, owner.LastName, defaultCompanyName, token, "")
+
+	if err != nil {
 		zap.L().Error(
 			errorUserUnableToSendInvite.Message,
 			zap.Error(err),
@@ -597,7 +613,7 @@ func (s *Service) AcceptInvite(
 }
 
 func (s *Service) CheckInviteToken(
-	ctx context.Context,
+	_ context.Context,
 	req *billingpb.CheckInviteTokenRequest,
 	res *billingpb.CheckInviteTokenResponse,
 ) error {
@@ -626,7 +642,26 @@ func (s *Service) CheckInviteToken(
 	return nil
 }
 
-func (s *Service) sendInviteEmail(receiverEmail, senderEmail, senderFirstName, senderLastName, senderCompany, token string) error {
+func (s *Service) sendInviteEmail(
+	receiverEmail,
+	senderEmail,
+	senderFirstName,
+	senderLastName,
+	senderCompany,
+	token,
+	roleKey string,
+) error {
+	roleName := ""
+	ok := false
+
+	if roleKey != "" {
+		roleName, ok = merchantUserRolesNames[roleKey]
+
+		if !ok {
+			return errorUserUnsupportedRoleType
+		}
+	}
+
 	payload := &postmarkpb.Payload{
 		TemplateAlias: s.cfg.EmailTemplates.UserInvite,
 		TemplateModel: map[string]string{
@@ -635,6 +670,7 @@ func (s *Service) sendInviteEmail(receiverEmail, senderEmail, senderFirstName, s
 			"sender_email":      senderEmail,
 			"sender_company":    senderCompany,
 			"invite_link":       s.cfg.GetUserInviteUrl(token),
+			"role_name":         roleName,
 		},
 		To: receiverEmail,
 	}
@@ -758,7 +794,7 @@ func (s *Service) ChangeRoleForAdminUser(ctx context.Context, req *billingpb.Cha
 	return nil
 }
 
-func (s *Service) GetRoleList(ctx context.Context, req *billingpb.GetRoleListRequest, res *billingpb.GetRoleListResponse) error {
+func (s *Service) GetRoleList(_ context.Context, req *billingpb.GetRoleListRequest, res *billingpb.GetRoleListResponse) error {
 	list, ok := merchantUserRoles[req.Type]
 
 	if !ok {

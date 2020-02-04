@@ -743,6 +743,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_Ok()
 	assert.Empty(suite.T(), rsp1.Message)
 
 	merchant, err = suite.service.merchantRepository.GetById(ctx, rsp.Id)
+	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), merchant)
 	assert.Equal(suite.T(), billingpb.MerchantStatusPending, merchant.Status)
 	assert.Equal(suite.T(), rsp.Contacts.Authorized.Position, merchant.Contacts.Authorized.Position)
@@ -3810,4 +3811,67 @@ func (suite *OnboardingTestSuite) TestOnboarding_GetMerchantTariffRates_WithPaye
 	assert.NotEmpty(suite.T(), rsp.Items.Chargeback)
 	assert.NotNil(suite.T(), rsp.Items.Chargeback)
 	assert.NotNil(suite.T(), rsp.Items.Payout)
+}
+
+func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchantData_SignedPublishMessageFailed_Error() {
+	req := &billingpb.OnboardingRequest{
+		User: &billingpb.MerchantUser{
+			Id:    primitive.NewObjectID().Hex(),
+			Email: "test@unit.test",
+		},
+		Company: &billingpb.MerchantCompanyInfo{
+			Name:    "merchant1",
+			Country: "RU",
+			Zip:     "190000",
+			City:    "St.Petersburg",
+		},
+		Contacts: &billingpb.MerchantContact{
+			Authorized: &billingpb.MerchantContactAuthorized{
+				Name:     "Unit Test",
+				Email:    "test@unit.test",
+				Phone:    "1234567890",
+				Position: "Unit Test",
+			},
+			Technical: &billingpb.MerchantContactTechnical{
+				Name:  "Unit Test",
+				Email: "test@unit.test",
+				Phone: "1234567890",
+			},
+		},
+		Banking: &billingpb.MerchantBanking{
+			Currency:      "RUB",
+			Name:          "Bank name",
+			Address:       "Unknown",
+			AccountNumber: "1234567890",
+			Swift:         "TEST",
+			Details:       "",
+		},
+	}
+
+	rsp := &billingpb.ChangeMerchantResponse{}
+	err := suite.service.ChangeMerchant(context.TODO(), req, rsp)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
+	assert.Equal(suite.T(), billingpb.MerchantStatusDraft, rsp.Item.Status)
+	assert.Empty(suite.T(), rsp.Item.ReceivedDate)
+	assert.Empty(suite.T(), rsp.Item.StatusLastUpdatedAt)
+
+	merchant, err := suite.service.merchantRepository.GetById(context.TODO(), rsp.Item.Id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), merchant)
+
+	merchant.Status = billingpb.MerchantStatusAgreementSigning
+	err = suite.service.merchantRepository.Update(context.TODO(), merchant)
+
+	suite.service.postmarkBroker = mocks.NewBrokerMockError()
+	req1 := &billingpb.ChangeMerchantDataRequest{
+		MerchantId:           merchant.Id,
+		HasPspSignature:      true,
+		HasMerchantSignature: true,
+	}
+	rsp1 := &billingpb.ChangeMerchantDataResponse{}
+	err = suite.service.ChangeMerchantData(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), rsp1.Message, merchantErrorUnknown)
 }

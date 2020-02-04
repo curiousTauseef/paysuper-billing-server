@@ -937,11 +937,12 @@ func (s *Service) RoyaltyReportPdfUploaded(
 			"period_to":              periodTo.Format("2006-01-02"),
 			"license_agreement":      merchant.AgreementNumber,
 			"status":                 report.Status,
-			"merchant_greeting":      merchant.GetAuthorizedName(),
+			"merchant_greeting":      merchant.GetOwnerName(),
 			"royalty_reports_url":    s.cfg.GetRoyaltyReportsUrl(),
+			"royalty_report_url":     s.cfg.GetRoyaltyReportUrl(report.Id),
 			"operating_company_name": operatingCompany.Name,
 		},
-		To: merchant.GetAuthorizedEmail(),
+		To: merchant.GetOwnerEmail(),
 		Attachments: []*postmarkpb.PayloadAttachment{
 			{
 				Name:        req.Filename,
@@ -1005,10 +1006,10 @@ func (s *Service) sendRoyaltyReportNotification(ctx context.Context, report *bil
 				"period_to":           periodTo.Format(time.RFC822),
 				"license_agreement":   merchant.AgreementNumber,
 				"status":              report.Status,
-				"merchant_greeting":   merchant.GetAuthorizedName(),
+				"merchant_greeting":   merchant.GetOwnerName(),
 				"royalty_reports_url": s.cfg.GetRoyaltyReportsUrl(),
 			},
-			To: merchant.GetAuthorizedEmail(),
+			To: merchant.GetOwnerEmail(),
 		}
 
 		err = s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
