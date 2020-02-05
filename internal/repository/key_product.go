@@ -71,14 +71,14 @@ func (r *keyProductRepository) FindByIdsProjectId(ctx context.Context, ids []str
 	idsLen := len(ids)
 	items := make([]primitive.ObjectID, idsLen)
 
-	for _, id := range ids {
+	for i, id := range ids {
 		oid, err := primitive.ObjectIDFromHex(id)
 
 		if err != nil {
 			continue
 		}
 
-		items = append(items, oid)
+		items[i] = oid
 	}
 
 	projectOid, _ := primitive.ObjectIDFromHex(projectId)
