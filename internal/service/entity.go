@@ -20,7 +20,6 @@ type Accounting Entity
 type RoyaltyReport Entity
 type Paylink Entity
 type Product Entity
-type Key Entity
 
 type Repository struct {
 	svc *Service

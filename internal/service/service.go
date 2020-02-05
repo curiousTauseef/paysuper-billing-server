@@ -68,7 +68,6 @@ type Service struct {
 	productService                       ProductServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
 	merchantTariffRates                  MerchantTariffRatesInterface
-	keyRepository                        KeyRepositoryInterface
 	dashboardRepository                  DashboardRepositoryInterface
 	centrifugoPaymentForm                CentrifugoInterface
 	centrifugoDashboard                  CentrifugoInterface
@@ -102,6 +101,7 @@ type Service struct {
 	paymentChannelCostSystemRepository   repository.PaymentChannelCostSystemRepositoryInterface
 	paymentChannelCostMerchantRepository repository.PaymentChannelCostMerchantRepositoryInterface
 	paymentMinLimitSystemRepository      repository.PaymentMinLimitSystemRepositoryInterface
+	keyRepository                        repository.KeyRepositoryInterface
 	keyProductRepository                 repository.KeyProductRepositoryInterface
 }
 
@@ -163,7 +163,6 @@ func (s *Service) Init() (err error) {
 	s.accounting = newAccounting(s)
 	s.productService = newProductService(s)
 	s.merchantTariffRates = newMerchantsTariffRatesRepository(s)
-	s.keyRepository = newKeyRepository(s)
 	s.dashboardRepository = newDashboardRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
@@ -194,6 +193,7 @@ func (s *Service) Init() (err error) {
 	s.paymentChannelCostSystemRepository = repository.NewPaymentChannelCostSystemRepository(s.db, s.cacher)
 	s.paymentChannelCostMerchantRepository = repository.NewPaymentChannelCostMerchantRepository(s.db, s.cacher)
 	s.paymentMinLimitSystemRepository = repository.NewPaymentMinLimitSystemRepository(s.db, s.cacher)
+	s.keyRepository = repository.NewKeyRepository(s.db)
 	s.keyProductRepository = repository.NewKeyProductRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
