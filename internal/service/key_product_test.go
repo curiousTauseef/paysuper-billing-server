@@ -44,7 +44,7 @@ func (suite *KeyProductTestSuite) SetupTest() {
 	}
 
 	m, err := migrate.New(
-		"file://../../migrations/tests/keys",
+		"file://../../migrations/tests",
 		cfg.MongoDsn)
 	assert.NoError(suite.T(), err, "Migrate init failed")
 	if err != nil {
