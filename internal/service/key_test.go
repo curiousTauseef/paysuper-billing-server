@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
@@ -14,10 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
@@ -39,6 +39,16 @@ func (suite *KeyTestSuite) SetupTest() {
 	cfg, err := config.NewConfig()
 	if err != nil {
 		suite.FailNow("Config load failed", "%v", err)
+	}
+
+	m, err := migrate.New(
+		"file://../../migrations/tests",
+		cfg.MongoDsn)
+	assert.NoError(suite.T(), err, "Migrate init failed")
+
+	err = m.Up()
+	if err != nil && err.Error() != "no change" {
+		suite.FailNow("Migrations failed", "%v", err)
 	}
 
 	db, err := mongodb.NewDatabase()
@@ -74,16 +84,6 @@ func (suite *KeyTestSuite) SetupTest() {
 	if err := suite.service.Init(); err != nil {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
-
-	mod := mongo.IndexModel{
-		Keys: bson.M{
-			"platform_id": 1,
-			"code":        1,
-		},
-		Options: options.Index().SetUnique(true).SetName("udx_key_platform_code"),
-	}
-
-	_, _ = suite.service.db.Collection(collectionKey).Indexes().CreateOne(ctx, mod)
 }
 
 func (suite *KeyTestSuite) TearDownTest() {
