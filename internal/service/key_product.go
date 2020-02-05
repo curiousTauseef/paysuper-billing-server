@@ -4,13 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"net/http"
 	"sort"
@@ -18,8 +15,7 @@ import (
 )
 
 const (
-	collectionKeyProduct = "key_product"
-	oneDayTtl            = 86400
+	oneDayTtl = 86400
 )
 
 var (
@@ -202,13 +198,7 @@ func (s *Service) CreateOrUpdateKeyProduct(
 	}
 
 	// Prevent duplicated key products (by projectId+sku)
-	projectOid, _ := primitive.ObjectIDFromHex(req.ProjectId)
-	dupQuery := bson.M{
-		"project_id": projectOid,
-		"sku":        req.Sku,
-		"deleted":    false,
-	}
-	found, err := s.db.Collection(collectionKeyProduct).CountDocuments(ctx, dupQuery)
+	found, err := s.keyProductRepository.CountByProjectIdSku(ctx, req.ProjectId, req.Sku)
 
 	if err != nil {
 		zap.S().Errorf("Query to find duplicates failed", "err", err.Error(), "data", req)
@@ -328,20 +318,7 @@ func (s *Service) CreateOrUpdateKeyProduct(
 	product.Pricing = req.Pricing
 	product.UpdatedAt = now
 
-	oid, _ := primitive.ObjectIDFromHex(product.Id)
-	opts := options.Replace().SetUpsert(true)
-	filter := bson.M{"_id": oid}
-	_, err = s.db.Collection(collectionKeyProduct).ReplaceOne(ctx, filter, product, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationUpsert),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
-			zap.Any(pkg.ErrorDatabaseFieldSet, product),
-		)
+	if err = s.keyProductRepository.Upsert(ctx, product); err != nil {
 		res.Status = http.StatusInternalServerError
 		res.Message = keyProductErrorUpsert
 		return nil
@@ -365,73 +342,26 @@ func (s *Service) GetKeyProducts(
 		return nil
 	}
 
-	merchantOid, _ := primitive.ObjectIDFromHex(req.MerchantId)
-	query := bson.M{"merchant_id": merchantOid, "deleted": false}
-
-	if req.ProjectId != "" {
-		query["project_id"], _ = primitive.ObjectIDFromHex(req.ProjectId)
-	}
-
-	if req.Sku != "" {
-		query["sku"] = primitive.Regex{Pattern: req.Sku, Options: "i"}
-	}
-	if req.Name != "" {
-		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: req.Name, Options: "i"}}}
-	}
-
-	if req.Enabled == "true" {
-		query["enabled"] = bson.M{"$eq": true}
-	} else if req.Enabled == "false" {
-		query["enabled"] = bson.M{"$eq": false}
-	}
-
-	total, err := s.db.Collection(collectionKeyProduct).CountDocuments(ctx, query)
+	count, err := s.keyProductRepository.FindCount(ctx, req.MerchantId, req.ProjectId, req.Sku, req.Name, req.Enabled)
 
 	if err != nil {
-		zap.S().Errorf("Query to find key products by id failed", "err", err.Error(), "data", req)
 		res.Status = http.StatusInternalServerError
 		res.Message = keyProductInternalError
 		res.Message.Details = err.Error()
 		return nil
 	}
 
-	var items []*billingpb.KeyProduct
-
 	res.Limit = req.Limit
 	res.Offset = req.Offset
-	res.Count = total
-	res.Products = items
+	res.Count = count
 
 	if res.Count == 0 || res.Offset > res.Count {
 		return nil
 	}
 
-	opts := options.Find().
-		SetSkip(req.Offset).
-		SetLimit(req.Limit)
-	cursor, err := s.db.Collection(collectionKeyProduct).Find(ctx, query, opts)
+	items, err := s.keyProductRepository.Find(ctx, req.MerchantId, req.ProjectId, req.Sku, req.Name, req.Enabled, req.Offset, req.Limit)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		res.Status = http.StatusInternalServerError
-		res.Message = keyProductInternalError.GetResponseErrorWithDetails(err.Error())
-		return nil
-	}
-
-	err = cursor.All(ctx, &items)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		res.Status = http.StatusInternalServerError
 		res.Message = keyProductInternalError.GetResponseErrorWithDetails(err.Error())
 		return nil
@@ -468,7 +398,7 @@ func (s *Service) GetKeyProductInfo(
 	res *billingpb.GetKeyProductInfoResponse,
 ) error {
 	res.Status = billingpb.ResponseStatusOk
-	product, err := s.getKeyProductById(ctx, req.KeyProductId)
+	product, err := s.keyProductRepository.GetById(ctx, req.KeyProductId)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -591,7 +521,7 @@ func (s *Service) GetKeyProduct(
 	res *billingpb.KeyProductResponse,
 ) error {
 	res.Status = billingpb.ResponseStatusOk
-	product, err := s.getKeyProductById(ctx, req.Id)
+	product, err := s.keyProductRepository.GetById(ctx, req.Id)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -618,25 +548,12 @@ func (s *Service) GetKeyProduct(
 	return nil
 }
 
-func (s *Service) getKeyProductById(ctx context.Context, id string) (*billingpb.KeyProduct, error) {
-	oid, err := primitive.ObjectIDFromHex(id)
-
-	if err != nil {
-		return nil, err
-	}
-
-	query := bson.M{"_id": oid, "deleted": false}
-	product := new(billingpb.KeyProduct)
-	err = s.db.Collection(collectionKeyProduct).FindOne(ctx, query).Decode(product)
-	return product, err
-}
-
 func (s *Service) DeleteKeyProduct(
 	ctx context.Context,
 	req *billingpb.RequestKeyProductMerchant,
 	res *billingpb.EmptyResponseWithStatus,
 ) error {
-	product, err := s.getKeyProductById(ctx, req.Id)
+	product, err := s.keyProductRepository.GetById(ctx, req.Id)
 	res.Status = billingpb.ResponseStatusOk
 
 	if err != nil {
@@ -662,18 +579,7 @@ func (s *Service) DeleteKeyProduct(
 	product.Deleted = true
 	product.UpdatedAt = ptypes.TimestampNow()
 
-	oid, _ := primitive.ObjectIDFromHex(product.Id)
-	filter := bson.M{"_id": oid}
-	_, err = s.db.Collection(collectionKeyProduct).ReplaceOne(ctx, filter, product)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
-			zap.Any(pkg.ErrorDatabaseFieldSet, product),
-		)
+	if err = s.keyProductRepository.Update(ctx, product); err != nil {
 		res.Status = http.StatusInternalServerError
 		res.Message = keyProductErrorDelete
 		return nil
@@ -687,7 +593,7 @@ func (s *Service) PublishKeyProduct(
 	req *billingpb.PublishKeyProductRequest,
 	res *billingpb.KeyProductResponse,
 ) error {
-	product, err := s.getKeyProductById(ctx, req.KeyProductId)
+	product, err := s.keyProductRepository.GetById(ctx, req.KeyProductId)
 	res.Status = billingpb.ResponseStatusOk
 
 	if err != nil {
@@ -714,18 +620,7 @@ func (s *Service) PublishKeyProduct(
 	product.PublishedAt = ptypes.TimestampNow()
 	product.Enabled = true
 
-	oid, _ := primitive.ObjectIDFromHex(product.Id)
-	filter := bson.M{"_id": oid}
-	_, err = s.db.Collection(collectionKeyProduct).ReplaceOne(ctx, filter, product)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
-			zap.Any(pkg.ErrorDatabaseFieldSet, product),
-		)
+	if err = s.keyProductRepository.Update(ctx, product); err != nil {
 		res.Status = http.StatusInternalServerError
 		res.Message = keyProductErrorUpsert
 		return nil
@@ -747,60 +642,18 @@ func (s *Service) GetKeyProductsForOrder(
 		return nil
 	}
 
-	idsLen := len(req.Ids)
-	items := make([]primitive.ObjectID, idsLen)
-
-	for _, id := range req.Ids {
-		oid, err := primitive.ObjectIDFromHex(id)
-
-		if err != nil {
-			continue
-		}
-
-		items = append(items, oid)
-	}
-
-	projectOid, _ := primitive.ObjectIDFromHex(req.ProjectId)
-	query := bson.M{
-		"_id":        bson.M{"$in": items},
-		"enabled":    true,
-		"deleted":    false,
-		"project_id": projectOid,
-	}
-	cursor, err := s.db.Collection(collectionKeyProduct).Find(ctx, query)
+	list, err := s.keyProductRepository.FindByIdsProjectId(ctx, req.Ids, req.ProjectId)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-
 		res.Status = http.StatusInternalServerError
 		res.Message = keyProductInternalError.GetResponseErrorWithDetails(err.Error())
 		return nil
 	}
 
-	var found []*billingpb.KeyProduct
-	err = cursor.All(ctx, &found)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		res.Status = http.StatusInternalServerError
-		res.Message = keyProductInternalError.GetResponseErrorWithDetails(err.Error())
-		return nil
-	}
-
-	res.Limit = int64(len(found))
+	res.Limit = int64(len(list))
 	res.Offset = 0
 	res.Count = res.Limit
-	res.Products = found
+	res.Products = list
 	return nil
 }
 
@@ -900,7 +753,7 @@ func (s *Service) UnPublishKeyProduct(
 	req *billingpb.UnPublishKeyProductRequest,
 	res *billingpb.KeyProductResponse,
 ) error {
-	product, err := s.getKeyProductById(ctx, req.KeyProductId)
+	product, err := s.keyProductRepository.GetById(ctx, req.KeyProductId)
 	res.Status = billingpb.ResponseStatusOk
 
 	if err != nil {
@@ -932,19 +785,7 @@ func (s *Service) UnPublishKeyProduct(
 
 	product.Enabled = false
 
-	oid, _ := primitive.ObjectIDFromHex(product.Id)
-	filter := bson.M{"_id": oid}
-	_, err = s.db.Collection(collectionKeyProduct).ReplaceOne(ctx, filter, product)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
-			zap.Any(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationUpdate),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
-			zap.Any(pkg.ErrorDatabaseFieldSet, product),
-		)
+	if err = s.keyProductRepository.Update(ctx, product); err != nil {
 		res.Status = http.StatusInternalServerError
 		res.Message = keyProductErrorUpsert
 		return nil
@@ -1015,32 +856,4 @@ func getImageByLanguage(lng string, collection *billingpb.ImageCollection) strin
 	}
 
 	return image
-}
-
-type KeyProductRepositoryInterface interface {
-	GetById(context.Context, string) (*billingpb.KeyProduct, error)
-	Update(context.Context, *billingpb.KeyProduct) error
-}
-
-func newKeyProductRepository(svc *Service) *KeyProductRepository {
-	s := &KeyProductRepository{svc: svc}
-	return s
-}
-
-func (h *KeyProductRepository) GetById(ctx context.Context, id string) (*billingpb.KeyProduct, error) {
-	oid, _ := primitive.ObjectIDFromHex(id)
-	query := bson.M{"_id": oid, "deleted": false}
-
-	product := &billingpb.KeyProduct{}
-	err := h.svc.db.Collection(collectionKeyProduct).FindOne(ctx, query).Decode(product)
-
-	return product, err
-}
-
-func (h *KeyProductRepository) Update(ctx context.Context, keyProduct *billingpb.KeyProduct) error {
-	oid, _ := primitive.ObjectIDFromHex(keyProduct.Id)
-	filter := bson.M{"_id": oid}
-	_, err := h.svc.db.Collection(collectionKeyProduct).ReplaceOne(ctx, filter, keyProduct)
-
-	return err
 }
