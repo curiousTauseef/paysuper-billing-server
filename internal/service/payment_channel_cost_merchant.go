@@ -2,28 +2,14 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
-	internalPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
-	tools "github.com/paysuper/paysuper-tools/number"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"sort"
-)
-
-const (
-	cachePaymentChannelCostMerchantKeyId = "pccm:id:%s"
-	cachePaymentChannelCostMerchantKey   = "pccm:m:%s:n:%s:pc:%s:r:%s:c:%s:mcc:%s"
-	cachePaymentChannelCostMerchantAll   = "pccm:all:m:%s"
-
-	collectionPaymentChannelCostMerchant = "payment_channel_cost_merchant"
 )
 
 var (
@@ -39,26 +25,12 @@ var (
 	errorMerchantTariffUpdate                   = newBillingServerErrorMsg("pcm000010", "can't update merchant tariffs")
 )
 
-type PaymentChannelCostMerchantInterface interface {
-	MultipleInsert(ctx context.Context, obj []*billingpb.PaymentChannelCostMerchant) error
-	Update(ctx context.Context, obj *billingpb.PaymentChannelCostMerchant) error
-	GetById(ctx context.Context, id string) (*billingpb.PaymentChannelCostMerchant, error)
-	Get(ctx context.Context, merchantId, name, payoutCurrency, region, country, mccCode string) ([]*internalPkg.PaymentChannelCostMerchantSet, error)
-	Delete(ctx context.Context, obj *billingpb.PaymentChannelCostMerchant) error
-	GetAllForMerchant(ctx context.Context, merchantId string) (*billingpb.PaymentChannelCostMerchantList, error)
-}
-
-func newPaymentChannelCostMerchantService(svc *Service) *PaymentChannelCostMerchant {
-	s := &PaymentChannelCostMerchant{svc: svc}
-	return s
-}
-
 func (s *Service) GetAllPaymentChannelCostMerchant(
 	ctx context.Context,
 	req *billingpb.PaymentChannelCostMerchantListRequest,
 	res *billingpb.PaymentChannelCostMerchantListResponse,
 ) error {
-	val, err := s.paymentChannelCostMerchant.GetAllForMerchant(ctx, req.MerchantId)
+	val, err := s.paymentChannelCostMerchantRepository.GetAllForMerchant(ctx, req.MerchantId)
 	if err != nil {
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errorPaymentChannelMerchantGetAll
@@ -66,7 +38,7 @@ func (s *Service) GetAllPaymentChannelCostMerchant(
 	}
 
 	res.Status = billingpb.ResponseStatusOk
-	res.Item = val
+	res.Item = &billingpb.PaymentChannelCostMerchantList{Items: val}
 
 	return nil
 }
@@ -150,7 +122,7 @@ func (s *Service) SetPaymentChannelCostMerchant(
 	req.IsActive = true
 
 	if req.Id != "" {
-		val, err := s.paymentChannelCostMerchant.GetById(ctx, req.Id)
+		val, err := s.paymentChannelCostMerchantRepository.GetById(ctx, req.Id)
 		if err != nil {
 			res.Status = billingpb.ResponseStatusSystemError
 			res.Message = errorPaymentChannelMerchantSetFailed
@@ -159,10 +131,10 @@ func (s *Service) SetPaymentChannelCostMerchant(
 		req.Id = val.Id
 		req.MerchantId = val.MerchantId
 		req.CreatedAt = val.CreatedAt
-		err = s.paymentChannelCostMerchant.Update(ctx, req)
+		err = s.paymentChannelCostMerchantRepository.Update(ctx, req)
 	} else {
 		req.Id = primitive.NewObjectID().Hex()
-		err = s.paymentChannelCostMerchant.Insert(ctx, req)
+		err = s.paymentChannelCostMerchantRepository.Insert(ctx, req)
 	}
 	if err != nil {
 		res.Status = billingpb.ResponseStatusSystemError
@@ -194,13 +166,13 @@ func (s *Service) DeletePaymentChannelCostMerchant(
 	req *billingpb.PaymentCostDeleteRequest,
 	res *billingpb.ResponseError,
 ) error {
-	pc, err := s.paymentChannelCostMerchant.GetById(ctx, req.Id)
+	pc, err := s.paymentChannelCostMerchantRepository.GetById(ctx, req.Id)
 	if err != nil {
 		res.Status = billingpb.ResponseStatusNotFound
 		res.Message = errorCostRateNotFound
 		return nil
 	}
-	err = s.paymentChannelCostMerchant.Delete(ctx, pc)
+	err = s.paymentChannelCostMerchantRepository.Delete(ctx, pc)
 	if err != nil {
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errorPaymentChannelMerchantDelete
@@ -215,7 +187,7 @@ func (s *Service) getPaymentChannelCostMerchant(
 	ctx context.Context,
 	req *billingpb.PaymentChannelCostMerchantRequest,
 ) (*billingpb.PaymentChannelCostMerchant, error) {
-	val, err := s.paymentChannelCostMerchant.Get(
+	val, err := s.paymentChannelCostMerchantRepository.Find(
 		ctx,
 		req.MerchantId,
 		req.Name,
@@ -251,305 +223,4 @@ func (s *Service) getPaymentChannelCostMerchant(
 	}
 
 	return nil, errorCostMatchedToAmountNotFound
-}
-
-func (h *PaymentChannelCostMerchant) Insert(ctx context.Context, obj *billingpb.PaymentChannelCostMerchant) error {
-	obj.MinAmount = tools.FormatAmount(obj.MinAmount)
-	obj.MethodFixAmount = tools.FormatAmount(obj.MethodFixAmount)
-	obj.MethodPercent = tools.ToPrecise(obj.MethodPercent)
-	obj.PsPercent = tools.ToPrecise(obj.PsPercent)
-	obj.PsFixedFee = tools.FormatAmount(obj.PsFixedFee)
-	obj.CreatedAt = ptypes.TimestampNow()
-	obj.UpdatedAt = ptypes.TimestampNow()
-	obj.IsActive = true
-
-	_, err := h.svc.db.Collection(collectionPaymentChannelCostMerchant).InsertOne(ctx, obj)
-
-	if err != nil {
-		return err
-	}
-
-	return h.updateCaches(obj)
-}
-
-func (h PaymentChannelCostMerchant) MultipleInsert(ctx context.Context, obj []*billingpb.PaymentChannelCostMerchant) error {
-	c := make([]interface{}, len(obj))
-	for i, v := range obj {
-		if v.Id == "" {
-			v.Id = primitive.NewObjectID().Hex()
-		}
-		v.MinAmount = tools.FormatAmount(v.MinAmount)
-		v.MethodFixAmount = tools.FormatAmount(v.MethodFixAmount)
-		v.MethodPercent = tools.ToPrecise(v.MethodPercent)
-		v.PsPercent = tools.ToPrecise(v.PsPercent)
-		v.PsFixedFee = tools.FormatAmount(v.PsFixedFee)
-		v.CreatedAt = ptypes.TimestampNow()
-		v.UpdatedAt = ptypes.TimestampNow()
-		v.IsActive = true
-		c[i] = v
-	}
-
-	_, err := h.svc.db.Collection(collectionPaymentChannelCostMerchant).InsertMany(ctx, c)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentChannelCostMerchant),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationInsert),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, c),
-		)
-		return err
-	}
-
-	for _, v := range obj {
-		if err := h.updateCaches(v); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (h PaymentChannelCostMerchant) Update(ctx context.Context, obj *billingpb.PaymentChannelCostMerchant) error {
-	obj.MinAmount = tools.FormatAmount(obj.MinAmount)
-	obj.MethodFixAmount = tools.FormatAmount(obj.MethodFixAmount)
-	obj.MethodPercent = tools.ToPrecise(obj.MethodPercent)
-	obj.PsPercent = tools.ToPrecise(obj.PsPercent)
-	obj.PsFixedFee = tools.FormatAmount(obj.PsFixedFee)
-	obj.UpdatedAt = ptypes.TimestampNow()
-	obj.IsActive = true
-
-	oid, _ := primitive.ObjectIDFromHex(obj.Id)
-	filter := bson.M{"_id": oid}
-	_, err := h.svc.db.Collection(collectionPaymentChannelCostMerchant).ReplaceOne(ctx, filter, obj)
-
-	if err != nil {
-		return err
-	}
-
-	return h.updateCaches(obj)
-}
-
-func (h PaymentChannelCostMerchant) GetById(ctx context.Context, id string) (*billingpb.PaymentChannelCostMerchant, error) {
-	var c billingpb.PaymentChannelCostMerchant
-	key := fmt.Sprintf(cachePaymentChannelCostMerchantKeyId, id)
-
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	oid, _ := primitive.ObjectIDFromHex(id)
-	filter := bson.M{"_id": oid, "is_active": true}
-	err := h.svc.db.Collection(collectionPaymentChannelCostMerchant).FindOne(ctx, filter).Decode(&c)
-
-	if err != nil {
-		return nil, fmt.Errorf(errorNotFound, collectionPaymentChannelCostMerchant)
-	}
-
-	_ = h.svc.cacher.Set(key, c, 0)
-	return &c, nil
-}
-
-func (h PaymentChannelCostMerchant) Get(
-	ctx context.Context,
-	merchantId string,
-	name string,
-	payoutCurrency string,
-	region string,
-	country string,
-	mccCode string,
-) (c []*internalPkg.PaymentChannelCostMerchantSet, err error) {
-	key := fmt.Sprintf(cachePaymentChannelCostMerchantKey, merchantId, name, payoutCurrency, region, country, mccCode)
-
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return c, nil
-	}
-
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	matchQuery := bson.M{
-		"merchant_id":     merchantOid,
-		"name":            primitive.Regex{Pattern: "^" + name + "$", Options: "i"},
-		"payout_currency": payoutCurrency,
-		"is_active":       true,
-		"mcc_code":        mccCode,
-		"$or": []bson.M{
-			{
-				"country": country,
-				"region":  region,
-			},
-			{
-				"$or": []bson.M{
-					{"country": ""},
-					{"country": bson.M{"$exists": false}},
-				},
-				"region": region,
-			},
-		},
-	}
-
-	query := []bson.M{
-		{
-			"$match": matchQuery,
-		},
-		{
-			"$group": bson.M{
-				"_id": "$country",
-				"set": bson.M{"$push": "$$ROOT"},
-			},
-		},
-		{
-			"$sort": bson.M{"_id": -1},
-		},
-	}
-
-	cursor, err := h.svc.db.Collection(collectionPaymentChannelCostMerchant).Aggregate(ctx, query)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String("collection", collectionPaymentChannelCostMerchant),
-			zap.Any("query", query),
-		)
-		return nil, fmt.Errorf(errorNotFound, collectionPaymentChannelCostMerchant)
-	}
-
-	err = cursor.All(ctx, &c)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentChannelCostMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, fmt.Errorf(errorNotFound, collectionPaymentChannelCostMerchant)
-	}
-
-	err = h.svc.cacher.Set(key, c, 0)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, c),
-		)
-	}
-	return c, nil
-}
-
-func (h PaymentChannelCostMerchant) Delete(ctx context.Context, obj *billingpb.PaymentChannelCostMerchant) error {
-	obj.UpdatedAt = ptypes.TimestampNow()
-	obj.IsActive = false
-
-	oid, _ := primitive.ObjectIDFromHex(obj.Id)
-	filter := bson.M{"_id": oid}
-	_, err := h.svc.db.Collection(collectionPaymentChannelCostMerchant).ReplaceOne(ctx, filter, obj)
-
-	if err != nil {
-		return err
-	}
-
-	return h.updateCaches(obj)
-}
-
-func (h PaymentChannelCostMerchant) GetAllForMerchant(
-	ctx context.Context,
-	merchantId string,
-) (*billingpb.PaymentChannelCostMerchantList, error) {
-	c := new(billingpb.PaymentChannelCostMerchantList)
-	key := fmt.Sprintf(cachePaymentChannelCostMerchantAll, merchantId)
-	err := h.svc.cacher.Get(key, c)
-
-	if err == nil {
-		return c, nil
-	}
-
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := bson.M{"merchant_id": merchantOid, "is_active": true}
-	opts := options.Find().
-		SetSort(bson.M{"name": 1, "payout_currency": 1, "region": 1, "country": 1, "mcc_code": 1})
-	cursor, err := h.svc.db.Collection(collectionPaymentChannelCostMerchant).Find(ctx, query, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String("collection", collectionPaymentChannelCostMerchant),
-			zap.Any("query", query),
-		)
-		return nil, fmt.Errorf(errorNotFound, collectionPaymentChannelCostMerchant)
-	}
-
-	err = cursor.All(ctx, &c.Items)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentChannelCostMerchant),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, fmt.Errorf(errorNotFound, collectionPaymentChannelCostMerchant)
-	}
-
-	err = h.svc.cacher.Set(key, c, 0)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, c),
-		)
-	}
-
-	return c, nil
-}
-
-func (h PaymentChannelCostMerchant) updateCaches(obj *billingpb.PaymentChannelCostMerchant) (err error) {
-	groupKeys := []string{
-		fmt.Sprintf(cachePaymentChannelCostMerchantKey, obj.MerchantId, obj.Name, obj.PayoutCurrency, obj.Region, obj.Country, obj.MccCode),
-		fmt.Sprintf(cachePaymentChannelCostMerchantKey, obj.MerchantId, obj.Name, obj.PayoutCurrency, obj.Region, "", obj.MccCode),
-		fmt.Sprintf(cachePaymentChannelCostMerchantAll, obj.MerchantId),
-	}
-	for _, key := range groupKeys {
-		err = h.svc.cacher.Delete(key)
-		if err != nil {
-			return
-		}
-	}
-
-	keys := []string{
-		fmt.Sprintf(cachePaymentChannelCostMerchantKeyId, obj.Id),
-	}
-
-	for _, key := range keys {
-		err = h.svc.cacher.Delete(key)
-		if err != nil {
-			return
-		}
-	}
-
-	if obj.IsActive {
-		for _, key := range keys {
-			err = h.svc.cacher.Set(key, obj, 0)
-			if err != nil {
-				zap.L().Error(
-					pkg.ErrorCacheQueryFailed,
-					zap.Error(err),
-					zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-					zap.String(pkg.ErrorCacheFieldKey, key),
-					zap.Any(pkg.ErrorCacheFieldData, obj),
-				)
-				return
-			}
-		}
-		return
-	}
-
-	return
 }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -45,7 +46,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 			Amount:   0.01,
 		},
 	}
-	err := service.paymentMinLimitSystem.MultipleInsert(context.TODO(), paymentMinLimitsSystem)
+	err := service.paymentMinLimitSystemRepository.MultipleInsert(context.TODO(), paymentMinLimitsSystem)
 	if err != nil {
 		suite.FailNow("Insert PaymentMinLimitSystem test data failed", "%v", err)
 	}
@@ -142,7 +143,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 
 	projectFixedAmount := helperCreateProject(suite, service, merchant.Id, billingpb.VatPayerBuyer)
 
-	bin := &BinData{
+	bin := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            400000,
 		CardBrand:          "MASTERCARD",
@@ -153,19 +154,13 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		BankCountryIsoCode: "UA",
 	}
 
-	_, err = service.db.Collection(collectionBinData).InsertOne(context.TODO(), bin)
-
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
 	pms := []*billingpb.PaymentMethod{pmBankCard}
-	if err := service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
 	ps := []*billingpb.PaymentSystem{paymentSystem}
-	if err := service.paymentSystem.MultipleInsert(context.TODO(), ps); err != nil {
+	if err := service.paymentSystemRepository.MultipleInsert(context.TODO(), ps); err != nil {
 		suite.FailNow("Insert payment system test data failed", "%v", err)
 	}
 
@@ -344,7 +339,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		OperatingCompanyId: operatingCompany.Id,
 	}
 
-	err = service.paymentChannelCostSystem.MultipleInsert(
+	err = service.paymentChannelCostSystemRepository.MultipleInsert(
 		context.TODO(),
 		[]*billingpb.PaymentChannelCostSystem{
 			paymentSysCost1,
@@ -357,6 +352,12 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostSystem test data failed", "%v", err)
+	}
+
+	err = service.bankBinRepository.Insert(context.TODO(), bin)
+
+	if err != nil {
+		suite.FailNow("Insert BIN test data failed", "%v", err)
 	}
 
 	return merchant, projectFixedAmount, pmBankCard, paymentSystem
@@ -381,7 +382,7 @@ func helperOperatingCompany(
 		PaymentCountries:   []string{},
 	}
 
-	err := service.operatingCompany.Upsert(context.TODO(), operatingCompany)
+	err := service.operatingCompanyRepository.Upsert(context.TODO(), operatingCompany)
 	if err != nil {
 		suite.FailNow("Insert operatingCompany failed", "%v", err)
 	}
@@ -753,7 +754,7 @@ func helperCreateMerchant(
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
-	err = service.paymentChannelCostMerchant.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2, paymentMerCost3, paymentMerCost4})
+	err = service.paymentChannelCostMerchantRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2, paymentMerCost3, paymentMerCost4})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostMerchant test data failed", "%v", err)

@@ -1181,7 +1181,7 @@ func (h *accountingEntry) getPaymentChannelCostSystem() (*billingpb.PaymentChann
 		return nil, err
 	}
 
-	cost, err := h.Service.paymentChannelCostSystem.Get(h.ctx, name, h.country.PayerTariffRegion, h.country.IsoCodeA2, h.getMccCode(), h.getOperatingCompanyId())
+	cost, err := h.Service.paymentChannelCostSystemRepository.Find(h.ctx, name, h.country.PayerTariffRegion, h.country.IsoCodeA2, h.getMccCode(), h.getOperatingCompanyId())
 
 	if err != nil {
 		zap.L().Error(

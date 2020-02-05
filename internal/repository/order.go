@@ -10,6 +10,11 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	// CollectionOrder is name of table for collection the order.
+	CollectionOrder = "order"
+)
+
 type orderRepository repository
 
 // NewOrderRepository create and return an object for working with the order repository.

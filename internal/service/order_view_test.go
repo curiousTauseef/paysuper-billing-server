@@ -516,7 +516,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 	}
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(context.TODO(), suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(context.TODO(), suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	for _, order := range orders {

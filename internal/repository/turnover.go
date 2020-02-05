@@ -12,6 +12,12 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionAnnualTurnovers = "annual_turnovers"
+
+	cacheTurnoverKey = "turnover:company:%s:country:%s:year:%d"
+)
+
 type turnoverRepository repository
 
 // NewTurnoverRepository create and return an object for working with the annual turnover repository.
@@ -93,7 +99,7 @@ func (r *turnoverRepository) Get(ctx context.Context, operatingCompanyId, countr
 }
 
 func (r *turnoverRepository) CountAll(ctx context.Context) (int64, error) {
-	count, err := r.db.Collection(collectionAnnualTurnovers).CountDocuments(context.TODO(), bson.M{})
+	count, err := r.db.Collection(collectionAnnualTurnovers).CountDocuments(ctx, bson.M{})
 
 	if err != nil {
 		zap.L().Error(

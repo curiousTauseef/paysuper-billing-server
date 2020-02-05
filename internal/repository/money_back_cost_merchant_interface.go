@@ -6,14 +6,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionMoneyBackCostMerchant = "money_back_cost_merchant"
-
-	cacheMoneyBackCostMerchantKey   = "pucm:m:%s:n:%s:pc:%s:ur:%s:r:%s:c:%s:ps:%d:mcc:%s"
-	cacheMoneyBackCostMerchantKeyId = "pucm:id:%s"
-	cacheMoneyBackCostMerchantAll   = "pucm:all:m:%s"
-)
-
 // MoneyBackCostMerchantRepositoryInterface is abstraction layer for working with cost of merchant in money back case
 // and representation in database.
 type MoneyBackCostMerchantRepositoryInterface interface {

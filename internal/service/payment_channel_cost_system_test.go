@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
@@ -11,7 +9,6 @@ import (
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
-	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
@@ -130,7 +127,7 @@ func (suite *PaymentChannelCostSystemTestSuite) SetupTest() {
 		OperatingCompanyId: suite.operatingCompany.Id,
 	}
 	pccs := []*billingpb.PaymentChannelCostSystem{paymentChannelCostSystem, anotherPaymentChannelCostSystem}
-	if err := suite.service.paymentChannelCostSystem.MultipleInsert(context.TODO(), pccs); err != nil {
+	if err := suite.service.paymentChannelCostSystemRepository.MultipleInsert(context.TODO(), pccs); err != nil {
 		suite.FailNow("Insert PaymentChannelCostSystem test data failed", "%v", err)
 	}
 }
@@ -217,68 +214,6 @@ func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Grp
 	assert.NotEqual(suite.T(), res2.Item.Id, suite.paymentChannelCostSystemId)
 }
 
-func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Insert_Ok() {
-	req := &billingpb.PaymentChannelCostSystem{
-		Name:               "MASTERCARD",
-		Region:             billingpb.TariffRegionWorldwide,
-		Country:            "",
-		Percent:            2.2,
-		FixAmount:          0,
-		MccCode:            billingpb.MccCodeLowRisk,
-		OperatingCompanyId: suite.operatingCompany.Id,
-	}
-
-	assert.NoError(suite.T(), suite.service.paymentChannelCostSystem.Insert(context.TODO(), req))
-}
-
-func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Insert_ErrorCacheUpdate() {
-	ci := &mocks.CacheInterface{}
-	ci.On("Set", mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New("service unavailable"))
-	ci.On("Delete", mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New("service unavailable"))
-	suite.service.cacher = ci
-
-	obj := &billingpb.PaymentChannelCostSystem{
-		Name:               "Mastercard",
-		Region:             billingpb.TariffRegionWorldwide,
-		Country:            "",
-		Percent:            2.1,
-		FixAmount:          0,
-		MccCode:            billingpb.MccCodeLowRisk,
-		OperatingCompanyId: suite.operatingCompany.Id,
-	}
-	err := suite.service.paymentChannelCostSystem.Insert(context.TODO(), obj)
-
-	assert.Error(suite.T(), err)
-	assert.EqualError(suite.T(), err, "service unavailable")
-}
-
-func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_UpdateOk() {
-	obj := &billingpb.PaymentChannelCostSystem{
-		Id:                 suite.paymentChannelCostSystemId,
-		Name:               "Mastercard",
-		Region:             billingpb.TariffRegionWorldwide,
-		Country:            "",
-		Percent:            2.1,
-		FixAmount:          0,
-		MccCode:            billingpb.MccCodeLowRisk,
-		OperatingCompanyId: suite.operatingCompany.Id,
-	}
-
-	assert.NoError(suite.T(), suite.service.paymentChannelCostSystem.Update(context.TODO(), obj))
-}
-
-func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Get_Ok() {
-	val, err := suite.service.paymentChannelCostSystem.Get(context.TODO(), "VISA", billingpb.TariffRegionRussiaAndCis, "AZ", billingpb.MccCodeLowRisk, suite.operatingCompany.Id)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), val.Country, "AZ")
-	assert.EqualValues(suite.T(), val.FixAmount, float64(5))
-
-	val, err = suite.service.paymentChannelCostSystem.Get(context.TODO(), "VISA", billingpb.TariffRegionRussiaAndCis, "", billingpb.MccCodeLowRisk, suite.operatingCompany.Id)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), val.Country, "")
-	assert.EqualValues(suite.T(), val.FixAmount, float64(0))
-}
-
 func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Delete_Ok() {
 	req := &billingpb.PaymentCostDeleteRequest{
 		Id: suite.paymentChannelCostSystemId,
@@ -289,8 +224,8 @@ func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Del
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 
-	_, err = suite.service.paymentChannelCostSystem.GetById(context.TODO(), suite.paymentChannelCostSystemId)
-	assert.EqualError(suite.T(), err, fmt.Sprintf(errorNotFound, collectionPaymentChannelCostSystem))
+	_, err = suite.service.paymentChannelCostSystemRepository.GetById(context.TODO(), suite.paymentChannelCostSystemId)
+	assert.Error(suite.T(), err)
 }
 
 func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_GetAllPaymentChannelCostSystem_Ok() {

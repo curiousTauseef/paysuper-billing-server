@@ -124,6 +124,7 @@ const (
 	ErrorDatabaseFieldOperationInsert = "insert"
 	ErrorDatabaseFieldOperationUpdate = "update"
 	ErrorDatabaseFieldOperationUpsert = "upsert"
+	ErrorDatabaseFieldOperationDelete = "delete"
 	ErrorDatabaseFieldDocument        = "document"
 
 	ErrorJsonMarshallingFailed = "json marshalling failed"
@@ -223,6 +224,7 @@ const (
 
 	EmailConfirmUrl            = "%s/confirm_email"
 	RoyaltyReportsUrl          = "%s/royalty_reports"
+	RoyaltyReportUrl           = "%s/reports/%s"
 	PayoutsUrl                 = "%s/payouts"
 	ReceiptPurchaseUrl         = "%s/pay/receipt/purchase/%s/%s"
 	ReceiptRefundUrl           = "%s/pay/receipt/refund/%s/%s"

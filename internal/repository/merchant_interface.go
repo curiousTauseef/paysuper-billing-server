@@ -6,13 +6,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-const (
-	CollectionMerchant = "merchant"
-
-	cacheMerchantId       = "merchant:id:%s"
-	cacheMerchantCommonId = "merchant:common:id:%s"
-)
-
 // MerchantRepositoryInterface is abstraction layer for working with merchant and representation in database.
 type MerchantRepositoryInterface interface {
 	// Insert add the merchant to the collection.

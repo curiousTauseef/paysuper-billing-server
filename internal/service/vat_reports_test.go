@@ -256,7 +256,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	}
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(context.TODO(), suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(context.TODO(), suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	for i, order := range orders {
@@ -404,7 +404,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports_OnlyTestOrder
 	}
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(context.TODO(), suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(context.TODO(), suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	for _, order := range orders {

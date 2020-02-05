@@ -18,7 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"strings"
@@ -26,7 +25,6 @@ import (
 )
 
 const (
-	collectionNotification                 = "notification"
 	collectionMerchantPaymentMethodHistory = "payment_method_history"
 
 	merchantStatusSigningMessage  = "We've got your license agreement signing request. If we will need your further assistance, processing this request, our onboarding manager will contact you directly."
@@ -488,6 +486,14 @@ func (s *Service) ChangeMerchantData(
 
 		merchant.Status = billingpb.MerchantStatusAgreementSigned
 		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
+
+		err = s.sendLicenseAgreementSignedEmail(merchant)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
 	}
 
 	message, ok := merchantStatusChangesMessages[merchant.Status]
@@ -533,7 +539,7 @@ func (s *Service) SetMerchantOperatingCompany(
 		return nil
 	}
 
-	oc, err := s.operatingCompany.GetById(ctx, req.OperatingCompanyId)
+	oc, err := s.operatingCompanyRepository.GetById(ctx, req.OperatingCompanyId)
 
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -752,74 +758,18 @@ func (s *Service) ListNotifications(
 	req *billingpb.ListingNotificationRequest,
 	rsp *billingpb.Notifications,
 ) error {
-	var notifications []*billingpb.Notification
+	var err error
 
-	query := make(bson.M)
-
-	if req.MerchantId != "" {
-		merchantOid, err := primitive.ObjectIDFromHex(req.MerchantId)
-
-		if err == nil {
-			query["merchant_id"] = merchantOid
-		}
-	}
-
-	if req.UserId != "" {
-		query["user_id"] = req.UserId
-	}
-
-	if req.IsSystem > 0 {
-		if req.IsSystem == 1 {
-			query["is_system"] = false
-		} else {
-			query["is_system"] = true
-		}
-	}
-
-	count, err := s.db.Collection(collectionNotification).CountDocuments(ctx, query)
+	rsp.Count, err = s.notificationRepository.FindCount(ctx, req.MerchantId, req.UserId, req.IsSystem)
 
 	if err != nil {
-		zap.S().Errorf("Query to count merchant notifications failed", "err", err.Error(), "query", query)
 		return merchantErrorUnknown
 	}
 
-	opts := options.Find().
-		SetSort(mongodb.ToSortOption(req.Sort)).
-		SetLimit(req.Limit).
-		SetSkip(req.Offset)
-	cursor, err := s.db.Collection(collectionNotification).Find(ctx, query, opts)
+	rsp.Items, err = s.notificationRepository.Find(ctx, req.MerchantId, req.UserId, req.IsSystem, req.Sort, req.Offset, req.Limit)
 
 	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionNotification),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-			return merchantErrorUnknown
-		}
-
-		return nil
-	}
-
-	err = cursor.All(ctx, &notifications)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionNotification),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return merchantErrorUnknown
-	}
-
-	rsp.Count = count
-	rsp.Items = []*billingpb.Notification{}
-
-	if len(notifications) > 0 {
-		rsp.Items = notifications
 	}
 
 	return nil
@@ -838,12 +788,7 @@ func (s *Service) MarkNotificationAsRead(
 
 	notification.IsRead = true
 
-	oid, _ := primitive.ObjectIDFromHex(notification.Id)
-	filter := bson.M{"_id": oid}
-	_, err = s.db.Collection(collectionNotification).ReplaceOne(ctx, filter, notification)
-
-	if err != nil {
-		zap.S().Errorf("Update notification failed", "err", err.Error(), "query", notification)
+	if err := s.notificationRepository.Update(ctx, notification); err != nil {
 		return merchantErrorUnknown
 	}
 
@@ -874,7 +819,7 @@ func (s *Service) GetMerchantPaymentMethod(
 		return nil
 	}
 
-	pm, err := s.paymentMethod.GetById(ctx, req.PaymentMethodId)
+	pm, err := s.paymentMethodRepository.GetById(ctx, req.PaymentMethodId)
 
 	if err != nil {
 		s.logError(
@@ -915,40 +860,9 @@ func (s *Service) ListMerchantPaymentMethods(
 		return nil
 	}
 
-	var pms []*billingpb.PaymentMethod
+	pms, err := s.paymentMethodRepository.FindByName(ctx, req.PaymentMethodName, req.Sort)
 
-	query := bson.M{"is_active": true}
-
-	if req.PaymentMethodName != "" {
-		query["name"] = primitive.Regex{Pattern: ".*" + req.PaymentMethodName + ".*", Options: "i"}
-	}
-
-	opts := options.Find().SetSort(mongodb.ToSortOption(req.Sort))
-	cursor, err := s.db.Collection(collectionPaymentMethod).Find(ctx, query, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentMethod),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil
-	}
-
-	err = cursor.All(ctx, &pms)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentMethod),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil
-	}
-
-	if len(pms) <= 0 {
+	if err != nil || len(pms) <= 0 {
 		return nil
 	}
 
@@ -994,7 +908,7 @@ func (s *Service) ChangeMerchantPaymentMethod(
 		return err
 	}
 
-	pm, e := s.paymentMethod.GetById(ctx, req.PaymentMethod.Id)
+	pm, e := s.paymentMethodRepository.GetById(ctx, req.PaymentMethod.Id)
 	if e != nil {
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = orderErrorPaymentMethodNotFound
@@ -1083,14 +997,7 @@ func (s *Service) addNotification(
 		Statuses:   nStatuses,
 	}
 
-	_, err = s.db.Collection(collectionNotification).InsertOne(ctx, notification)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, notification),
-		)
+	if err = s.notificationRepository.Insert(ctx, notification); err != nil {
 		return nil, merchantErrorUnknown
 	}
 
@@ -1108,21 +1015,10 @@ func (s *Service) getNotificationById(
 	ctx context.Context,
 	merchantId, notificationId string,
 ) (notification *billingpb.Notification, err error) {
-	oid, _ := primitive.ObjectIDFromHex(notificationId)
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := bson.M{"merchant_id": merchantOid, "_id": oid}
-	err = s.db.Collection(collectionNotification).FindOne(ctx, query).Decode(&notification)
+	notification, err = s.notificationRepository.GetById(ctx, notificationId)
 
-	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.S().Errorf("Query to find notification by id failed", "err", err.Error(), "query", query)
-		}
-
-		return notification, notificationErrorNotFound
-	}
-
-	if notification == nil {
-		return notification, notificationErrorNotFound
+	if err != nil || notification.MerchantId != merchantId {
+		return nil, notificationErrorNotFound
 	}
 
 	return
@@ -1177,7 +1073,7 @@ func (s *Service) getMerchantAgreementSignature(
 	ctx context.Context,
 	merchant *billingpb.Merchant,
 ) (*billingpb.MerchantAgreementSignatureData, error) {
-	op, err := s.operatingCompany.GetById(ctx, merchant.OperatingCompanyId)
+	op, err := s.operatingCompanyRepository.GetById(ctx, merchant.OperatingCompanyId)
 
 	if err != nil {
 		return nil, err
@@ -1411,7 +1307,7 @@ func (s *Service) SetMerchantTariffRates(
 			return nil
 		}
 
-		err = s.paymentChannelCostMerchant.MultipleInsert(ctx, costs)
+		err = s.paymentChannelCostMerchantRepository.MultipleInsert(ctx, costs)
 
 		if err != nil {
 			rsp.Status = billingpb.ResponseStatusSystemError
@@ -1563,7 +1459,7 @@ func (s *Service) generateMerchantAgreement(ctx context.Context, merchant *billi
 	payoutCost := fmt.Sprintf("%s (%d) %s", payoutCostWord, payoutCostInt, merchant.Tariff.Payout.MethodFixedFeeCurrency)
 	minPayoutLimit := fmt.Sprintf("%s (%d) %s", minPayoutLimitWord, minPayoutLimitInt, merchant.GetPayoutCurrency())
 
-	operatingCompany, err := s.operatingCompany.GetById(ctx, merchant.OperatingCompanyId)
+	operatingCompany, err := s.operatingCompanyRepository.GetById(ctx, merchant.OperatingCompanyId)
 	if err != nil {
 		zap.L().Error("Operating company not found", zap.Error(err), zap.String("operating_company_id", merchant.OperatingCompanyId))
 		return err
@@ -1640,7 +1536,12 @@ func (s *Service) getMerchantAgreementNumber(merchantId string) string {
 	return fmt.Sprintf("%s%s-%03d", now.Format("01"), now.Format("02"), mongodb.GetObjectIDCounter(merchantOid))
 }
 
-func (s *Service) sendOnboardingLetter(merchant *billingpb.Merchant, oc *billingpb.OperatingCompany, template, recipientEmail string) (err error) {
+func (s *Service) sendOnboardingLetter(
+	merchant *billingpb.Merchant,
+	oc *billingpb.OperatingCompany,
+	template,
+	recipientEmail string,
+) (err error) {
 	ocName := ""
 	if oc != nil {
 		ocName = oc.Name
@@ -1672,4 +1573,29 @@ func (s *Service) sendOnboardingLetter(merchant *billingpb.Merchant, oc *billing
 	}
 
 	return
+}
+
+// Send message to RabbitMQ for send email to merchant owner about than license agreement fully signed
+func (s *Service) sendLicenseAgreementSignedEmail(merchant *billingpb.Merchant) error {
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.MerchantAgreementSigned,
+		TemplateModel: map[string]string{
+			"agreement_url": s.cfg.GetMerchantCompanyUrl(),
+		},
+		To: merchant.GetOwnerEmail(),
+	}
+
+	err := s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+
+	if err != nil {
+		zap.L().Error(
+			"Publication message about than license agreement fully signed failed",
+			zap.Error(err),
+			zap.String("template", payload.TemplateAlias),
+			zap.String("recipient_email", payload.To),
+			zap.Any("merchant", merchant),
+		)
+	}
+
+	return err
 }

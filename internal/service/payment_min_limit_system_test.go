@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"github.com/globalsign/mgo/bson"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
@@ -98,18 +97,18 @@ func (suite *PaymentMinLimitSystemTestSuite) TearDownTest() {
 }
 
 func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_AddOk() {
-	count, err := suite.service.db.Collection(collectionPaymentMinLimitSystem).CountDocuments(context.TODO(), bson.M{})
+	list, err := suite.service.paymentMinLimitSystemRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), count, 0)
+	assert.Len(suite.T(), list, 0)
 
 	res := &billingpb.EmptyResponseWithStatus{}
 	err = suite.service.SetPaymentMinLimitSystem(context.TODO(), suite.PaymentMinLimitSystem, res)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 
-	count, err = suite.service.db.Collection(collectionPaymentMinLimitSystem).CountDocuments(context.TODO(), bson.M{})
+	list, err = suite.service.paymentMinLimitSystemRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), count, 1)
+	assert.Len(suite.T(), list, 1)
 }
 
 func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_ListOk() {
@@ -126,9 +125,9 @@ func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_ListOk()
 }
 
 func (suite *PaymentMinLimitSystemTestSuite) Test_PaymentMinLimitSystem_AddFail_PaymentCountryUnknown() {
-	count, err := suite.service.db.Collection(collectionPaymentMinLimitSystem).CountDocuments(context.TODO(), bson.M{})
+	list, err := suite.service.paymentMinLimitSystemRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), count, 0)
+	assert.Len(suite.T(), list, 0)
 
 	suite.PaymentMinLimitSystem.Currency = "XXX"
 

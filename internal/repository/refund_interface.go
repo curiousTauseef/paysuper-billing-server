@@ -5,11 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	// CollectionRefund is name of table for collection the refund.
-	CollectionRefund = "refund"
-)
-
 // RefundRepositoryInterface is abstraction layer for working with refund and representation in database.
 type RefundRepositoryInterface interface {
 	// Insert adds refund to the collection.

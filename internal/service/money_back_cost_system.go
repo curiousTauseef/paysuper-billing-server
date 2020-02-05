@@ -105,7 +105,7 @@ func (s *Service) SetMoneyBackCostSystem(
 		res.Message = errorMoneybackSystemMccCode
 		return nil
 	}
-	if !s.operatingCompany.Exists(ctx, req.OperatingCompanyId) {
+	if !s.operatingCompanyRepository.Exists(ctx, req.OperatingCompanyId) {
 		res.Status = billingpb.ResponseStatusBadData
 		res.Message = errorMoneybackSystemOperatingCompanyNotExists
 		return nil

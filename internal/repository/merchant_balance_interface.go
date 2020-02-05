@@ -5,12 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionMerchantBalances = "merchant_balances"
-
-	cacheKeyMerchantBalances = "balance:merchant_id:%s:currency:%s"
-)
-
 // MerchantBalanceRepositoryInterface is abstraction layer for working with merchant balance and representation in database.
 type MerchantBalanceRepositoryInterface interface {
 	// Insert adds the price group to the collection.

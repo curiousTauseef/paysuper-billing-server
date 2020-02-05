@@ -15,6 +15,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -147,11 +148,6 @@ func (suite *OrderTestSuite) SetupTest() {
 		SignatoryPosition:  "CEO",
 		BankingDetails:     "bank details including bank, bank address, account number, swift/ bic, intermediary bank",
 		PaymentCountries:   []string{},
-	}
-
-	_, err = db.Collection(collectionOperatingCompanies).InsertOne(context.TODO(), suite.operatingCompany)
-	if err != nil {
-		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
 	}
 
 	keyRubVisa := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
@@ -1407,7 +1403,7 @@ Name: map[string]string{"en": "test project 1"},
 		PaymentSystemId: ps5.Id,
 	}
 
-	bin := &BinData{
+	bin := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            400000,
 		CardBrand:          "MASTERCARD",
@@ -1418,7 +1414,7 @@ Name: map[string]string{"en": "test project 1"},
 		BankCountryIsoCode: "UA",
 	}
 
-	bin2 := &BinData{
+	bin2 := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            408300,
 		CardBrand:          "VISA",
@@ -1427,21 +1423,6 @@ Name: map[string]string{"en": "test project 1"},
 		BankName:           "ALFA BANK",
 		BankCountryName:    "UKRAINE",
 		BankCountryIsoCode: "UA",
-	}
-
-	_, err = db.Collection(collectionBinData).InsertOne(context.TODO(), bin)
-
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
-	_, err = db.Collection(collectionBinData).InsertOne(context.TODO(), bin2)
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
-	if err != nil {
-		suite.FailNow("Insert zip codes test data failed", "%v", err)
 	}
 
 	suite.log, err = zap.NewProduction()
@@ -1487,8 +1468,8 @@ Name: map[string]string{"en": "test project 1"},
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	limits := []interface{}{paymentMinLimitSystem1, paymentMinLimitSystem2, paymentMinLimitSystem3, paymentMinLimitSystem4, paymentMinLimitSystem5}
-	_, err = suite.service.db.Collection(collectionPaymentMinLimitSystem).InsertMany(context.TODO(), limits)
+	limits := []*billingpb.PaymentMinLimitSystem{paymentMinLimitSystem1, paymentMinLimitSystem2, paymentMinLimitSystem3, paymentMinLimitSystem4, paymentMinLimitSystem5}
+	err = suite.service.paymentMinLimitSystemRepository.MultipleInsert(context.TODO(), limits)
 	assert.NoError(suite.T(), err)
 
 	pms := []*billingpb.PaymentMethod{
@@ -1502,7 +1483,7 @@ Name: map[string]string{"en": "test project 1"},
 		pmBankCardNotUsed,
 		pmBitcoin2,
 	}
-	if err := suite.service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := suite.service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
@@ -1521,7 +1502,7 @@ Name: map[string]string{"en": "test project 1"},
 	}
 
 	ps := []*billingpb.PaymentSystem{ps0, ps1, ps2, ps3, ps4, ps5}
-	if err := suite.service.paymentSystem.MultipleInsert(context.TODO(), ps); err != nil {
+	if err := suite.service.paymentSystemRepository.MultipleInsert(context.TODO(), ps); err != nil {
 		suite.FailNow("Insert payment system test data failed", "%v", err)
 	}
 
@@ -1819,7 +1800,7 @@ Name: map[string]string{"en": "test project 1"},
 		OperatingCompanyId: suite.operatingCompany.Id,
 	}
 
-	err = suite.service.paymentChannelCostSystem.MultipleInsert(
+	err = suite.service.paymentChannelCostSystemRepository.MultipleInsert(
 		context.TODO(),
 		[]*billingpb.PaymentChannelCostSystem{
 			sysCost,
@@ -2000,7 +1981,7 @@ Name: map[string]string{"en": "test project 1"},
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
-	err = suite.service.paymentChannelCostMerchant.
+	err = suite.service.paymentChannelCostMerchantRepository.
 		MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{
 			merCost,
 			merCost1,
@@ -2050,7 +2031,7 @@ Name: map[string]string{"en": "test project 1"},
 		FixAmountCurrency: "USD",
 	}
 
-	err = suite.service.paymentChannelCostSystem.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostSystem{paymentSysCost1})
+	err = suite.service.paymentChannelCostSystemRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostSystem{paymentSysCost1})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostSystem test data failed", "%v", err)
@@ -2085,7 +2066,7 @@ Name: map[string]string{"en": "test project 1"},
 		PsFixedFeeCurrency:      "EUR",
 	}
 
-	err = suite.service.paymentChannelCostMerchant.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2})
+	err = suite.service.paymentChannelCostMerchantRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostMerchant test data failed", "%v", err)
@@ -2239,6 +2220,22 @@ Name: map[string]string{"en": "test project 1"},
 		CreatedAt: ptypes.TimestampNow(),
 	}
 	err = suite.service.zipCodeRepository.Insert(context.TODO(), zipCode)
+
+	if err != nil {
+		suite.FailNow("Insert zip codes test data failed", "%v", err)
+	}
+
+	err = suite.service.operatingCompanyRepository.Upsert(context.TODO(), suite.operatingCompany)
+
+	if err != nil {
+		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
+
+	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), []*intPkg.BinData{bin, bin2})
+
+	if err != nil {
+		suite.FailNow("Insert BIN test data failed", "%v", err)
+	}
 }
 
 func (suite *OrderTestSuite) TearDownTest() {
@@ -2370,7 +2367,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptyEmailAndPhone_Ok() 
 	err := processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), processor.checked.user)
@@ -2395,7 +2392,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptySubdivision_Ok() {
 	err := processor.processUserData()
 	assert.NoError(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), processor.checked.user)
@@ -2431,7 +2428,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_NotEmptyEmailAndPhone_Ok
 	assert.Equal(suite.T(), req.User.Email, processor.checked.user.Email)
 	assert.Equal(suite.T(), req.User.Phone, processor.checked.user.Phone)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), processor.checked.user.Address)
 }
@@ -2453,7 +2450,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_Error() {
 	err := processor.processUserData()
 	assert.NoError(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), processor.checked.user.Address)
@@ -2472,12 +2469,12 @@ func (suite *OrderTestSuite) TestOrder_ValidateKeyProductsForOrder_AnotherProjec
 }
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_Ok() {
-	_, err := suite.service.GetOrderProducts(suite.projectWithProducts.Id, suite.productIds)
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectWithProducts.Id, suite.productIds)
 	assert.Nil(suite.T(), err)
 }
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_AnotherProject_Fail() {
-	_, err := suite.service.GetOrderProducts(suite.project.Id, suite.productIds)
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.project.Id, suite.productIds)
 	assert.Error(suite.T(), err)
 	assert.Equal(suite.T(), orderErrorProductsInvalid, err)
 }
@@ -2513,7 +2510,7 @@ func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_OneProductIsInac
 	inactiveProd := billingpb.Product{}
 	if assert.NoError(suite.T(), suite.service.CreateOrUpdateProduct(context.TODO(), req, &inactiveProd)) {
 		products := []string{suite.productIds[0], inactiveProd.Id}
-		_, err := suite.service.GetOrderProducts(suite.projectFixedAmount.Id, products)
+		_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectFixedAmount.Id, products)
 		assert.Error(suite.T(), err)
 		assert.Equal(suite.T(), orderErrorProductsInvalid, err)
 	}
@@ -2521,19 +2518,19 @@ func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_OneProductIsInac
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_SomeProductsIsNotFound_Fail() {
 	products := []string{suite.productIds[0], primitive.NewObjectID().Hex()}
-	_, err := suite.service.GetOrderProducts(suite.projectFixedAmount.Id, products)
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectFixedAmount.Id, products)
 	assert.Error(suite.T(), err)
 	assert.Equal(suite.T(), orderErrorProductsInvalid, err)
 }
 
 func (suite *OrderTestSuite) TestOrder_ValidateProductsForOrder_EmptyProducts_Fail() {
-	_, err := suite.service.GetOrderProducts(suite.projectFixedAmount.Id, []string{})
+	_, err := suite.service.GetOrderProducts(context.TODO(), suite.projectFixedAmount.Id, []string{})
 	assert.Error(suite.T(), err)
 	assert.Equal(suite.T(), orderErrorProductsEmpty, err)
 }
 
 func (suite *OrderTestSuite) TestOrder_GetProductsOrderAmount_Ok() {
-	p, err := suite.service.GetOrderProducts(suite.projectWithProducts.Id, suite.productIds)
+	p, err := suite.service.GetOrderProducts(context.TODO(), suite.projectWithProducts.Id, suite.productIds)
 	assert.Nil(suite.T(), err)
 
 	amount, err := suite.service.GetOrderProductsAmount(p, &billingpb.PriceGroup{Currency: suite.merchantDefaultCurrency, IsActive: true})
@@ -2677,7 +2674,7 @@ func (suite *OrderTestSuite) TestOrder_GetProductsOrderAmount_DifferentCurrencie
 }
 
 func (suite *OrderTestSuite) TestOrder_GetOrderProductsItems_Ok() {
-	p, err := suite.service.GetOrderProducts(suite.projectWithProducts.Id, suite.productIds)
+	p, err := suite.service.GetOrderProducts(context.TODO(), suite.projectWithProducts.Id, suite.productIds)
 	assert.Nil(suite.T(), err)
 
 	items, err := suite.service.GetOrderProductsItems(p, DefaultLanguage, &billingpb.PriceGroup{Currency: suite.merchantDefaultCurrency, IsActive: true})
@@ -2837,7 +2834,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessProjectOrderId_Duplicate_Error() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processPaylinkProducts(context.TODO())
@@ -2900,7 +2897,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethod_Ok() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -2925,7 +2922,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethod_PaymentMethodInactiv
 	err := processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -2951,7 +2948,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethod_PaymentSystemInactiv
 	err := processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -2987,7 +2984,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_Ok() {
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3024,7 +3021,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_ConvertAmount_Ok() {
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3061,7 +3058,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_ProjectMinAmount_Erro
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3099,7 +3096,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_ProjectMaxAmount_Erro
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3137,7 +3134,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_PaymentMethodMinAmoun
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3175,7 +3172,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessLimitAmounts_PaymentMethodMaxAmoun
 
 	processor.processAmount()
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3359,10 +3356,10 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_Ok() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
@@ -3416,7 +3413,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_PaymentMethod_Ok() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
@@ -3431,7 +3428,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_PaymentMethod_Ok() {
 	err = processor.processLimitAmounts()
 	assert.Nil(suite.T(), err)
 
-	pm, err := suite.service.paymentMethod.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
+	pm, err := suite.service.paymentMethodRepository.GetByGroupAndCurrency(context.TODO(), suite.project.IsProduction(), req.PaymentMethod, processor.checked.currency)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), pm)
 
@@ -3479,7 +3476,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlVerify_Error() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
@@ -3530,7 +3527,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlRedirect_Error() {
 	err = processor.processUserData()
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPayerIp()
+	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processCurrency(req.Type)
@@ -3993,7 +3990,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_SavedCards_Ok()
 
 	assert.True(suite.T(), len(pm.SavedCards) <= 0)
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.True(suite.T(), pm.HasSavedCards)
 	assert.True(suite.T(), len(pm.SavedCards) > 0)
@@ -4036,7 +4033,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_EmptySavedCards
 
 	assert.True(suite.T(), len(pm.SavedCards) <= 0)
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.False(suite.T(), pm.HasSavedCards)
 	assert.Len(suite.T(), pm.SavedCards, 0)
@@ -4079,7 +4076,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_NotBankCard_Ok(
 
 	assert.True(suite.T(), len(pm.SavedCards) <= 0)
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.False(suite.T(), pm.HasSavedCards)
 	assert.Len(suite.T(), pm.SavedCards, 0)
@@ -4120,7 +4117,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_GetSavedCards_E
 		AccountRegexp: suite.paymentMethod.AccountRegexp,
 	}
 
-	err = processor.processPaymentMethodsData(pm)
+	err = processor.processPaymentMethodsData(context.TODO(), pm)
 	assert.Nil(suite.T(), err)
 	assert.False(suite.T(), pm.HasSavedCards)
 	assert.Len(suite.T(), pm.SavedCards, 0)
@@ -5561,7 +5558,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_Qiwi_Ok(
 		OperatingCompanyId: suite.operatingCompany.Id,
 	}
 
-	err := suite.service.paymentChannelCostSystem.Insert(context.TODO(), sysCost)
+	err := suite.service.paymentChannelCostSystemRepository.Insert(context.TODO(), sysCost)
 	assert.NoError(suite.T(), err)
 
 	merCost := &billingpb.PaymentChannelCostMerchant{
@@ -5581,7 +5578,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_Qiwi_Ok(
 		IsActive:                true,
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
-	err = suite.service.paymentChannelCostMerchant.Insert(context.TODO(), merCost)
+	err = suite.service.paymentChannelCostMerchantRepository.Insert(context.TODO(), merCost)
 	assert.NoError(suite.T(), err)
 
 	req := &billingpb.OrderCreateRequest{
@@ -7030,10 +7027,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifySales_Ok() {
 	assert.False(suite.T(), rsp.NotifySale)
 	assert.Empty(suite.T(), rsp.NotifySaleEmail)
 
-	var data []*billingpb.NotifyUserSales
-	cursor, err := suite.service.db.Collection(collectionNotifySales).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err := suite.service.notifySalesRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 0)
 
@@ -7051,9 +7045,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifySales_Ok() {
 	assert.True(suite.T(), order.NotifySale)
 	assert.Equal(suite.T(), order.NotifySaleEmail, notifyEmail)
 
-	cursor, err = suite.service.db.Collection(collectionNotifySales).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err = suite.service.notifySalesRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 1)
 
@@ -7091,10 +7083,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifyNewRegion_Ok() {
 	assert.False(suite.T(), rsp.User.NotifyNewRegion)
 	assert.Empty(suite.T(), rsp.User.NotifyNewRegionEmail)
 
-	var data []*billingpb.NotifyUserNewRegion
-	cursor, err := suite.service.db.Collection(collectionNotifyNewRegion).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err := suite.service.notifyRegionRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 0)
 
@@ -7119,9 +7108,7 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifyNewRegion_Ok() {
 	assert.True(suite.T(), order.User.NotifyNewRegion)
 	assert.Equal(suite.T(), order.User.NotifyNewRegionEmail, notifyEmail)
 
-	cursor, err = suite.service.db.Collection(collectionNotifyNewRegion).Find(context.TODO(), bson.M{"email": notifyEmail})
-	assert.Nil(suite.T(), err)
-	err = cursor.All(context.TODO(), &data)
+	data, err = suite.service.notifyRegionRepository.FindByEmail(context.TODO(), notifyEmail)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), len(data), 1)
 
@@ -8243,11 +8230,11 @@ func (suite *OrderTestSuite) TestOrder_DeclineOrder_Ok() {
 	buf, err := json.Marshal(req2)
 	assert.Nil(suite.T(), err)
 
-	paymentSystem, err := suite.service.paymentSystem.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
+	paymentSystem, err := suite.service.paymentSystemRepository.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), paymentSystem)
 	paymentSystem.Handler = billingpb.PaymentSystemHandlerCardPay
-	err = suite.service.paymentSystem.Update(context.TODO(), paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(context.TODO(), paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	hash := sha512.New()
@@ -8371,11 +8358,11 @@ func (suite *OrderTestSuite) TestOrder_SuccessOrderCentrifugoPaymentSystemError_
 	buf, err := json.Marshal(req2)
 	assert.Nil(suite.T(), err)
 
-	paymentSystem, err := suite.service.paymentSystem.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
+	paymentSystem, err := suite.service.paymentSystemRepository.GetById(context.TODO(), suite.paymentMethod.PaymentSystemId)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), paymentSystem)
 	paymentSystem.Handler = billingpb.PaymentSystemHandlerCardPay
-	err = suite.service.paymentSystem.Update(context.TODO(), paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(context.TODO(), paymentSystem)
 	assert.NoError(suite.T(), err)
 
 	hash := sha512.New()
@@ -8653,7 +8640,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_MinSystemLimit
 	err := suite.service.OrderCreateProcess(context.TODO(), req, rsp1)
 
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), rsp1.Status, billingpb.ResponseStatusBadData)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp1.Status)
 	assert.Equal(suite.T(), errorPaymentMinLimitSystemNotFound, rsp1.Message)
 }
 

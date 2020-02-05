@@ -5,12 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionAnnualTurnovers = "annual_turnovers"
-
-	cacheTurnoverKey = "turnover:company:%s:country:%s:year:%d"
-)
-
 // TurnoverRepositoryInterface is abstraction layer for working with annual turnover and representation in database.
 type TurnoverRepositoryInterface interface {
 	// Upsert add or update an annual turnover to the collection.

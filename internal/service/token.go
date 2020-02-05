@@ -135,7 +135,7 @@ func (s *Service) CreateToken(
 			processor.checked.user.Address = req.User.Address
 		} else {
 			if req.User.Ip != nil {
-				address, err := s.getAddressByIp(req.User.Ip.Value)
+				address, err := s.getAddressByIp(ctx, req.User.Ip.Value)
 				if err != nil {
 					zap.L().Error(pkg.MethodFinishedWithError, zap.Error(err))
 					if e, ok := err.(*billingpb.ResponseErrorMessage); ok {

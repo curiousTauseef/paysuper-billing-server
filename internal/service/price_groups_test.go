@@ -284,7 +284,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_getPriceTableRange_NotExistRang
 func (suite *PriceGroupTestSuite) TestPriceGroup_getRecommendedPriceForRegion_Error_RegionNotFound() {
 	rep := &mocks.PriceTableServiceInterface{}
 	rep.On("GetByRegion", mock2.Anything, mock2.Anything).Return(nil, errors.New("error"))
-	suite.service.priceTable = rep
+	suite.service.priceTableRepository = rep
 
 	_, err := suite.service.getRecommendedPriceForRegion(context.TODO(), &billingpb.PriceGroup{}, &billingpb.PriceTableRange{}, 1)
 	assert.Error(suite.T(), err)
@@ -297,7 +297,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_getRecommendedPriceForRegion_Ok
 		Return(&billingpb.PriceTable{Ranges: []*billingpb.PriceTableRange{
 			{From: 6, To: 10, Position: 0},
 		}}, nil)
-	suite.service.priceTable = rep
+	suite.service.priceTableRepository = rep
 
 	amount := float64(1)
 	pg := &billingpb.PriceGroup{Fraction: 0}
@@ -314,7 +314,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_getRecommendedPriceForRegion_Ok
 		Return(&billingpb.PriceTable{Ranges: []*billingpb.PriceTableRange{
 			{From: 6, To: 10, Position: 0},
 		}}, nil)
-	suite.service.priceTable = rep
+	suite.service.priceTableRepository = rep
 
 	amount := float64(1)
 	pg := &billingpb.PriceGroup{Fraction: 0}
@@ -342,7 +342,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetRecommendedPriceByPriceGroup
 
 	pt := &mocks.PriceTableServiceInterface{}
 	pt.On("GetByRegion", mock2.Anything, mock2.Anything).Return(nil, errors.New("price table not exists"))
-	suite.service.priceTable = pt
+	suite.service.priceTableRepository = pt
 
 	req := &billingpb.RecommendedPriceRequest{}
 	res := billingpb.RecommendedPriceResponse{}
@@ -363,7 +363,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetRecommendedPriceByPriceGroup
 	pt.
 		On("GetByRegion", mock2.Anything, mock2.Anything).
 		Return(&billingpb.PriceTable{Ranges: []*billingpb.PriceTableRange{{From: 0, To: 2, Position: 0}}}, nil)
-	suite.service.priceTable = pt
+	suite.service.priceTableRepository = pt
 
 	req := &billingpb.RecommendedPriceRequest{Currency: "USD", Amount: 1}
 	res := billingpb.RecommendedPriceResponse{}
