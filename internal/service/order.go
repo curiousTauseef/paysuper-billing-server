@@ -2456,9 +2456,9 @@ func (v *OrderCreateRequestProcessor) processPaymentMethod(pm *billingpb.Payment
 func (v *OrderCreateRequestProcessor) processLimitAmounts() (err error) {
 	amount := v.checked.amount
 
-	pmls, err := v.paymentMinLimitSystem.GetByCurrency(v.ctx, v.checked.currency)
+	pmls, err := v.paymentMinLimitSystemRepository.GetByCurrency(v.ctx, v.checked.currency)
 	if err != nil {
-		return err
+		return errorPaymentMinLimitSystemNotFound
 	}
 
 	if amount < pmls.Amount {

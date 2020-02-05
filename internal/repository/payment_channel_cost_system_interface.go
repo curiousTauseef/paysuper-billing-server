@@ -6,7 +6,7 @@ import (
 )
 
 // PaymentChannelCostSystemRepositoryInterface is abstraction layer for working with payment channel cost
-// for merchant and representation in database.
+// for system and representation in database.
 type PaymentChannelCostSystemRepositoryInterface interface {
 	// Insert adds the payment channel cost to the collection.
 	Insert(context.Context, *billingpb.PaymentChannelCostSystem) error

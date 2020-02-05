@@ -46,7 +46,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 			Amount:   0.01,
 		},
 	}
-	err := service.paymentMinLimitSystem.MultipleInsert(context.TODO(), paymentMinLimitsSystem)
+	err := service.paymentMinLimitSystemRepository.MultipleInsert(context.TODO(), paymentMinLimitsSystem)
 	if err != nil {
 		suite.FailNow("Insert PaymentMinLimitSystem test data failed", "%v", err)
 	}

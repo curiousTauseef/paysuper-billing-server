@@ -1420,8 +1420,8 @@ func (suite *OrderTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	limits := []interface{}{paymentMinLimitSystem1, paymentMinLimitSystem2, paymentMinLimitSystem3, paymentMinLimitSystem4, paymentMinLimitSystem5}
-	_, err = suite.service.db.Collection(collectionPaymentMinLimitSystem).InsertMany(context.TODO(), limits)
+	limits := []*billingpb.PaymentMinLimitSystem{paymentMinLimitSystem1, paymentMinLimitSystem2, paymentMinLimitSystem3, paymentMinLimitSystem4, paymentMinLimitSystem5}
+	err = suite.service.paymentMinLimitSystemRepository.MultipleInsert(context.TODO(), limits)
 	assert.NoError(suite.T(), err)
 
 	pms := []*billingpb.PaymentMethod{
@@ -8592,7 +8592,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_MinSystemLimit
 	err := suite.service.OrderCreateProcess(context.TODO(), req, rsp1)
 
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), rsp1.Status, billingpb.ResponseStatusBadData)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp1.Status)
 	assert.Equal(suite.T(), errorPaymentMinLimitSystemNotFound, rsp1.Message)
 }
 

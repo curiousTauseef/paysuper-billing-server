@@ -77,7 +77,6 @@ type Service struct {
 	reporterService                      reporterpb.ReporterService
 	postmarkBroker                       rabbitmq.BrokerInterface
 	paylinkService                       PaylinkServiceInterface
-	paymentMinLimitSystem                PaymentMinLimitSystemInterface
 	casbinService                        casbinpb.CasbinService
 	paymentSystemGateway                 *Gateway
 	country                              repository.CountryRepositoryInterface
@@ -103,6 +102,7 @@ type Service struct {
 	paymentMethodRepository              repository.PaymentMethodRepositoryInterface
 	paymentChannelCostSystemRepository   repository.PaymentChannelCostSystemRepositoryInterface
 	paymentChannelCostMerchantRepository repository.PaymentChannelCostMerchantRepositoryInterface
+	paymentMinLimitSystemRepository      repository.PaymentMinLimitSystemRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -169,7 +169,6 @@ func (s *Service) Init() (err error) {
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
 	s.paylinkService = newPaylinkService(s)
-	s.paymentMinLimitSystem = newPaymentMinLimitSystem(s)
 	s.paymentSystemGateway = s.newPaymentSystemGateway()
 
 	s.refundRepository = repository.NewRefundRepository(s.db)
@@ -195,6 +194,7 @@ func (s *Service) Init() (err error) {
 	s.paymentMethodRepository = repository.NewPaymentMethodRepository(s.db, s.cacher)
 	s.paymentChannelCostSystemRepository = repository.NewPaymentChannelCostSystemRepository(s.db, s.cacher)
 	s.paymentChannelCostMerchantRepository = repository.NewPaymentChannelCostMerchantRepository(s.db, s.cacher)
+	s.paymentMinLimitSystemRepository = repository.NewPaymentMinLimitSystemRepository(s.db, s.cacher)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

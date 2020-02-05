@@ -25,16 +25,16 @@ const (
 	collectionPaymentChannelCostSystem = "payment_channel_cost_system"
 )
 
-type PaymentChannelCostSystemRepository repository
+type paymentChannelCostSystemRepository repository
 
 // NewPaymentChannelCostSystemRepository create and return an object for working with the price group repository.
 // The returned object implements the PaymentChannelCostSystemRepositoryInterface interface.
 func NewPaymentChannelCostSystemRepository(db mongodb.SourceInterface, cache database.CacheInterface) PaymentChannelCostSystemRepositoryInterface {
-	s := &PaymentChannelCostSystemRepository{db: db, cache: cache}
+	s := &paymentChannelCostSystemRepository{db: db, cache: cache}
 	return s
 }
 
-func (r *PaymentChannelCostSystemRepository) Insert(ctx context.Context, obj *billingpb.PaymentChannelCostSystem) error {
+func (r *paymentChannelCostSystemRepository) Insert(ctx context.Context, obj *billingpb.PaymentChannelCostSystem) error {
 	obj.FixAmount = tools.FormatAmount(obj.FixAmount)
 	obj.Percent = tools.ToPrecise(obj.Percent)
 	obj.CreatedAt = ptypes.TimestampNow()
@@ -57,7 +57,7 @@ func (r *PaymentChannelCostSystemRepository) Insert(ctx context.Context, obj *bi
 	return r.updateCaches(obj)
 }
 
-func (r *PaymentChannelCostSystemRepository) MultipleInsert(ctx context.Context, obj []*billingpb.PaymentChannelCostSystem) error {
+func (r *paymentChannelCostSystemRepository) MultipleInsert(ctx context.Context, obj []*billingpb.PaymentChannelCostSystem) error {
 	c := make([]interface{}, len(obj))
 	for i, v := range obj {
 		if v.Id == "" {
@@ -93,7 +93,7 @@ func (r *PaymentChannelCostSystemRepository) MultipleInsert(ctx context.Context,
 	return nil
 }
 
-func (r *PaymentChannelCostSystemRepository) Update(ctx context.Context, obj *billingpb.PaymentChannelCostSystem) error {
+func (r *paymentChannelCostSystemRepository) Update(ctx context.Context, obj *billingpb.PaymentChannelCostSystem) error {
 	obj.FixAmount = tools.FormatAmount(obj.FixAmount)
 	obj.Percent = tools.ToPrecise(obj.Percent)
 	obj.UpdatedAt = ptypes.TimestampNow()
@@ -127,7 +127,7 @@ func (r *PaymentChannelCostSystemRepository) Update(ctx context.Context, obj *bi
 	return r.updateCaches(obj)
 }
 
-func (r *PaymentChannelCostSystemRepository) GetById(ctx context.Context, id string) (*billingpb.PaymentChannelCostSystem, error) {
+func (r *paymentChannelCostSystemRepository) GetById(ctx context.Context, id string) (*billingpb.PaymentChannelCostSystem, error) {
 	var c billingpb.PaymentChannelCostSystem
 	key := fmt.Sprintf(cachePaymentChannelCostSystemKeyId, id)
 
@@ -164,7 +164,7 @@ func (r *PaymentChannelCostSystemRepository) GetById(ctx context.Context, id str
 	return &c, nil
 }
 
-func (r *PaymentChannelCostSystemRepository) Find(
+func (r *paymentChannelCostSystemRepository) Find(
 	ctx context.Context, name, region, country, mccCode, operatingCompanyId string,
 ) (*billingpb.PaymentChannelCostSystem, error) {
 	var c *billingpb.PaymentChannelCostSystem
@@ -259,7 +259,7 @@ func (r *PaymentChannelCostSystemRepository) Find(
 	return c, nil
 }
 
-func (r *PaymentChannelCostSystemRepository) Delete(ctx context.Context, obj *billingpb.PaymentChannelCostSystem) error {
+func (r *paymentChannelCostSystemRepository) Delete(ctx context.Context, obj *billingpb.PaymentChannelCostSystem) error {
 	obj.UpdatedAt = ptypes.TimestampNow()
 	obj.IsActive = false
 
@@ -291,7 +291,7 @@ func (r *PaymentChannelCostSystemRepository) Delete(ctx context.Context, obj *bi
 	return r.updateCaches(obj)
 }
 
-func (r *PaymentChannelCostSystemRepository) GetAll(ctx context.Context) ([]*billingpb.PaymentChannelCostSystem, error) {
+func (r *paymentChannelCostSystemRepository) GetAll(ctx context.Context) ([]*billingpb.PaymentChannelCostSystem, error) {
 	c := []*billingpb.PaymentChannelCostSystem{}
 	key := cachePaymentChannelCostSystemAll
 	err := r.cache.Get(key, &c)
@@ -341,7 +341,7 @@ func (r *PaymentChannelCostSystemRepository) GetAll(ctx context.Context) ([]*bil
 	return c, nil
 }
 
-func (r *PaymentChannelCostSystemRepository) updateCaches(obj *billingpb.PaymentChannelCostSystem) (err error) {
+func (r *paymentChannelCostSystemRepository) updateCaches(obj *billingpb.PaymentChannelCostSystem) (err error) {
 	groupKeys := []string{
 		fmt.Sprintf(cachePaymentChannelCostSystemKey, obj.Name, obj.Region, obj.Country, obj.MccCode, obj.OperatingCompanyId),
 		fmt.Sprintf(cachePaymentChannelCostSystemKey, obj.Name, obj.Region, "", obj.MccCode, obj.OperatingCompanyId),

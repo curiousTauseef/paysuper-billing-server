@@ -19,7 +19,6 @@ type OrderView Entity
 type Accounting Entity
 type RoyaltyReport Entity
 type Paylink Entity
-type PaymentMinLimitSystem Entity
 type Product Entity
 type Key Entity
 

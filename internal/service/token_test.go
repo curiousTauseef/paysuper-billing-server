@@ -382,8 +382,8 @@ func (suite *TokenTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	limits := []interface{}{paymentMinLimitSystem1}
-	_, err = suite.service.db.Collection(collectionPaymentMinLimitSystem).InsertMany(context.TODO(), limits)
+	limits := []*billingpb.PaymentMinLimitSystem{paymentMinLimitSystem1}
+	err = suite.service.paymentMinLimitSystemRepository.MultipleInsert(context.TODO(), limits)
 	assert.NoError(suite.T(), err)
 
 	err = suite.service.merchantRepository.MultipleInsert(context.TODO(), []*billingpb.Merchant{merchant, merchantWithoutTariffs})
@@ -449,10 +449,10 @@ func (suite *TokenTestSuite) TestToken_CreateToken_NewCustomer_Ok() {
 			},
 		},
 		Settings: &billingpb.TokenSettings{
-			ProjectId: suite.project.Id,
-			Amount:    100,
-			Currency:  "RUB",
-			Type:      pkg.OrderType_simple,
+			ProjectId:     suite.project.Id,
+			Amount:        100,
+			Currency:      "RUB",
+			Type:          pkg.OrderType_simple,
 			ButtonCaption: "unit test",
 		},
 	}
