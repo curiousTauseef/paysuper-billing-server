@@ -1480,7 +1480,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
-	err = suite.service.paymentChannelCostMerchant.Insert(ctx, paymentMerCost)
+	err = suite.service.paymentChannelCostMerchantRepository.Insert(ctx, paymentMerCost)
 	assert.NoError(suite.T(), err)
 
 	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)

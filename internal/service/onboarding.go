@@ -1307,7 +1307,7 @@ func (s *Service) SetMerchantTariffRates(
 			return nil
 		}
 
-		err = s.paymentChannelCostMerchant.MultipleInsert(ctx, costs)
+		err = s.paymentChannelCostMerchantRepository.MultipleInsert(ctx, costs)
 
 		if err != nil {
 			rsp.Status = billingpb.ResponseStatusSystemError

@@ -1933,7 +1933,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
-	err = suite.service.paymentChannelCostMerchant.
+	err = suite.service.paymentChannelCostMerchantRepository.
 		MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{
 			merCost,
 			merCost1,
@@ -2018,7 +2018,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		PsFixedFeeCurrency:      "EUR",
 	}
 
-	err = suite.service.paymentChannelCostMerchant.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2})
+	err = suite.service.paymentChannelCostMerchantRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostMerchant test data failed", "%v", err)
@@ -5530,7 +5530,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_Qiwi_Ok(
 		IsActive:                true,
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
-	err = suite.service.paymentChannelCostMerchant.Insert(context.TODO(), merCost)
+	err = suite.service.paymentChannelCostMerchantRepository.Insert(context.TODO(), merCost)
 	assert.NoError(suite.T(), err)
 
 	req := &billingpb.OrderCreateRequest{

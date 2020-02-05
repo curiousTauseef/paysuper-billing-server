@@ -2894,9 +2894,9 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Ok() {
 	assert.NotNil(suite.T(), merchant.Banking)
 	assert.NotZero(suite.T(), merchant.Banking.Currency)
 
-	paymentCosts, err := suite.service.paymentChannelCostMerchant.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
+	paymentCosts, err := suite.service.paymentChannelCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), paymentCosts.Items, 0)
+	assert.Len(suite.T(), paymentCosts, 0)
 
 	moneyBackCosts, err := suite.service.moneyBackCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
@@ -2924,10 +2924,9 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.Empty(suite.T(), rsp.Message)
 
-	paymentCosts, err = suite.service.paymentChannelCostMerchant.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
+	paymentCosts, err = suite.service.paymentChannelCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), paymentCosts.Items)
-	assert.Len(suite.T(), paymentCosts.Items, 3)
+	assert.Len(suite.T(), paymentCosts, 3)
 
 	moneyBackCosts, err = suite.service.moneyBackCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
@@ -2978,11 +2977,9 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_GetBy_Er
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_InsertPaymentCosts_Error() {
-	ci := &mocks.CacheInterface{}
-	ci.On("Get", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
-	ci.On("Set", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil)
-	ci.On("Delete", mock2.Anything).Return(errors.New(mocks.SomeError))
-	suite.service.cacher = ci
+	rep := &mocks.MoneyBackCostMerchantRepositoryInterface{}
+	rep.On("MultipleInsert", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
+	suite.service.moneyBackCostMerchantRepository = rep
 
 	req := &billingpb.SetMerchantTariffRatesRequest{
 		MerchantId:             suite.merchant.Id,
@@ -3039,11 +3036,13 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_ChangeTa
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_MerchantUpdate_Error() {
-	ci := &mocks.CacheInterface{}
-	ci.On("Get", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
-	ci.On("Set", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil)
-	ci.On("Delete", mock2.Anything).Return(errors.New(mocks.SomeError))
-	suite.service.cacher = ci
+	merchant := &billingpb.Merchant{
+		Banking: &billingpb.MerchantBanking{Currency: "USD"},
+	}
+	rep := &mocks.MerchantRepositoryInterface{}
+	rep.On("GetById", mock2.Anything, mock2.Anything).Return(merchant, nil)
+	rep.On("Update", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
+	suite.service.merchantRepository = rep
 
 	req := &billingpb.SetMerchantTariffRatesRequest{
 		MerchantId:             suite.merchant.Id,

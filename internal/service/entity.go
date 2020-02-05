@@ -14,15 +14,10 @@ type Entity struct {
 	mx  sync.Mutex
 }
 
-type Currency Entity
-type Commission Entity
-
 type PayoutDocument Entity
 type OrderView Entity
 type Accounting Entity
 type RoyaltyReport Entity
-type PaymentSystemService Entity
-type PaymentChannelCostMerchant Entity
 type Paylink Entity
 type PaymentMinLimitSystem Entity
 type Product Entity
