@@ -2421,7 +2421,7 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts(ctx context.Context
 		return err
 	}
 
-	if v.checked.project.CallbackProtocol == pkg.ProjectCallbackProtocolDefault {
+	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
 		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
 			!(v.checked.project.WebhookTesting.Products.IncorrectPayment &&
 				v.checked.project.WebhookTesting.Products.CorrectPayment &&
@@ -2431,7 +2431,6 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts(ctx context.Context
 		}
 	}
 	v.checked.priceGroup = priceGroup
-
 
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency

@@ -14,6 +14,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/casbinpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"github.com/paysuper/paysuper-proto/go/document_signerpb"
+	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	"github.com/paysuper/paysuper-proto/go/taxpb"
@@ -103,6 +104,7 @@ type Service struct {
 	paymentChannelCostSystemRepository   repository.PaymentChannelCostSystemRepositoryInterface
 	paymentChannelCostMerchantRepository repository.PaymentChannelCostMerchantRepositoryInterface
 	paymentMinLimitSystemRepository      repository.PaymentMinLimitSystemRepositoryInterface
+	notifier                             notifierpb.NotifierService
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -137,6 +139,7 @@ func NewBillingService(
 	formatter paysuper_i18n.Formatter,
 	postmarkBroker rabbitmq.BrokerInterface,
 	casbinService casbinpb.CasbinService,
+	notifier notifierpb.NotifierService,
 ) *Service {
 	return &Service{
 		db:              db,
@@ -153,6 +156,7 @@ func NewBillingService(
 		formatter:       formatter,
 		postmarkBroker:  postmarkBroker,
 		casbinService:   casbinService,
+		notifier:        notifier,
 	}
 }
 

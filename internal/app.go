@@ -28,6 +28,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/casbinpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"github.com/paysuper/paysuper-proto/go/document_signerpb"
+	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
@@ -177,7 +178,7 @@ func (app *Application) Init() {
 	documentSignerService := document_signerpb.NewDocumentSignerService(document_signerpb.ServiceName, app.service.Client())
 	reporter := reporterpb.NewReporterService(reporterpb.ServiceName, app.service.Client())
 	casbin := casbinpb.NewCasbinService(casbinpb.ServiceName, app.service.Client())
-	webHookNotifier := notifier.NewNotifierService(notifierPkg.ServiceName, app.service.Client())
+	webHookNotifier := notifierpb.NewNotifierService(notifierpb.ServiceName, app.service.Client())
 
 	formatter, err := paysuperI18n.NewFormatter([]string{"i18n/rules"}, []string{"i18n/messages"})
 

@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
+
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
@@ -196,8 +194,7 @@ func (s *Service) NotifyWebhookTestResults(ctx context.Context, req *grpc.Notify
 	}
 
 	if project.WebhookTesting == nil {
-		project.WebhookTesting = &billing.WebHookTesting {
-		}
+		project.WebhookTesting = &billing.WebHookTesting{}
 	}
 
 	switch req.Type {
@@ -225,7 +222,6 @@ func (s *Service) NotifyWebhookTestResults(ctx context.Context, req *grpc.Notify
 
 	return nil
 }
-
 
 func (s *Service) processTestingVirtualCurrency(project *billing.Project, req *grpc.NotifyWebhookTestResultsRequest) {
 	if project.WebhookTesting.VirtualCurrency == nil {

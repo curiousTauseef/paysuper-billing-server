@@ -17,8 +17,7 @@ require (
 	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/gogo/protobuf v1.3.0
 	github.com/golang-migrate/migrate/v4 v4.6.2
-	github.com/golang/protobuf v1.3.2
-	github.com/gomodule/redigo v2.0.0+incompatible // indirect
+	github.com/golang/protobuf v1.3.3
 	github.com/google/go-querystring v1.0.0
 	github.com/google/uuid v1.1.1
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
@@ -30,14 +29,16 @@ require (
 	github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
-	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200204083723-7b695478a2a5
+	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200205171149-70a5cc46941b
 	github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200203130641-45056764a1d7
+	github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200205171149-70a5cc46941b
 	github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/taxpb v0.0.0-20200203130641-45056764a1d7
+	github.com/paysuper/paysuper-recurring-repository v1.3.0
 	github.com/paysuper/paysuper-tools v0.0.0-20200117101901-522574ce4d1c
 	github.com/prometheus/client_golang v1.3.0
 	github.com/stoewer/go-strcase v1.1.0
