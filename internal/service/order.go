@@ -2405,8 +2405,7 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 	return nil
 }
 
-func (v *OrderCreateRequestProcessor) processPaylinkProducts(ctx context.Context) error {
-
+func (v *OrderCreateRequestProcessor) processPaylinkProducts(_ context.Context) error {
 	amount, priceGroup, items, isBuyForVirtual, err := v.processProducts(
 		v.ctx,
 		v.checked.project.Id,
