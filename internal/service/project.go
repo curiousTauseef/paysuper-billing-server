@@ -6,7 +6,6 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"net/http"
@@ -447,35 +446,9 @@ func (s *Service) validateRedirectSettings(req *billingpb.Project) error {
 func (s *Service) CheckSkuAndKeyProject(ctx context.Context, req *billingpb.CheckSkuAndKeyProjectRequest, rsp *billingpb.EmptyResponseWithStatus) error {
 	rsp.Status = billingpb.ResponseStatusOk
 
-	oid, _ := primitive.ObjectIDFromHex(req.ProjectId)
-	dupQuery := bson.M{"project_id": oid, "sku": req.Sku, "deleted": false}
-	found, err := s.db.Collection(collectionKeyProduct).CountDocuments(ctx, dupQuery)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, dupQuery),
-		)
-		rsp.Status = http.StatusBadRequest
-		rsp.Message = keyProductRetrieveError
-		return nil
-	}
+	found, err := s.keyProductRepository.CountByProjectIdSku(ctx, req.ProjectId, req.Sku)
 
-	if found > 0 {
-		rsp.Status = http.StatusBadRequest
-		rsp.Message = keyProductDuplicate
-		return nil
-	}
-
-	oid, _ = primitive.ObjectIDFromHex(req.ProjectId)
-	dupQuery = bson.M{"project_id": oid, "sku": req.Sku, "deleted": false}
-	found, err = s.db.Collection(collectionProduct).CountDocuments(ctx, dupQuery)
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, dupQuery),
-		)
 		rsp.Status = http.StatusBadRequest
 		rsp.Message = keyProductRetrieveError
 		return nil
