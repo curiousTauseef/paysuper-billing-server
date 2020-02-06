@@ -354,6 +354,7 @@ func (s *Service) GetKeyProducts(
 	res.Limit = req.Limit
 	res.Offset = req.Offset
 	res.Count = count
+	res.Products = nil
 
 	if res.Count == 0 || res.Offset > res.Count {
 		return nil

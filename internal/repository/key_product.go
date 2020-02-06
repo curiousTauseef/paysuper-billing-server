@@ -68,17 +68,16 @@ func (r *keyProductRepository) CountByProjectIdSku(ctx context.Context, projectI
 }
 
 func (r *keyProductRepository) FindByIdsProjectId(ctx context.Context, ids []string, projectId string) ([]*billingpb.KeyProduct, error) {
-	idsLen := len(ids)
-	items := make([]primitive.ObjectID, idsLen)
+	var items []primitive.ObjectID
 
-	for i, id := range ids {
+	for _, id := range ids {
 		oid, err := primitive.ObjectIDFromHex(id)
 
 		if err != nil {
 			continue
 		}
 
-		items[i] = oid
+		items = append(items, oid)
 	}
 
 	projectOid, _ := primitive.ObjectIDFromHex(projectId)
