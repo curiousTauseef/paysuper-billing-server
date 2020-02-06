@@ -156,6 +156,7 @@ func NewBillingService(
 		formatter:       formatter,
 		postmarkBroker:  postmarkBroker,
 		casbinService:   casbinService,
+		notifier:        notifier,
 	}
 }
 

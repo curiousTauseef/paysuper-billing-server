@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 )
@@ -16,8 +17,12 @@ const (
 	orderRequestType = "type"
 )
 
-func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderCreateRequest, res *grpc.SendWebhookToMerchantResponse) error {
-	res.Status = pkg.ResponseStatusOk
+func (s *Service) SendWebhookToMerchant(
+	ctx context.Context,
+	req *billingpb.OrderCreateRequest,
+	res *billingpb.SendWebhookToMerchantResponse,
+) error {
+	res.Status = billingpb.ResponseStatusOk
 
 	processor := &OrderCreateRequestProcessor{
 		Service: s,
@@ -27,8 +32,8 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 
 	if err := processor.processProject(); err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-		if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-			res.Status = pkg.ResponseStatusBadData
+		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+			res.Status = billingpb.ResponseStatusBadData
 			res.Message = e
 			return nil
 		}
@@ -38,8 +43,8 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 	if req.Signature != "" || processor.checked.project.SignatureRequired == true {
 		if err := processor.processSignature(); err != nil {
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-				res.Status = pkg.ResponseStatusBadData
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
 				return nil
 			}
@@ -48,35 +53,35 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 	}
 
 	switch req.Type {
-	case billing.OrderType_key:
+	case pkg.OrderType_key:
 		if err := processor.processPaylinkKeyProducts(); err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-				res.Status = pkg.ResponseStatusBadData
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
 				return nil
 			}
 			return err
 		}
 		break
-	case billing.OrderType_product:
+	case pkg.OrderType_product:
 		if err := processor.processPaylinkProducts(ctx); err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-				res.Status = pkg.ResponseStatusBadData
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
 				return nil
 			}
 			return err
 		}
 		break
-	case billing.OrderTypeVirtualCurrency:
+	case pkg.OrderTypeVirtualCurrency:
 		err := processor.processVirtualCurrency(ctx)
 		if err != nil {
 			zap.L().Error(
@@ -84,19 +89,19 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 				zap.Error(err),
 			)
 
-			res.Status = pkg.ResponseStatusBadData
-			res.Message = err.(*grpc.ResponseErrorMessage)
+			res.Status = billingpb.ResponseStatusBadData
+			res.Message = err.(*billingpb.ResponseErrorMessage)
 			return nil
 		}
 		break
-	case billing.OrderType_simple:
+	case pkg.OrderType_simple:
 		processor.processAmount()
 	default:
 		zap.L().Error(
 			webhookTypeIncorrect.Message,
 			zap.String(orderRequestType, req.Type),
 		)
-		res.Status = pkg.ResponseStatusBadData
+		res.Status = billingpb.ResponseStatusBadData
 		res.Message = webhookTypeIncorrect
 		res.Message.Details = req.Type
 		return nil
@@ -107,8 +112,8 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 
 		if err != nil {
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-				res.Status = pkg.ResponseStatusBadData
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
 				return nil
 			}
@@ -119,8 +124,8 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 	err := processor.processCurrency(req.Type)
 	if err != nil {
 		zap.L().Error("process currency failed", zap.Error(err))
-		if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-			res.Status = pkg.ResponseStatusBadData
+		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+			res.Status = billingpb.ResponseStatusBadData
 			res.Message = e
 			return nil
 		}
@@ -128,7 +133,7 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 	}
 
 	if processor.checked.currency == "" {
-		res.Status = pkg.ResponseStatusBadData
+		res.Status = billingpb.ResponseStatusBadData
 		res.Message = orderErrorCurrencyIsRequired
 		return nil
 	}
@@ -136,8 +141,8 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 	if req.OrderId != "" {
 		if err := processor.processProjectOrderId(); err != nil {
 			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-				res.Status = pkg.ResponseStatusBadData
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
 				return nil
 			}
@@ -151,8 +156,8 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 	order, err := processor.prepareOrder()
 	if err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-		if e, ok := err.(*grpc.ResponseErrorMessage); ok {
-			res.Status = pkg.ResponseStatusBadData
+		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+			res.Status = billingpb.ResponseStatusBadData
 			res.Message = e
 			return nil
 		}
@@ -177,10 +182,15 @@ func (s *Service) SendWebhookToMerchant(ctx context.Context, req *billing.OrderC
 	return nil
 }
 
-func (s *Service) NotifyWebhookTestResults(ctx context.Context, req *grpc.NotifyWebhookTestResultsRequest, res *grpc.EmptyResponseWithStatus) error {
-	res.Status = pkg.ResponseStatusOk
+func (s *Service) NotifyWebhookTestResults(
+	ctx context.Context,
+	req *billingpb.NotifyWebhookTestResultsRequest,
+	res *billingpb.EmptyResponseWithStatus,
+) error {
+	res.Status = billingpb.ResponseStatusOk
 
 	project, err := s.project.GetById(ctx, req.ProjectId)
+
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorGrpcServiceCallFailed,
@@ -188,23 +198,23 @@ func (s *Service) NotifyWebhookTestResults(ctx context.Context, req *grpc.Notify
 			zap.String(errorFieldService, "Project"),
 			zap.String(errorFieldMethod, "GetById"),
 		)
-		res.Status = pkg.ResponseStatusSystemError
+		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = projectErrorUnknown
 		return nil
 	}
 
 	if project.WebhookTesting == nil {
-		project.WebhookTesting = &billing.WebHookTesting{}
+		project.WebhookTesting = &billingpb.WebHookTesting{}
 	}
 
 	switch req.Type {
-	case billing.OrderType_product:
+	case pkg.OrderType_product:
 		s.processTestingProducts(project, req)
 		break
-	case billing.OrderType_key:
+	case pkg.OrderType_key:
 		s.processTestingKeys(project, req)
 		break
-	case billing.OrderTypeVirtualCurrency:
+	case pkg.OrderTypeVirtualCurrency:
 		s.processTestingVirtualCurrency(project, req)
 		break
 	default:
@@ -214,7 +224,7 @@ func (s *Service) NotifyWebhookTestResults(ctx context.Context, req *grpc.Notify
 			zap.String(errorFieldService, "Project"),
 			zap.String(errorFieldMethod, "GetById"),
 		)
-		res.Status = pkg.ResponseStatusBadData
+		res.Status = billingpb.ResponseStatusBadData
 		res.Message = webhookTypeIncorrect
 		res.Message.Details = req.Type
 		return nil
@@ -223,9 +233,9 @@ func (s *Service) NotifyWebhookTestResults(ctx context.Context, req *grpc.Notify
 	return nil
 }
 
-func (s *Service) processTestingVirtualCurrency(project *billing.Project, req *grpc.NotifyWebhookTestResultsRequest) {
+func (s *Service) processTestingVirtualCurrency(project *billingpb.Project, req *billingpb.NotifyWebhookTestResultsRequest) {
 	if project.WebhookTesting.VirtualCurrency == nil {
-		project.WebhookTesting.VirtualCurrency = &billing.VirtualCurrencyTesting{}
+		project.WebhookTesting.VirtualCurrency = &billingpb.VirtualCurrencyTesting{}
 	}
 	switch req.TestCase {
 	case pkg.TestCaseNonExistingUser:
@@ -243,16 +253,16 @@ func (s *Service) processTestingVirtualCurrency(project *billing.Project, req *g
 	}
 }
 
-func (s *Service) processTestingKeys(project *billing.Project, req *grpc.NotifyWebhookTestResultsRequest) {
+func (s *Service) processTestingKeys(project *billingpb.Project, req *billingpb.NotifyWebhookTestResultsRequest) {
 	if project.WebhookTesting.Keys == nil {
-		project.WebhookTesting.Keys = &billing.KeysTesting{}
+		project.WebhookTesting.Keys = &billingpb.KeysTesting{}
 	}
 	project.WebhookTesting.Keys.IsPassed = req.IsPassed
 }
 
-func (s *Service) processTestingProducts(project *billing.Project, req *grpc.NotifyWebhookTestResultsRequest) {
+func (s *Service) processTestingProducts(project *billingpb.Project, req *billingpb.NotifyWebhookTestResultsRequest) {
 	if project.WebhookTesting.Products == nil {
-		project.WebhookTesting.Products = &billing.ProductsTesting{}
+		project.WebhookTesting.Products = &billingpb.ProductsTesting{}
 	}
 	switch req.TestCase {
 	case pkg.TestCaseNonExistingUser:

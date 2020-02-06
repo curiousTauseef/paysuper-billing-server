@@ -366,6 +366,10 @@ func (s *Service) updateProject(ctx context.Context, req *billingpb.Project, pro
 		project.RedirectSettings = req.RedirectSettings
 	}
 
+	if req.WebhookMode != "" {
+		project.WebhookMode = req.WebhookMode
+	}
+
 	if err := s.project.Update(ctx, project); err != nil {
 		return projectErrorUnknown
 	}

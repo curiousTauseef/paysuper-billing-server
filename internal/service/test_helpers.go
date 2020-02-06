@@ -789,20 +789,20 @@ func helperCreateProject(
 		},
 		UrlRedirectSuccess: "http://localhost?success",
 		UrlRedirectFail:    "http://localhost?fail",
-		WebhookTesting: &billing.WebHookTesting {
-			Products:             &billing.ProductsTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			VirtualCurrency:      &billing.VirtualCurrencyTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			Keys:                 &billing.KeysTesting{IsPassed: true},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
 		},
 	}
 

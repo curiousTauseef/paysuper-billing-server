@@ -4403,7 +4403,7 @@ func (s *Service) paymentSystemPaymentCallbackComplete(ctx context.Context, orde
 	return s.centrifugoPaymentForm.Publish(ctx, ch, message)
 }
 
-func (v *OrderCreateRequestProcessor) processVirtualCurrency(ctx context.Context) error {
+func (v *OrderCreateRequestProcessor) processVirtualCurrency(_ context.Context) error {
 	amount := v.request.Amount
 	virtualCurrency := v.checked.project.VirtualCurrency
 
