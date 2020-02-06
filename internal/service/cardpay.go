@@ -549,7 +549,7 @@ func (h *cardPay) auth(order *billingpb.Order) error {
 		return err
 	}
 
-	err = h.setToken(b, order.PaymentMethod.ExternalId)
+	err = h.setToken(b, order.PaymentMethod.Params.TerminalId)
 
 	if err != nil {
 		return err
@@ -562,7 +562,7 @@ func (h *cardPay) refresh(order *billingpb.Order) error {
 	data := url.Values{
 		cardPayRequestFieldGrantType:    []string{cardPayGrantTypeRefreshToken},
 		cardPayRequestFieldTerminalCode: []string{order.PaymentMethod.Params.TerminalId},
-		cardPayRequestFieldRefreshToken: []string{h.tokens[order.PaymentMethod.ExternalId].RefreshToken},
+		cardPayRequestFieldRefreshToken: []string{h.tokens[order.PaymentMethod.Params.TerminalId].RefreshToken},
 	}
 
 	qUrl, err := h.getUrl(order.GetPaymentSystemApiUrl(), pkg.PaymentSystemActionRefresh)
@@ -602,7 +602,7 @@ func (h *cardPay) refresh(order *billingpb.Order) error {
 		return err
 	}
 
-	if err := h.setToken(b, order.PaymentMethod.ExternalId); err != nil {
+	if err := h.setToken(b, order.PaymentMethod.Params.TerminalId); err != nil {
 		return err
 	}
 
@@ -645,7 +645,7 @@ func (h *cardPay) setToken(b []byte, pmKey string) error {
 }
 
 func (h *cardPay) getToken(order *billingpb.Order) *cardPayToken {
-	token, ok := h.tokens[order.PaymentMethod.ExternalId]
+	token, ok := h.tokens[order.PaymentMethod.Params.TerminalId]
 
 	if !ok {
 		return nil
@@ -667,7 +667,7 @@ func (h *cardPay) getToken(order *billingpb.Order) *cardPayToken {
 		return nil
 	}
 
-	return h.tokens[order.PaymentMethod.ExternalId]
+	return h.tokens[order.PaymentMethod.Params.TerminalId]
 }
 
 func (h *cardPay) getCardPayOrder(
