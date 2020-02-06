@@ -1,17 +1,17 @@
 package service
 
 import (
-	casbinMocks "github.com/paysuper/casbin-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	reportingMocks "github.com/paysuper/paysuper-reporter/pkg/mocks"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v1"
+	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 )
 
@@ -19,7 +19,7 @@ type WebhookTestSuite struct {
 	suite.Suite
 	service *Service
 	log     *zap.Logger
-	cache   CacheInterface
+	cache   database.CacheInterface
 }
 
 func Test_Webhook(t *testing.T) {
@@ -42,7 +42,7 @@ func (suite *WebhookTestSuite) SetupTest() {
 	assert.NoError(suite.T(), err, "Creating RabbitMQ publisher failed")
 
 	redisdb := mocks.NewTestRedis()
-	suite.cache, err = NewCacheRedis(redisdb, "cache")
+	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -82,8 +82,8 @@ func (suite *WebhookTestSuite) TearDownTest() {
 }
 
 func (suite *WebhookTestSuite) Test_SendWebhook_Ok() {
-	req := &billing.OrderCreateRequest{}
-	res := &grpc.SendWebhookToMerchantResponse{}
+	req := &billingpb.OrderCreateRequest{}
+	res := &billingpb.SendWebhookToMerchantResponse{}
 	err := suite.service.SendWebhookToMerchant(ctx, req, res)
 
 	assert.NoError(suite.T(), err)

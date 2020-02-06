@@ -977,20 +977,20 @@ func (suite *OrderTestSuite) SetupTest() {
 		},
 		UrlRedirectSuccess: "http://localhost?success",
 		UrlRedirectFail:    "http://localhost?fail",
-		WebhookTesting: &billing.WebHookTesting {
-			Products:             &billing.ProductsTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			VirtualCurrency:      &billing.VirtualCurrencyTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			Keys:                 &billing.KeysTesting{IsPassed: true},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
 		},
 	}
 	projectFixedAmount := &billingpb.Project{
@@ -1013,20 +1013,20 @@ func (suite *OrderTestSuite) SetupTest() {
 		},
 		UrlRedirectSuccess: "http://localhost?success",
 		UrlRedirectFail:    "http://localhost?fail",
-		WebhookTesting: &billing.WebHookTesting {
-			Products:             &billing.ProductsTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			VirtualCurrency:      &billing.VirtualCurrencyTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			Keys:                 &billing.KeysTesting{IsPassed: true},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
 		},
 	}
 
@@ -1044,8 +1044,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		Status:                   billingpb.ProjectStatusInProduction,
 		MerchantId:               merchant.Id,
 		VirtualCurrency: &billingpb.ProjectVirtualCurrency{
-Name: map[string]string{"en": "test project 1"},
-			Prices: []*billing.ProductPrice{
+			Name: map[string]string{"en": "test project 1"},
 			Prices: []*billingpb.ProductPrice{
 				{
 					Currency: "USD",
@@ -1059,22 +1058,22 @@ Name: map[string]string{"en": "test project 1"},
 				},
 			},
 		},
-		WebhookTesting: &billing.WebHookTesting {
-			Products:             &billing.ProductsTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			VirtualCurrency:      &billing.VirtualCurrencyTesting{
-				NonExistingUser:      true,
-				ExistingUser:         true,
-				CorrectPayment:       true,
-				IncorrectPayment:     true,
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
 			},
-			Keys:                 &billing.KeysTesting{IsPassed: true},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
 		},
-			
+
 		VatPayer: billingpb.VatPayerBuyer,
 		RedirectSettings: &billingpb.ProjectRedirectSettings{
 			Mode:  pkg.ProjectRedirectModeAny,

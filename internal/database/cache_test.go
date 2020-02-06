@@ -36,28 +36,6 @@ func (suite *CacheTestSuite) SetupTest() {
 	)
 	suite.cache, err = NewCacheRedis(suite.redis, "cache")
 	assert.NoError(suite.T(), err)
-
-	suite.service = NewBillingService(
-		nil,
-		cfg,
-		mocks.NewGeoIpServiceTestOk(),
-		mocks.NewRepositoryServiceOk(),
-		mocks.NewTaxServiceOkMock(),
-		nil,
-		nil,
-		suite.cache,
-		mocks.NewCurrencyServiceMockOk(),
-		mocks.NewDocumentSignerMockOk(),
-		&reportingMocks.ReporterService{},
-		mocks.NewFormatterOK(),
-		mocks.NewBrokerMockOk(),
-		&casbinMocks.CasbinService{},
-		nil,
-	)
-
-	if err := suite.service.Init(); err != nil {
-		suite.FailNow("Billing service initialization failed", "%v", err)
-	}
 }
 
 func (suite *CacheTestSuite) TearDownTest() {
