@@ -27,7 +27,6 @@ type Repository struct {
 
 type MerchantsTariffRatesRepository Repository
 type DashboardRepository Repository
-type KeyProductRepository Repository
 
 type kvIntFloat struct {
 	Key   int
