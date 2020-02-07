@@ -104,6 +104,7 @@ type Service struct {
 	paylinkRepository                    repository.PaylinkRepositoryInterface
 	paylinkVisitsRepository              repository.PaylinkVisitRepositoryInterface
 	royaltyReportRepository              repository.RoyaltyReportRepositoryInterface
+	vatReportRepository                  repository.VatReportRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -197,6 +198,7 @@ func (s *Service) Init() (err error) {
 	s.paylinkRepository = repository.NewPaylinkRepository(s.db, s.cacher)
 	s.paylinkVisitsRepository = repository.NewPaylinkVisitRepository(s.db)
 	s.royaltyReportRepository = repository.NewRoyaltyReportRepository(s.db, s.cacher)
+	s.vatReportRepository = repository.NewVatReportRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {
