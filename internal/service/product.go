@@ -2,13 +2,11 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 )
 
@@ -47,7 +45,7 @@ func (s *Service) CreateOrUpdateProduct(ctx context.Context, req *billingpb.Prod
 		req.Id = primitive.NewObjectID().Hex()
 		req.CreatedAt = now
 	} else {
-		product, err = s.productService.GetById(ctx, req.Id)
+		product, err = s.productRepository.GetById(ctx, req.Id)
 		if err != nil {
 			zap.S().Errorf("Product that requested to change is not found", "err", err.Error(), "data", req)
 			return productErrorNotFound
@@ -88,7 +86,7 @@ func (s *Service) CreateOrUpdateProduct(ctx context.Context, req *billingpb.Prod
 		return productErrorDescriptionDefaultLanguage
 	}
 
-	count, err := s.productService.CountByProjectSku(ctx, req.ProjectId, req.Sku)
+	count, err := s.productRepository.CountByProjectSku(ctx, req.ProjectId, req.Sku)
 
 	if err != nil {
 		zap.S().Errorf("Query to find duplicates failed", "err", err.Error(), "data", req)
@@ -106,7 +104,7 @@ func (s *Service) CreateOrUpdateProduct(ctx context.Context, req *billingpb.Prod
 		return productErrorProjectAndSkuAlreadyExists
 	}
 
-	if err = s.productService.Upsert(ctx, req); err != nil {
+	if err = s.productRepository.Upsert(ctx, req); err != nil {
 		zap.S().Errorf("Query to create/update product failed", "err", err.Error(), "data", req)
 		return productErrorUpsert
 	}
@@ -144,7 +142,7 @@ func (s *Service) GetProductsForOrder(ctx context.Context, req *billingpb.GetPro
 	var found []*billingpb.Product
 
 	for _, id := range req.Ids {
-		p, err := s.productService.GetById(ctx, id)
+		p, err := s.productRepository.GetById(ctx, id)
 
 		if err != nil {
 			zap.S().Errorf("Unable to get product", "err", err.Error(), "req", req)
@@ -166,7 +164,10 @@ func (s *Service) GetProductsForOrder(ctx context.Context, req *billingpb.GetPro
 }
 
 func (s *Service) ListProducts(ctx context.Context, req *billingpb.ListProductsRequest, res *billingpb.ListProductsResponse) error {
-	var enabled int32
+	var (
+		enabled int32
+		err     error
+	)
 
 	switch req.Enabled {
 	case "false":
@@ -179,16 +180,36 @@ func (s *Service) ListProducts(ctx context.Context, req *billingpb.ListProductsR
 		enabled = 0
 	}
 
-	res.Total, res.Products = s.productService.List(
+	res.Total, err = s.productRepository.FindCount(ctx, req.MerchantId, req.ProjectId, req.Sku, req.Name, enabled)
+
+	if err != nil {
+		return nil
+	}
+
+	if res.Total == 0 || req.Offset > res.Total {
+		zap.L().Error(
+			"total is empty or less then total",
+			zap.Error(err),
+			zap.Int64(pkg.ErrorDatabaseFieldLimit, req.Limit),
+			zap.Int64(pkg.ErrorDatabaseFieldOffset, req.Offset),
+		)
+		return nil
+	}
+
+	res.Products, err = s.productRepository.Find(
 		ctx,
 		req.MerchantId,
 		req.ProjectId,
 		req.Sku,
 		req.Name,
+		enabled,
 		req.Offset,
 		req.Limit,
-		enabled,
 	)
+
+	if err != nil {
+		return nil
+	}
 
 	res.Limit = req.Limit
 	res.Offset = req.Offset
@@ -201,7 +222,7 @@ func (s *Service) GetProduct(
 	req *billingpb.RequestProduct,
 	rsp *billingpb.GetProductResponse,
 ) error {
-	product, err := s.productService.GetById(ctx, req.Id)
+	product, err := s.productRepository.GetById(ctx, req.Id)
 
 	if err != nil {
 		zap.L().Error(
@@ -236,7 +257,7 @@ func (s *Service) GetProduct(
 }
 
 func (s *Service) DeleteProduct(ctx context.Context, req *billingpb.RequestProduct, res *billingpb.EmptyResponse) error {
-	product, err := s.productService.GetById(ctx, req.Id)
+	product, err := s.productRepository.GetById(ctx, req.Id)
 
 	if err != nil {
 		zap.S().Errorf("Unable to get product", "err", err.Error(), "req", req)
@@ -251,7 +272,7 @@ func (s *Service) DeleteProduct(ctx context.Context, req *billingpb.RequestProdu
 	product.Deleted = true
 	product.UpdatedAt = ptypes.TimestampNow()
 
-	err = s.productService.Upsert(ctx, product)
+	err = s.productRepository.Upsert(ctx, product)
 
 	if err != nil {
 		zap.S().Errorf("Query to delete product failed", "err", err.Error(), "data", req)
@@ -262,7 +283,7 @@ func (s *Service) DeleteProduct(ctx context.Context, req *billingpb.RequestProdu
 }
 
 func (s *Service) GetProductPrices(ctx context.Context, req *billingpb.RequestProduct, res *billingpb.ProductPricesResponse) error {
-	product, err := s.productService.GetById(ctx, req.Id)
+	product, err := s.productRepository.GetById(ctx, req.Id)
 
 	if err != nil {
 		zap.S().Errorf("Unable to get product", "err", err.Error(), "req", req)
@@ -285,7 +306,7 @@ func (s *Service) UpdateProductPrices(ctx context.Context, req *billingpb.Update
 		return productErrorListPrices
 	}
 
-	product, err := s.productService.GetById(ctx, req.ProductId)
+	product, err := s.productRepository.GetById(ctx, req.ProductId)
 
 	if err != nil {
 		zap.S().Errorf("Unable to get product", "err", err.Error(), "req", req)
@@ -338,7 +359,7 @@ func (s *Service) UpdateProductPrices(ctx context.Context, req *billingpb.Update
 		return productErrorPriceDefaultCurrency
 	}
 
-	if err := s.productService.Upsert(ctx, product); err != nil {
+	if err := s.productRepository.Upsert(ctx, product); err != nil {
 		zap.S().Errorf("Query to create/update product failed", "err", err.Error(), "data", req)
 		return productErrorPricesUpdate
 	}
@@ -356,162 +377,4 @@ func (s *Service) getProductsCountByProject(ctx context.Context, projectId strin
 	}
 
 	return count
-}
-
-type ProductServiceInterface interface {
-	Upsert(ctx context.Context, product *billingpb.Product) error
-	GetById(context.Context, string) (*billingpb.Product, error)
-	CountByProjectSku(context.Context, string, string) (int64, error)
-	List(context.Context, string, string, string, string, int64, int64, int32) (int64, []*billingpb.Product)
-}
-
-func newProductService(svc *Service) *Product {
-	s := &Product{svc: svc}
-	return s
-}
-
-func (h *Product) Upsert(ctx context.Context, p *billingpb.Product) error {
-	oid, _ := primitive.ObjectIDFromHex(p.Id)
-	filter := bson.M{"_id": oid}
-	opts := options.Replace().SetUpsert(true)
-	_, err := h.svc.db.Collection(collectionProduct).ReplaceOne(ctx, filter, p, opts)
-
-	if err != nil {
-		return err
-	}
-
-	if err := h.updateCache(p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *Product) GetById(ctx context.Context, id string) (*billingpb.Product, error) {
-	var c billingpb.Product
-	key := fmt.Sprintf(cacheProductId, id)
-
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	oid, _ := primitive.ObjectIDFromHex(id)
-	filter := bson.M{"_id": oid, "deleted": false}
-	err := h.svc.db.Collection(collectionProduct).FindOne(ctx, filter).Decode(&c)
-
-	if err != nil {
-		return nil, fmt.Errorf(errorNotFound, collectionProduct)
-	}
-
-	if err := h.svc.cacher.Set(key, c, 0); err != nil {
-		zap.S().Errorf("Unable to set cache", "err", err.Error(), "key", key, "data", c)
-	}
-
-	return &c, nil
-}
-
-func (h *Product) CountByProjectSku(ctx context.Context, projectId string, sku string) (int64, error) {
-	oid, _ := primitive.ObjectIDFromHex(projectId)
-	query := bson.M{"project_id": oid, "sku": sku, "deleted": false}
-	count, err := h.svc.db.Collection(collectionProduct).CountDocuments(ctx, query)
-
-	if err != nil {
-		zap.S().Errorf("Query to find duplicates failed", "err", err.Error(), "projectId", projectId)
-		return 0, productErrorUnknown
-	}
-
-	return count, nil
-}
-
-func (h *Product) List(
-	ctx context.Context,
-	merchantId string,
-	projectId string,
-	sku string,
-	name string,
-	offset int64,
-	limit int64,
-	enabled int32,
-) (int64, []*billingpb.Product) {
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := bson.M{"merchant_id": merchantOid, "deleted": false}
-
-	if projectId != "" {
-		query["project_id"], _ = primitive.ObjectIDFromHex(projectId)
-	}
-
-	if sku != "" {
-		query["sku"] = primitive.Regex{Pattern: sku, Options: "i"}
-	}
-	if name != "" {
-		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: name, Options: "i"}}}
-	}
-
-	if enabled > 0 {
-		if enabled == 1 {
-			query["enabled"] = false
-		} else {
-			query["enabled"] = true
-		}
-	}
-
-	count, err := h.svc.db.Collection(collectionProduct).CountDocuments(ctx, query)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return 0, nil
-	}
-
-	if count == 0 || offset > count {
-		zap.L().Error(
-			"total is empty or less then total",
-			zap.Error(err),
-			zap.Int64(pkg.ErrorDatabaseFieldLimit, limit),
-			zap.Int64(pkg.ErrorDatabaseFieldOffset, offset),
-		)
-		return 0, nil
-	}
-
-	opts := options.Find().
-		SetLimit(limit).
-		SetSkip(offset)
-	cursor, err := h.svc.db.Collection(collectionProduct).Find(ctx, query, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return 0, nil
-	}
-
-	var list []*billingpb.Product
-	err = cursor.All(ctx, &list)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return 0, nil
-	}
-
-	return count, list
-}
-
-func (h *Product) updateCache(p *billingpb.Product) error {
-	if err := h.svc.cacher.Set(fmt.Sprintf(cacheProductId, p.Id), p, 0); err != nil {
-		return err
-	}
-
-	return nil
 }

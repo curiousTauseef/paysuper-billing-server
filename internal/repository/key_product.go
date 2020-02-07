@@ -24,23 +24,35 @@ func NewKeyProductRepository(db mongodb.SourceInterface) KeyProductRepositoryInt
 	return s
 }
 
-func (r *keyProductRepository) GetById(ctx context.Context, id string) (*billingpb.KeyProduct, error) {
-	oid, _ := primitive.ObjectIDFromHex(id)
-	query := bson.M{"_id": oid, "deleted": false}
-
-	product := &billingpb.KeyProduct{}
-	err := r.db.Collection(collectionKeyProduct).FindOne(ctx, query).Decode(product)
-
-	return product, err
-}
-
 func (r *keyProductRepository) Upsert(ctx context.Context, keyProduct *billingpb.KeyProduct) error {
-	oid, _ := primitive.ObjectIDFromHex(keyProduct.Id)
+	oid, err := primitive.ObjectIDFromHex(keyProduct.Id)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.String(pkg.ErrorDatabaseFieldQuery, keyProduct.Id),
+		)
+		return err
+	}
+
 	opts := options.Replace().SetUpsert(true)
 	filter := bson.M{"_id": oid}
-	_, err := r.db.Collection(collectionKeyProduct).ReplaceOne(ctx, filter, keyProduct, opts)
+	_, err = r.db.Collection(collectionKeyProduct).ReplaceOne(ctx, filter, keyProduct, opts)
 
-	return err
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationUpsert),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, keyProduct),
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (r *keyProductRepository) Update(ctx context.Context, keyProduct *billingpb.KeyProduct) error {
@@ -51,16 +63,64 @@ func (r *keyProductRepository) Update(ctx context.Context, keyProduct *billingpb
 	return err
 }
 
+func (r *keyProductRepository) GetById(ctx context.Context, id string) (*billingpb.KeyProduct, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.String(pkg.ErrorDatabaseFieldQuery, id),
+		)
+		return nil, err
+	}
+
+	query := bson.M{"_id": oid, "deleted": false}
+
+	product := &billingpb.KeyProduct{}
+	err = r.db.Collection(collectionKeyProduct).FindOne(ctx, query).Decode(product)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, product),
+		)
+		return nil, err
+	}
+
+	return product, nil
+}
+
 func (r *keyProductRepository) CountByProjectIdSku(ctx context.Context, projectId, sku string) (int64, error) {
-	projectOid, _ := primitive.ObjectIDFromHex(projectId)
-	dupQuery := bson.M{
+	projectOid, err := primitive.ObjectIDFromHex(projectId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.String(pkg.ErrorDatabaseFieldQuery, projectId),
+		)
+		return int64(0), err
+	}
+
+	query := bson.M{
 		"project_id": projectOid,
 		"sku":        sku,
 		"deleted":    false,
 	}
-	count, err := r.db.Collection(collectionKeyProduct).CountDocuments(ctx, dupQuery)
+	count, err := r.db.Collection(collectionKeyProduct).CountDocuments(ctx, query)
 
 	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
 		return int64(0), err
 	}
 
@@ -74,13 +134,30 @@ func (r *keyProductRepository) FindByIdsProjectId(ctx context.Context, ids []str
 		oid, err := primitive.ObjectIDFromHex(id)
 
 		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+				zap.String(pkg.ErrorDatabaseFieldQuery, id),
+			)
 			continue
 		}
 
 		items = append(items, oid)
 	}
 
-	projectOid, _ := primitive.ObjectIDFromHex(projectId)
+	projectOid, err := primitive.ObjectIDFromHex(projectId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.String(pkg.ErrorDatabaseFieldQuery, projectId),
+		)
+		return nil, err
+	}
+
 	query := bson.M{
 		"_id":        bson.M{"$in": items},
 		"enabled":    true,
@@ -118,11 +195,32 @@ func (r *keyProductRepository) FindByIdsProjectId(ctx context.Context, ids []str
 func (r *keyProductRepository) Find(
 	ctx context.Context, merchantId, projectId, sku, name, enabled string, offset, limit int64,
 ) ([]*billingpb.KeyProduct, error) {
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
+	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+		)
+		return nil, err
+	}
+
 	query := bson.M{"merchant_id": merchantOid, "deleted": false}
 
 	if projectId != "" {
-		query["project_id"], _ = primitive.ObjectIDFromHex(projectId)
+		query["project_id"], err = primitive.ObjectIDFromHex(projectId)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+				zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+			)
+			return nil, err
+		}
 	}
 
 	if sku != "" {
@@ -170,11 +268,32 @@ func (r *keyProductRepository) Find(
 }
 
 func (r *keyProductRepository) FindCount(ctx context.Context, merchantId, projectId, sku, name, enabled string) (int64, error) {
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
+	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+		)
+		return int64(0), err
+	}
+
 	query := bson.M{"merchant_id": merchantOid, "deleted": false}
 
 	if projectId != "" {
-		query["project_id"], _ = primitive.ObjectIDFromHex(projectId)
+		query["project_id"], err = primitive.ObjectIDFromHex(projectId)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionKeyProduct),
+				zap.String(pkg.ErrorDatabaseFieldQuery, projectId),
+			)
+			return int64(0), err
+		}
 	}
 
 	if sku != "" {

@@ -360,7 +360,7 @@ func (s *Service) CreateOrUpdatePaylink(
 		switch req.ProductsType {
 
 		case pkg.OrderType_product:
-			product, err := s.productService.GetById(ctx, productId)
+			product, err := s.productRepository.GetById(ctx, productId)
 			if err != nil {
 				if err.Error() == "product not found" || err == mongo.ErrNoDocuments {
 					res.Status = billingpb.ResponseStatusNotFound
