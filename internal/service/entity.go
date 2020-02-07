@@ -17,7 +17,6 @@ type Entity struct {
 type PayoutDocument Entity
 type OrderView Entity
 type Accounting Entity
-type RoyaltyReport Entity
 
 type Repository struct {
 	svc *Service
@@ -34,10 +33,6 @@ type kvIntFloat struct {
 type kvIntInt struct {
 	Key   int
 	Value int32
-}
-
-type balanceQueryResItem struct {
-	Amount float64 `bson:"amount"`
 }
 
 func timeTrack(start time.Time, name string) {

@@ -851,7 +851,7 @@ func (suite *PayoutsTestSuite) TestPayouts_UpdatePayoutDocument_Ok_PaidOk() {
 	assert.Equal(suite.T(), res.Item.Status, pkg.PayoutDocumentStatusPaid)
 	assert.Equal(suite.T(), res.Item.Transaction, "transaction123")
 
-	rr, err := suite.service.royaltyReport.GetById(context.TODO(), suite.report6.Id)
+	rr, err := suite.service.royaltyReportRepository.GetById(context.TODO(), suite.report6.Id)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rr.Status, billingpb.RoyaltyReportStatusPaid)
 	assert.Equal(suite.T(), rr.PayoutDocumentId, suite.payout2.Id)

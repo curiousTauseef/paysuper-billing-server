@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
+	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -241,7 +242,7 @@ func (s *Service) createPayoutDocument(
 		return err
 	}
 
-	err = s.royaltyReport.SetPayoutDocumentId(ctx, pd.SourceId, pd.Id, req.Ip, req.Initiator)
+	err = s.royaltyReportSetPayoutDocumentId(ctx, pd.SourceId, pd.Id, req.Ip, req.Initiator)
 
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -312,7 +313,7 @@ func (s *Service) GetPayoutDocumentRoyaltyReports(
 	}
 
 	res.Data = &billingpb.RoyaltyReportsPaginate{}
-	res.Data.Items, err = s.royaltyReport.GetByPayoutId(ctx, pd.Id)
+	res.Data.Items, err = s.royaltyReportRepository.GetByPayoutId(ctx, pd.Id)
 
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -502,7 +503,7 @@ func (s *Service) UpdatePayoutDocument(
 		}
 
 		if becomePaid == true {
-			err = s.royaltyReport.SetPaid(ctx, pd.SourceId, pd.Id, req.Ip, pkg.RoyaltyReportChangeSourceAdmin)
+			err = s.royaltyReportSetPaid(ctx, pd.SourceId, pd.Id, req.Ip, pkg.RoyaltyReportChangeSourceAdmin)
 			if err != nil {
 				res.Status = billingpb.ResponseStatusSystemError
 				res.Message = errorPayoutUpdateRoyaltyReports
@@ -512,7 +513,7 @@ func (s *Service) UpdatePayoutDocument(
 
 		} else {
 			if becomeFailed == true {
-				err = s.royaltyReport.UnsetPaid(ctx, pd.SourceId, req.Ip, pkg.RoyaltyReportChangeSourceAdmin)
+				err = s.royaltyReportUnsetPaid(ctx, pd.SourceId, req.Ip, pkg.RoyaltyReportChangeSourceAdmin)
 				if err != nil {
 					res.Status = billingpb.ResponseStatusSystemError
 					res.Message = errorPayoutUpdateRoyaltyReports
@@ -539,6 +540,25 @@ func (s *Service) UpdatePayoutDocument(
 
 	res.Item = pd
 	return nil
+}
+
+func (s *Service) royaltyReportUnsetPaid(ctx context.Context, reportIds []string, ip, source string) (err error) {
+	for _, id := range reportIds {
+		rr, err := s.royaltyReportRepository.GetById(ctx, id)
+		if err != nil {
+			return err
+		}
+
+		rr.PayoutDocumentId = ""
+		rr.Status = billingpb.RoyaltyReportStatusAccepted
+		rr.PayoutDate = nil
+
+		err = s.royaltyReportRepository.Update(ctx, rr, ip, source)
+		if err != nil {
+			return err
+		}
+	}
+	return
 }
 
 func (s *Service) GetPayoutDocuments(
@@ -697,7 +717,7 @@ func (s *Service) getPayoutDocumentSources(
 	ctx context.Context,
 	merchant *billingpb.Merchant,
 ) ([]*billingpb.RoyaltyReport, error) {
-	result, err := s.royaltyReport.GetNonPayoutReports(ctx, merchant.Id, merchant.GetPayoutCurrency())
+	result, err := s.royaltyReportRepository.GetNonPayoutReports(ctx, merchant.Id, merchant.GetPayoutCurrency())
 
 	if err != nil && err != mongo.ErrNoDocuments {
 		return nil, err
@@ -936,7 +956,7 @@ func (h *PayoutDocument) GetBalanceAmount(ctx context.Context, merchantId, curre
 		},
 	}
 
-	res := &balanceQueryResItem{}
+	res := &pkg2.BalanceQueryResItem{}
 	cursor, err := h.svc.db.Collection(collectionPayoutDocuments).Aggregate(ctx, query)
 
 	if err != nil {
