@@ -73,7 +73,6 @@ type Service struct {
 	formatter                            paysuper_i18n.Formatter
 	reporterService                      reporterpb.ReporterService
 	postmarkBroker                       rabbitmq.BrokerInterface
-	paylinkService                       PaylinkServiceInterface
 	casbinService                        casbinpb.CasbinService
 	paymentSystemGateway                 *Gateway
 	country                              repository.CountryRepositoryInterface
@@ -103,6 +102,8 @@ type Service struct {
 	keyRepository                        repository.KeyRepositoryInterface
 	keyProductRepository                 repository.KeyProductRepositoryInterface
 	productRepository                    repository.ProductRepositoryInterface
+	paylinkRepository                    repository.PaylinkRepositoryInterface
+	paylinkVisitsRepository              repository.PaylinkVisitRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -165,7 +166,6 @@ func (s *Service) Init() (err error) {
 	s.dashboardRepository = newDashboardRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
-	s.paylinkService = newPaylinkService(s)
 	s.paymentSystemGateway = s.newPaymentSystemGateway()
 
 	s.refundRepository = repository.NewRefundRepository(s.db)
@@ -195,6 +195,8 @@ func (s *Service) Init() (err error) {
 	s.keyRepository = repository.NewKeyRepository(s.db)
 	s.keyProductRepository = repository.NewKeyProductRepository(s.db)
 	s.productRepository = repository.NewProductRepository(s.db, s.cacher)
+	s.paylinkRepository = repository.NewPaylinkRepository(s.db, s.cacher)
+	s.paylinkVisitsRepository = repository.NewPaylinkVisitRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

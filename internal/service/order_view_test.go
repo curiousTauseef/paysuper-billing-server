@@ -165,7 +165,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		TransactionsCurrency: "",
 	}
 
-	err = suite.service.paylinkService.Insert(context.TODO(), suite.paylink1)
+	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink1)
 	assert.NoError(suite.T(), err)
 }
 
@@ -576,12 +576,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 	maxRefunds := 1
 	var orders []*billingpb.Order
 
-	oid, err := primitive.ObjectIDFromHex(suite.paylink1.Id)
-	assert.NoError(suite.T(), err)
-	visitsQuery := bson.M{
-		"paylink_id": oid,
-	}
-	n, err := suite.service.db.Collection(collectionPaylinkVisits).CountDocuments(context.TODO(), visitsQuery)
+	n, err := suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 0)
 
@@ -626,7 +621,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 		count++
 	}
 
-	n, err = suite.service.db.Collection(collectionPaylinkVisits).CountDocuments(context.TODO(), visitsQuery)
+	n, err = suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, maxVisits+maxOrders)
 

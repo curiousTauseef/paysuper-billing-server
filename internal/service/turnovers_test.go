@@ -357,7 +357,7 @@ func (suite *TurnoversTestSuite) fillAccountingEntries(operatingCompanyId, count
 		count++
 	}
 
-	err = handler.saveAccountingEntries()
+	err = handler.saveAccountingEntries(suite.service.orderView, suite.service.paylinkRepository, suite.service.paylinkVisitsRepository)
 	assert.NoError(suite.T(), err)
 }
 
