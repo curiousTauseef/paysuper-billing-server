@@ -19,7 +19,6 @@ type OrderView Entity
 type Accounting Entity
 type RoyaltyReport Entity
 type Paylink Entity
-type Product Entity
 
 type Repository struct {
 	svc *Service

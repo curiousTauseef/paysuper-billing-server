@@ -65,7 +65,6 @@ type Service struct {
 	royaltyReport                        RoyaltyReportServiceInterface
 	orderView                            OrderViewServiceInterface
 	accounting                           AccountingServiceInterface
-	productService                       ProductServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
 	merchantTariffRates                  MerchantTariffRatesInterface
 	dashboardRepository                  DashboardRepositoryInterface
@@ -103,6 +102,7 @@ type Service struct {
 	paymentMinLimitSystemRepository      repository.PaymentMinLimitSystemRepositoryInterface
 	keyRepository                        repository.KeyRepositoryInterface
 	keyProductRepository                 repository.KeyProductRepositoryInterface
+	productRepository                    repository.ProductRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -161,7 +161,6 @@ func (s *Service) Init() (err error) {
 	s.royaltyReport = newRoyaltyReport(s)
 	s.orderView = newOrderView(s)
 	s.accounting = newAccounting(s)
-	s.productService = newProductService(s)
 	s.merchantTariffRates = newMerchantsTariffRatesRepository(s)
 	s.dashboardRepository = newDashboardRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
@@ -195,6 +194,7 @@ func (s *Service) Init() (err error) {
 	s.paymentMinLimitSystemRepository = repository.NewPaymentMinLimitSystemRepository(s.db, s.cacher)
 	s.keyRepository = repository.NewKeyRepository(s.db)
 	s.keyProductRepository = repository.NewKeyProductRepository(s.db)
+	s.productRepository = repository.NewProductRepository(s.db, s.cacher)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

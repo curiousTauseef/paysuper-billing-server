@@ -140,7 +140,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 			Amount:   1005.00,
 		}},
 	}
-	if err := suite.service.productService.Upsert(context.TODO(), suite.product1); err != nil {
+	if err := suite.service.productRepository.Upsert(context.TODO(), suite.product1); err != nil {
 		suite.FailNow("Product1 insert failed", "%v", err)
 	}
 
@@ -160,7 +160,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 			Amount:   1005.00,
 		}},
 	}
-	if err := suite.service.productService.Upsert(context.TODO(), suite.product2); err != nil {
+	if err := suite.service.productRepository.Upsert(context.TODO(), suite.product2); err != nil {
 		suite.FailNow("Product2 insert failed", "%v", err)
 	}
 
@@ -180,7 +180,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 			Amount:   1005.00,
 		}},
 	}
-	if err := suite.service.productService.Upsert(context.TODO(), suite.product3); err != nil {
+	if err := suite.service.productRepository.Upsert(context.TODO(), suite.product3); err != nil {
 		suite.FailNow("Product3 insert failed", "%v", err)
 	}
 
@@ -200,7 +200,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 			Amount:   1005.00,
 		}},
 	}
-	if err := suite.service.productService.Upsert(context.TODO(), suite.product4); err != nil {
+	if err := suite.service.productRepository.Upsert(context.TODO(), suite.product4); err != nil {
 		suite.FailNow("Product4 insert failed", "%v", err)
 	}
 
