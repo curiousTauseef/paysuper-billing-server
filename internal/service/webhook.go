@@ -72,7 +72,13 @@ func (s *Service) SendWebhookToMerchant(
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+
+			if err == billingpb.ProductNoPriceInCurrencyError {
+				res.Status = billingpb.ResponseStatusBadData
+				res.Message = productNoPriceInCurrencyError
+				return nil
+			}
+
 			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
