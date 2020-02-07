@@ -37,3 +37,7 @@ type BinData struct {
 	BankSite           string             `bson:"bank_site"`
 	BankPhone          string             `bson:"bank_phone"`
 }
+
+type BalanceQueryResItem struct {
+	Amount float64 `bson:"amount"`
+}

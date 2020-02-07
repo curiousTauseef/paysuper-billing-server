@@ -62,7 +62,6 @@ type Service struct {
 	supportedCurrencies                  []string
 	currenciesPrecision                  map[string]int32
 	payoutDocument                       PayoutDocumentServiceInterface
-	royaltyReport                        RoyaltyReportServiceInterface
 	orderView                            OrderViewServiceInterface
 	accounting                           AccountingServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
@@ -104,6 +103,7 @@ type Service struct {
 	productRepository                    repository.ProductRepositoryInterface
 	paylinkRepository                    repository.PaylinkRepositoryInterface
 	paylinkVisitsRepository              repository.PaylinkVisitRepositoryInterface
+	royaltyReportRepository              repository.RoyaltyReportRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -159,7 +159,6 @@ func NewBillingService(
 
 func (s *Service) Init() (err error) {
 	s.payoutDocument = newPayoutService(s)
-	s.royaltyReport = newRoyaltyReport(s)
 	s.orderView = newOrderView(s)
 	s.accounting = newAccounting(s)
 	s.merchantTariffRates = newMerchantsTariffRatesRepository(s)
@@ -197,6 +196,7 @@ func (s *Service) Init() (err error) {
 	s.productRepository = repository.NewProductRepository(s.db, s.cacher)
 	s.paylinkRepository = repository.NewPaylinkRepository(s.db, s.cacher)
 	s.paylinkVisitsRepository = repository.NewPaylinkVisitRepository(s.db)
+	s.royaltyReportRepository = repository.NewRoyaltyReportRepository(s.db, s.cacher)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

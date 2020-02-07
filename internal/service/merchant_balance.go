@@ -85,7 +85,7 @@ func (s *Service) updateMerchantBalance(ctx context.Context, merchantId string) 
 		return nil, errorMerchantPayoutCurrencyNotSet
 	}
 
-	debit, err := s.royaltyReport.GetBalanceAmount(ctx, merchant.Id, merchant.GetPayoutCurrency())
+	debit, err := s.royaltyReportRepository.GetBalanceAmount(ctx, merchant.Id, merchant.GetPayoutCurrency())
 	if err != nil {
 		return nil, err
 	}
