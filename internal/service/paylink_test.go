@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-redis/redis"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
@@ -17,7 +16,6 @@ import (
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
@@ -326,7 +324,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 		TransactionsCurrency: "",
 	}
 
-	err = suite.service.paylinkService.Insert(context.TODO(), suite.paylink1)
+	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink1)
 	assert.NoError(suite.T(), err)
 
 	suite.paylink2 = &billingpb.Paylink{
@@ -354,7 +352,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 		TransactionsCurrency: "",
 	}
 
-	err = suite.service.paylinkService.Insert(context.TODO(), suite.paylink2)
+	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink2)
 	assert.NoError(suite.T(), err)
 
 	alreadyExpiredAt, _ := ptypes.TimestampProto(time.Now().Add(-25 * time.Hour))
@@ -384,7 +382,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 		TransactionsCurrency: "",
 	}
 
-	err = suite.service.paylinkService.Insert(context.TODO(), suite.paylink3)
+	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink3)
 	assert.NoError(suite.T(), err)
 }
 
@@ -766,19 +764,9 @@ func (suite *PaylinkTestSuite) Test_Paylink_Update_Fail_NotFound() {
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_Delete_Ok() {
-	paylinkOid, err := primitive.ObjectIDFromHex(suite.paylink1.Id)
+	pl, err := suite.service.paylinkRepository.GetByIdAndMerchant(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId)
 	assert.NoError(suite.T(), err)
-	merchantOid, err := primitive.ObjectIDFromHex(suite.paylink1.MerchantId)
-	assert.NoError(suite.T(), err)
-
-	query := bson.M{
-		"_id":         paylinkOid,
-		"merchant_id": merchantOid,
-		"deleted":     false,
-	}
-	n, err := suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
-	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 1)
+	assert.NotEmpty(suite.T(), pl)
 
 	req := &billingpb.PaylinkRequest{
 		Id:         suite.paylink1.Id,
@@ -790,69 +778,27 @@ func (suite *PaylinkTestSuite) Test_Paylink_Delete_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 
-	n, err = suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
-	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 0)
-
-	query["deleted"] = true
-	n, err = suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
-	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 1)
-
-	var pl1 billingpb.Paylink
-	key := fmt.Sprintf(cacheKeyPaylink, suite.paylink1.Id)
-	err = suite.service.cacher.Get(key, &pl1)
+	pl, err = suite.service.paylinkRepository.GetByIdAndMerchant(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId)
 	assert.Error(suite.T(), err)
-	assert.Equal(suite.T(), pl1, billingpb.Paylink{})
-
-	var pl2 billingpb.Paylink
-	key = fmt.Sprintf(cacheKeyPaylinkMerchant, suite.paylink1.Id, suite.paylink1.MerchantId)
-	err = suite.service.cacher.Get(key, &pl2)
-	assert.Error(suite.T(), err)
-	assert.Equal(suite.T(), pl2, billingpb.Paylink{})
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_Delete_Fail_AlreadyDeleted() {
-	paylinkOid, err := primitive.ObjectIDFromHex(suite.paylink2.Id)
-	assert.NoError(suite.T(), err)
-	merchantOid, err := primitive.ObjectIDFromHex(suite.paylink2.MerchantId)
-	assert.NoError(suite.T(), err)
-
-	query := bson.M{
-		"_id":         paylinkOid,
-		"merchant_id": merchantOid,
-		"deleted":     true,
-	}
-	n, err := suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
-	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 1)
-
 	req := &billingpb.PaylinkRequest{
 		Id:         suite.paylink2.Id,
 		MerchantId: suite.paylink2.MerchantId,
 	}
 
 	res := &billingpb.EmptyResponseWithStatus{}
-	err = suite.service.DeletePaylink(context.TODO(), req, res)
+	// INFO: The paylink2 has "deleted" status and return false when to delete again
+	err := suite.service.DeletePaylink(context.TODO(), req, res)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusNotFound)
-
-	n, err = suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
-	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 1)
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_Delete_Fail_MerchantInvalid() {
-	paylinkOid, err := primitive.ObjectIDFromHex(suite.paylink1.Id)
+	pl, err := suite.service.paylinkRepository.GetById(context.TODO(), suite.paylink1.Id)
 	assert.NoError(suite.T(), err)
-
-	query := bson.M{
-		"_id":     paylinkOid,
-		"deleted": false,
-	}
-	n, err := suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
-	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 1)
+	assert.NotEmpty(suite.T(), pl)
 
 	req := &billingpb.PaylinkRequest{
 		Id:         suite.paylink1.Id,
@@ -864,40 +810,28 @@ func (suite *PaylinkTestSuite) Test_Paylink_Delete_Fail_MerchantInvalid() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusNotFound)
 
-	n, err = suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
+	pl, err = suite.service.paylinkRepository.GetById(context.TODO(), suite.paylink1.Id)
 	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 1)
+	assert.NotEmpty(suite.T(), pl)
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_Delete_Fail_IdInvalid() {
-	someId := primitive.NewObjectID()
-	query := bson.M{
-		"_id":     someId,
-		"deleted": false,
-	}
-	n, err := suite.service.db.Collection(collectionPaylinks).CountDocuments(context.TODO(), query)
-	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), n, 0)
-
 	req := &billingpb.PaylinkRequest{
-		Id:         someId.Hex(),
+		Id:         primitive.NewObjectID().Hex(),
 		MerchantId: suite.paylink1.MerchantId,
 	}
 
 	res := &billingpb.EmptyResponseWithStatus{}
-	err = suite.service.DeletePaylink(context.TODO(), req, res)
+	err := suite.service.DeletePaylink(context.TODO(), req, res)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusNotFound)
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_IncrPaylinkVisits_Ok() {
-	oid, err := primitive.ObjectIDFromHex(suite.paylink1.Id)
-	assert.NoError(suite.T(), err)
+	yesterday := time.Now().Add(-24 * time.Hour).Unix()
+	tomorrow := time.Now().Add(24 * time.Hour).Unix()
 
-	query := bson.M{
-		"paylink_id": oid,
-	}
-	n, err := suite.service.db.Collection(collectionPaylinkVisits).CountDocuments(context.TODO(), query)
+	n, err := suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 0)
 
@@ -909,7 +843,7 @@ func (suite *PaylinkTestSuite) Test_Paylink_IncrPaylinkVisits_Ok() {
 	err = suite.service.IncrPaylinkVisits(context.TODO(), req, res)
 	assert.NoError(suite.T(), err)
 
-	n, err = suite.service.db.Collection(collectionPaylinkVisits).CountDocuments(context.TODO(), query)
+	n, err = suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 1)
 }
@@ -1561,13 +1495,10 @@ func (suite *PaylinkTestSuite) Test_Paylink_GetPaylinkStatByUtm_Fail_NotExists()
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_GetPaylinkVisits_Ok() {
-	oid, err := primitive.ObjectIDFromHex(suite.paylink1.Id)
-	assert.NoError(suite.T(), err)
+	yesterday := time.Now().Add(-24 * time.Hour).Unix()
+	tomorrow := time.Now().Add(24 * time.Hour).Unix()
 
-	query := bson.M{
-		"paylink_id": oid,
-	}
-	n, err := suite.service.db.Collection(collectionPaylinkVisits).CountDocuments(context.TODO(), query)
+	n, err := suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 0)
 
@@ -1579,17 +1510,17 @@ func (suite *PaylinkTestSuite) Test_Paylink_GetPaylinkVisits_Ok() {
 	err = suite.service.IncrPaylinkVisits(context.TODO(), req, res)
 	assert.NoError(suite.T(), err)
 
-	n, err = suite.service.db.Collection(collectionPaylinkVisits).CountDocuments(context.TODO(), query)
+	n, err = suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 1)
 
-	n, err = suite.service.paylinkService.GetPaylinkVisits(context.TODO(), suite.paylink1.Id, 0, 0)
+	n, err = suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, 0, 0)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 1)
 
 	oneHourBefore := time.Now().Add(-1 * time.Hour).Unix()
 	twoHourBefore := time.Now().Add(-2 * time.Hour).Unix()
-	n, err = suite.service.paylinkService.GetPaylinkVisits(context.TODO(), suite.paylink1.Id, twoHourBefore, oneHourBefore)
+	n, err = suite.service.paylinkVisitsRepository.CountPaylinkVisits(context.TODO(), suite.paylink1.Id, twoHourBefore, oneHourBefore)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), n, 0)
 }

@@ -1647,7 +1647,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		TransactionsCurrency: "",
 	}
 
-	err = suite.service.paylinkService.Insert(context.TODO(), suite.paylink1)
+	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink1)
 	assert.NoError(suite.T(), err)
 
 	suite.paylink2 = &billingpb.Paylink{
@@ -1675,7 +1675,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		TransactionsCurrency: "",
 	}
 
-	err = suite.service.paylinkService.Insert(context.TODO(), suite.paylink2)
+	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink2)
 	assert.NoError(suite.T(), err)
 
 	suite.paylink3 = &billingpb.Paylink{
@@ -1703,7 +1703,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		TransactionsCurrency: "",
 	}
 
-	err = suite.service.paylinkService.Insert(context.TODO(), suite.paylink3)
+	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink3)
 	assert.NoError(suite.T(), err)
 
 	sysCost := &billingpb.PaymentChannelCostSystem{

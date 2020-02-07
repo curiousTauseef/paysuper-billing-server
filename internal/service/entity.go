@@ -18,7 +18,6 @@ type PayoutDocument Entity
 type OrderView Entity
 type Accounting Entity
 type RoyaltyReport Entity
-type Paylink Entity
 
 type Repository struct {
 	svc *Service

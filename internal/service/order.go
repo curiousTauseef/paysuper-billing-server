@@ -186,7 +186,7 @@ func (s *Service) OrderCreateByPaylink(
 	req *billingpb.OrderCreateByPaylink,
 	rsp *billingpb.OrderCreateProcessResponse,
 ) error {
-	pl, err := s.paylinkService.GetById(ctx, req.PaylinkId)
+	pl, err := s.paylinkRepository.GetById(ctx, req.PaylinkId)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			rsp.Status = billingpb.ResponseStatusNotFound
