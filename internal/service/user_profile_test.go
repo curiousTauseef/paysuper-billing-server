@@ -86,6 +86,7 @@ func (suite *UserProfileTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	err = suite.service.Init()

@@ -25,6 +25,8 @@ const (
 	errorFieldEntry       = "entry"
 	errorFieldRequest     = "request"
 	errorFieldEntrySource = "source_id"
+	errorFieldStatus      = "status"
+	errorFieldMessage     = "message"
 
 	collectionAccountingEntry = "accounting_entry"
 

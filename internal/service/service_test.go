@@ -77,6 +77,7 @@ func (suite *BillingServiceTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -317,6 +318,7 @@ func (suite *BillingServiceTestSuite) TestNewBillingService() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	err := service.Init()
@@ -344,6 +346,7 @@ func (suite *BillingServiceTestSuite) TestBillingService_AccountingCurrencyInitE
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	err = service.Init()
@@ -368,6 +371,7 @@ func (suite *BillingServiceTestSuite) TestBillingService_IsProductionEnvironment
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	err := service.Init()

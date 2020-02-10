@@ -9,7 +9,7 @@ addons:
 stages:
   - test
   - name: deploy
-    if: branch in (develop, 192585-user-country-and-currency)
+    if: branch in (develop, feature/190525-webhook-api)
 jobs:
   include:
   - stage: test

@@ -106,6 +106,7 @@ func (suite *VatReportsTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	if err := suite.service.Init(); err != nil {

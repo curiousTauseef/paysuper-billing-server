@@ -105,6 +105,7 @@ func (suite *AccountingEntryTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		broker,
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	if err := suite.service.Init(); err != nil {
