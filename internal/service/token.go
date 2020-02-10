@@ -11,7 +11,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
@@ -27,8 +26,6 @@ const (
 	tokenLetterIdxBits = uint(6)
 	tokenLetterIdxMask = uint64(1<<tokenLetterIdxBits - 1)
 	tokenLetterIdxMax  = 63 / tokenLetterIdxBits
-
-	collectionCustomer = "customer"
 )
 
 var (
@@ -308,19 +305,10 @@ func (s *Service) getTokenBy(token string) (*Token, error) {
 }
 
 func (s *Service) getCustomerById(ctx context.Context, id string) (*billingpb.Customer, error) {
-	var customer *billingpb.Customer
-	oid, _ := primitive.ObjectIDFromHex(id)
-	filter := bson.M{"_id": oid}
-	err := s.db.Collection(collectionCustomer).FindOne(ctx, filter).Decode(&customer)
+	customer, err := s.customerRepository.GetById(ctx, id)
 
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionCustomer),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
-			)
 			return nil, orderErrorUnknown
 		}
 
@@ -335,77 +323,16 @@ func (s *Service) findCustomer(
 	req *billingpb.TokenRequest,
 	project *billingpb.Project,
 ) (*billingpb.Customer, error) {
-	var subQuery []bson.M
-	var subQueryItem bson.M
+	merchantId := ""
 
-	if req.User.Id != "" {
-		merchantOid, _ := primitive.ObjectIDFromHex(project.MerchantId)
-		subQueryItem = bson.M{
-			"identity": bson.M{
-				"$elemMatch": bson.M{
-					"type":        pkg.UserIdentityTypeExternal,
-					"merchant_id": merchantOid,
-					"value":       req.User.Id,
-				},
-			},
-		}
-
-		subQuery = append(subQuery, subQueryItem)
+	if project != nil {
+		merchantId = project.MerchantId
 	}
 
-	if req.User.Email != nil && req.User.Email.Value != "" {
-		merchantOid, _ := primitive.ObjectIDFromHex(project.MerchantId)
-		subQueryItem = bson.M{
-			"identity": bson.M{
-				"$elemMatch": bson.M{
-					"type":        pkg.UserIdentityTypeEmail,
-					"merchant_id": merchantOid,
-					"value":       req.User.Email.Value,
-				},
-			},
-		}
-
-		subQuery = append(subQuery, subQueryItem)
-	}
-
-	if req.User.Phone != nil && req.User.Phone.Value != "" {
-		merchantOid, _ := primitive.ObjectIDFromHex(project.MerchantId)
-		subQueryItem = bson.M{
-			"identity": bson.M{
-				"$elemMatch": bson.M{
-					"type":        pkg.UserIdentityTypePhone,
-					"merchant_id": merchantOid,
-					"value":       req.User.Phone.Value,
-				},
-			},
-		}
-
-		subQuery = append(subQuery, subQueryItem)
-	}
-
-	query := make(bson.M)
-	customer := new(billingpb.Customer)
-
-	if subQuery == nil || len(subQuery) <= 0 {
-		return nil, customerNotFound
-	}
-
-	if len(subQuery) > 1 {
-		query["$or"] = subQuery
-	} else {
-		query = subQuery[0]
-	}
-
-	err := s.db.Collection(collectionCustomer).FindOne(ctx, query).Decode(&customer)
+	customer, err := s.customerRepository.Find(ctx, merchantId, req.User)
 
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionCustomer),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
 			return nil, orderErrorUnknown
 		}
 
@@ -431,16 +358,7 @@ func (s *Service) createCustomer(
 	}
 	s.processCustomer(req, project, customer)
 
-	_, err := s.db.Collection(collectionCustomer).InsertOne(ctx, customer)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionCustomer),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationInsert),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, customer),
-		)
+	if err := s.customerRepository.Insert(ctx, customer); err != nil {
 		return nil, tokenErrorUnknown
 	}
 
@@ -454,18 +372,8 @@ func (s *Service) updateCustomer(
 	customer *billingpb.Customer,
 ) (*billingpb.Customer, error) {
 	s.processCustomer(req, project, customer)
-	oid, _ := primitive.ObjectIDFromHex(customer.Id)
-	filter := bson.M{"_id": oid}
-	_, err := s.db.Collection(collectionCustomer).ReplaceOne(ctx, filter, customer)
 
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionCustomer),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationUpdate),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, customer),
-		)
+	if err := s.customerRepository.Update(ctx, customer); err != nil {
 		return nil, tokenErrorUnknown
 	}
 
