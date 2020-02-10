@@ -90,7 +90,7 @@ func (s *Service) updateMerchantBalance(ctx context.Context, merchantId string) 
 		return nil, err
 	}
 
-	credit, err := s.payoutDocument.GetBalanceAmount(ctx, merchant.Id, merchant.GetPayoutCurrency())
+	credit, err := s.payoutRepository.GetBalanceAmount(ctx, merchant.Id, merchant.GetPayoutCurrency())
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (s *Service) updateMerchantBalance(ctx context.Context, merchantId string) 
 }
 
 func (s *Service) getRollingReserveForBalance(ctx context.Context, merchantId, currency string) (float64, error) {
-	pd, err := s.payoutDocument.GetLast(ctx, merchantId, currency)
+	pd, err := s.payoutRepository.GetLast(ctx, merchantId, currency)
 	if err != nil && err != mongo.ErrNoDocuments {
 		return 0, err
 	}

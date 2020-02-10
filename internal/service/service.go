@@ -61,7 +61,6 @@ type Service struct {
 	smtpCl                               gomail.SendCloser
 	supportedCurrencies                  []string
 	currenciesPrecision                  map[string]int32
-	payoutDocument                       PayoutDocumentServiceInterface
 	orderView                            OrderViewServiceInterface
 	accounting                           AccountingServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
@@ -105,6 +104,7 @@ type Service struct {
 	paylinkVisitsRepository              repository.PaylinkVisitRepositoryInterface
 	royaltyReportRepository              repository.RoyaltyReportRepositoryInterface
 	vatReportRepository                  repository.VatReportRepositoryInterface
+	payoutRepository                     repository.PayoutRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -159,7 +159,6 @@ func NewBillingService(
 }
 
 func (s *Service) Init() (err error) {
-	s.payoutDocument = newPayoutService(s)
 	s.orderView = newOrderView(s)
 	s.accounting = newAccounting(s)
 	s.merchantTariffRates = newMerchantsTariffRatesRepository(s)
@@ -199,6 +198,7 @@ func (s *Service) Init() (err error) {
 	s.paylinkVisitsRepository = repository.NewPaylinkVisitRepository(s.db)
 	s.royaltyReportRepository = repository.NewRoyaltyReportRepository(s.db, s.cacher)
 	s.vatReportRepository = repository.NewVatReportRepository(s.db)
+	s.payoutRepository = repository.NewPayoutRepository(s.db, s.cacher)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

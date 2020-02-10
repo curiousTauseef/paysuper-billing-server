@@ -2,25 +2,18 @@ package service
 
 import (
 	"context"
-	"crypto/md5"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
-	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	"github.com/streadway/amqp"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"mime"
 	"path/filepath"
 	"sort"
@@ -28,12 +21,6 @@ import (
 )
 
 const (
-	collectionPayoutDocuments       = "payout_documents"
-	collectionPayoutDocumentChanges = "payout_documents_changes"
-
-	cacheKeyPayoutDocument         = "payout_document:id:%s"
-	cacheKeyPayoutDocumentMerchant = "payout_document:id:%s:merchant:id:%s"
-
 	payoutChangeSourceMerchant = "merchant"
 	payoutChangeSourceAdmin    = "admin"
 
@@ -68,28 +55,7 @@ var (
 		pkg.PayoutDocumentStatusFailed:   true,
 		pkg.PayoutDocumentStatusCanceled: true,
 	}
-
-	payoutDocumentStatusActive = []string{
-		pkg.PayoutDocumentStatusPending,
-		pkg.PayoutDocumentStatusPaid,
-	}
 )
-
-type PayoutDocumentServiceInterface interface {
-	Insert(ctx context.Context, document *billingpb.PayoutDocument, ip, source string) error
-	Update(ctx context.Context, document *billingpb.PayoutDocument, ip, source string) error
-	GetById(ctx context.Context, id string) (*billingpb.PayoutDocument, error)
-	GetByIdAndMerchant(ctx context.Context, id, merchantId string) (*billingpb.PayoutDocument, error)
-	CountByQuery(ctx context.Context, query bson.M) (int64, error)
-	FindByQuery(ctx context.Context, query bson.M, sorts []string, limit, offset int64) ([]*billingpb.PayoutDocument, error)
-	GetBalanceAmount(ctx context.Context, merchantId, currency string) (float64, error)
-	GetLast(ctx context.Context, merchantId, currency string) (*billingpb.PayoutDocument, error)
-}
-
-func newPayoutService(svc *Service) PayoutDocumentServiceInterface {
-	s := &PayoutDocument{svc: svc}
-	return s
-}
 
 func (s *Service) CreatePayoutDocument(
 	ctx context.Context,
@@ -231,7 +197,7 @@ func (s *Service) createPayoutDocument(
 		return err
 	}
 
-	err = s.payoutDocument.Insert(ctx, pd, req.Ip, payoutChangeSourceMerchant)
+	err = s.payoutRepository.Insert(ctx, pd, req.Ip, payoutChangeSourceMerchant)
 
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -270,7 +236,7 @@ func (s *Service) GetPayoutDocument(
 	req *billingpb.GetPayoutDocumentRequest,
 	res *billingpb.PayoutDocumentResponse,
 ) (err error) {
-	res.Item, err = s.payoutDocument.GetByIdAndMerchant(ctx, req.PayoutDocumentId, req.MerchantId)
+	res.Item, err = s.payoutRepository.GetByIdMerchantId(ctx, req.PayoutDocumentId, req.MerchantId)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -296,7 +262,7 @@ func (s *Service) GetPayoutDocumentRoyaltyReports(
 	req *billingpb.GetPayoutDocumentRequest,
 	res *billingpb.ListRoyaltyReportsResponse,
 ) error {
-	pd, err := s.payoutDocument.GetByIdAndMerchant(ctx, req.PayoutDocumentId, req.MerchantId)
+	pd, err := s.payoutRepository.GetByIdMerchantId(ctx, req.PayoutDocumentId, req.MerchantId)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -432,7 +398,7 @@ func (s *Service) UpdatePayoutDocument(
 	req *billingpb.UpdatePayoutDocumentRequest,
 	res *billingpb.PayoutDocumentResponse,
 ) error {
-	pd, err := s.payoutDocument.GetById(ctx, req.PayoutDocumentId)
+	pd, err := s.payoutRepository.GetById(ctx, req.PayoutDocumentId)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			res.Status = billingpb.ResponseStatusNotFound
@@ -492,7 +458,7 @@ func (s *Service) UpdatePayoutDocument(
 	}
 
 	if isChanged {
-		err = s.payoutDocument.Update(ctx, pd, req.Ip, payoutChangeSourceAdmin)
+		err = s.payoutRepository.Update(ctx, pd, req.Ip, payoutChangeSourceAdmin)
 		if err != nil {
 			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 				res.Status = billingpb.ResponseStatusSystemError
@@ -568,25 +534,7 @@ func (s *Service) GetPayoutDocuments(
 ) error {
 	res.Status = billingpb.ResponseStatusOk
 
-	merchantOid, _ := primitive.ObjectIDFromHex(req.MerchantId)
-	query := bson.M{"merchant_id": merchantOid}
-
-	if len(req.Status) > 0 {
-		query["status"] = bson.M{"$in": req.Status}
-	}
-
-	if req.DateFrom > 0 || req.DateTo > 0 {
-		date := bson.M{}
-		if req.DateFrom > 0 {
-			date["$gte"] = time.Unix(req.DateFrom, 0)
-		}
-		if req.DateTo > 0 {
-			date["$lte"] = time.Unix(req.DateTo, 0)
-		}
-		query["created_at"] = date
-	}
-
-	count, err := s.payoutDocument.CountByQuery(ctx, query)
+	count, err := s.payoutRepository.FindCount(ctx, req.MerchantId, req.Status, req.DateFrom, req.DateTo)
 
 	if err != nil && err != mongo.ErrNoDocuments {
 		return err
@@ -601,8 +549,7 @@ func (s *Service) GetPayoutDocuments(
 		return nil
 	}
 
-	sorts := []string{"-_id"}
-	pds, err := s.payoutDocument.FindByQuery(ctx, query, sorts, req.Limit, req.Offset)
+	pds, err := s.payoutRepository.Find(ctx, req.MerchantId, req.Status, req.DateFrom, req.DateTo, req.Offset, req.Limit)
 
 	if err != nil {
 		return err
@@ -621,7 +568,7 @@ func (s *Service) PayoutDocumentPdfUploaded(
 	req *billingpb.PayoutDocumentPdfUploadedRequest,
 	res *billingpb.PayoutDocumentPdfUploadedResponse,
 ) error {
-	pd, err := s.payoutDocument.GetById(ctx, req.PayoutId)
+	pd, err := s.payoutRepository.GetById(ctx, req.PayoutId)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -737,320 +684,4 @@ func (s *Service) getPayoutDocumentSources(
 	}
 
 	return result, nil
-}
-
-func (h *PayoutDocument) Insert(ctx context.Context, pd *billingpb.PayoutDocument, ip, source string) (err error) {
-	_, err = h.svc.db.Collection(collectionPayoutDocuments).InsertOne(ctx, pd)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationInsert),
-			zap.Any(pkg.ErrorDatabaseFieldDocument, pd),
-		)
-		return
-	}
-
-	err = h.onPayoutDocumentChange(ctx, pd, ip, source)
-	if err != nil {
-		return
-	}
-
-	return h.updateCaches(pd)
-}
-
-func (h *PayoutDocument) Update(ctx context.Context, pd *billingpb.PayoutDocument, ip, source string) error {
-	oid, _ := primitive.ObjectIDFromHex(pd.Id)
-	filter := bson.M{"_id": oid}
-	_, err := h.svc.db.Collection(collectionPayoutDocuments).ReplaceOne(ctx, filter, pd)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationUpdate),
-			zap.Any(pkg.ErrorDatabaseFieldDocument, pd),
-		)
-
-		return err
-	}
-
-	err = h.onPayoutDocumentChange(ctx, pd, ip, source)
-	if err != nil {
-		return err
-	}
-
-	return h.updateCaches(pd)
-}
-
-func (h *PayoutDocument) onPayoutDocumentChange(
-	ctx context.Context,
-	document *billingpb.PayoutDocument,
-	ip, source string,
-) (err error) {
-	change := &billingpb.PayoutDocumentChanges{
-		Id:               primitive.NewObjectID().Hex(),
-		PayoutDocumentId: document.Id,
-		Source:           source,
-		Ip:               ip,
-		CreatedAt:        ptypes.TimestampNow(),
-	}
-
-	b, err := json.Marshal(document)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorJsonMarshallingFailed,
-			zap.Error(err),
-			zap.Any("document", document),
-		)
-		return
-	}
-	hash := md5.New()
-	hash.Write(b)
-	change.Hash = hex.EncodeToString(hash.Sum(nil))
-
-	_, err = h.svc.db.Collection(collectionPayoutDocumentChanges).InsertOne(ctx, change)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationInsert),
-			zap.Any(pkg.ErrorDatabaseFieldDocument, change),
-		)
-		return
-	}
-
-	return
-}
-
-func (h *PayoutDocument) GetById(ctx context.Context, id string) (pd *billingpb.PayoutDocument, err error) {
-	var c billingpb.PayoutDocument
-	key := fmt.Sprintf(cacheKeyPayoutDocument, id)
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	oid, _ := primitive.ObjectIDFromHex(id)
-	filter := bson.M{"_id": oid}
-	err = h.svc.db.Collection(collectionPayoutDocuments).FindOne(ctx, filter).Decode(&pd)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.String(pkg.ErrorDatabaseFieldDocumentId, id),
-		)
-		return
-	}
-
-	return pd, h.updateCaches(pd)
-}
-
-func (h *PayoutDocument) GetByIdAndMerchant(
-	ctx context.Context,
-	id, merchantId string,
-) (pd *billingpb.PayoutDocument, err error) {
-	var c billingpb.PayoutDocument
-	key := fmt.Sprintf(cacheKeyPayoutDocumentMerchant, id, merchantId)
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	oid, _ := primitive.ObjectIDFromHex(id)
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := bson.M{"_id": oid, "merchant_id": merchantOid}
-
-	err = h.svc.db.Collection(collectionPayoutDocuments).FindOne(ctx, query).Decode(&pd)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return
-	}
-
-	return pd, h.updateCaches(pd)
-}
-
-func (h *PayoutDocument) CountByQuery(ctx context.Context, query bson.M) (count int64, err error) {
-	count, err = h.svc.db.Collection(collectionPayoutDocuments).CountDocuments(ctx, query)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-	}
-	return
-}
-
-func (h *PayoutDocument) FindByQuery(
-	ctx context.Context,
-	query bson.M,
-	sorts []string,
-	limit, offset int64,
-) ([]*billingpb.PayoutDocument, error) {
-	opts := options.Find().
-		SetSort(mongodb.ToSortOption(sorts)).
-		SetLimit(limit).
-		SetSkip(offset)
-	cursor, err := h.svc.db.Collection(collectionPayoutDocuments).Find(ctx, query, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			zap.Any(pkg.ErrorDatabaseFieldSorts, sorts),
-			zap.Any(pkg.ErrorDatabaseFieldLimit, limit),
-			zap.Any(pkg.ErrorDatabaseFieldOffset, offset),
-		)
-		return nil, err
-	}
-
-	var pds []*billingpb.PayoutDocument
-	err = cursor.All(ctx, &pds)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			zap.Any(pkg.ErrorDatabaseFieldSorts, sorts),
-			zap.Any(pkg.ErrorDatabaseFieldLimit, limit),
-			zap.Any(pkg.ErrorDatabaseFieldOffset, offset),
-		)
-		return nil, err
-	}
-
-	return pds, nil
-}
-
-func (h *PayoutDocument) GetBalanceAmount(ctx context.Context, merchantId, currency string) (float64, error) {
-	oid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := []bson.M{
-		{
-			"$match": bson.M{
-				"merchant_id": oid,
-				"currency":    currency,
-				"status":      bson.M{"$in": payoutDocumentStatusActive},
-			},
-		},
-		{
-			"$group": bson.M{
-				"_id":    "$currency",
-				"amount": bson.M{"$sum": "$total_fees"},
-			},
-		},
-	}
-
-	res := &pkg2.BalanceQueryResItem{}
-	cursor, err := h.svc.db.Collection(collectionPayoutDocuments).Aggregate(ctx, query)
-
-	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-		}
-		return 0, err
-	}
-
-	defer func() {
-		err := cursor.Close(ctx)
-		if err != nil {
-			zap.L().Error(
-				errorDbCurdorCloseFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			)
-		}
-	}()
-
-	if cursor.Next(ctx) {
-		err = cursor.Decode(&res)
-		if err != nil {
-			zap.L().Error(
-				pkg.ErrorQueryCursorExecutionFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-			return 0, err
-		}
-	}
-
-	return res.Amount, nil
-}
-
-func (h *PayoutDocument) GetLast(
-	ctx context.Context,
-	merchantId, currency string,
-) (pd *billingpb.PayoutDocument, err error) {
-	oid, _ := primitive.ObjectIDFromHex(merchantId)
-	query := bson.M{
-		"merchant_id": oid,
-		"currency":    currency,
-		"status":      bson.M{"$in": payoutDocumentStatusActive},
-	}
-
-	sorts := bson.M{"created_at": -1}
-	opts := options.FindOne().SetSort(sorts)
-	err = h.svc.db.Collection(collectionPayoutDocuments).FindOne(ctx, query, opts).Decode(&pd)
-
-	if err != nil && err != mongo.ErrNoDocuments {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			zap.Any(pkg.ErrorDatabaseFieldSorts, sorts),
-		)
-	}
-
-	return
-}
-
-func (h *PayoutDocument) updateCaches(pd *billingpb.PayoutDocument) (err error) {
-	key1 := fmt.Sprintf(cacheKeyPayoutDocument, pd.Id)
-	key2 := fmt.Sprintf(cacheKeyPayoutDocumentMerchant, pd.Id, pd.MerchantId)
-
-	err = h.svc.cacher.Set(key1, pd, 0)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key1),
-			zap.Any(pkg.ErrorCacheFieldData, pd),
-		)
-		return
-	}
-
-	err = h.svc.cacher.Set(key2, pd, 0)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key2),
-			zap.Any(pkg.ErrorCacheFieldData, pd),
-		)
-	}
-	return
 }

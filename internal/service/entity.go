@@ -14,7 +14,6 @@ type Entity struct {
 	mx  sync.Mutex
 }
 
-type PayoutDocument Entity
 type OrderView Entity
 type Accounting Entity
 
