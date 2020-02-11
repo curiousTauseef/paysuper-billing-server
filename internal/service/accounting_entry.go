@@ -25,6 +25,8 @@ const (
 	errorFieldEntry       = "entry"
 	errorFieldRequest     = "request"
 	errorFieldEntrySource = "source_id"
+	errorFieldStatus      = "status"
+	errorFieldMessage     = "message"
 
 	collectionAccountingEntry = "accounting_entry"
 
@@ -341,7 +343,7 @@ func (s *Service) processEvent(handler *accountingEntry, eventType string) error
 		return err
 	}
 
-	return handler.saveAccountingEntries()
+	return handler.saveAccountingEntries(s.orderView, s.paylinkRepository, s.paylinkVisitsRepository)
 }
 
 func (h *accountingEntry) processManualCorrectionEvent() error {
@@ -1062,7 +1064,11 @@ func (h *accountingEntry) addEntry(entry *billingpb.AccountingEntry) error {
 	return nil
 }
 
-func (h *accountingEntry) saveAccountingEntries() error {
+func (h *accountingEntry) saveAccountingEntries(
+	owr OrderViewServiceInterface,
+	plr repository.PaylinkRepositoryInterface,
+	plvr repository.PaylinkVisitRepositoryInterface,
+) error {
 	_, err := h.db.Collection(collectionAccountingEntry).InsertMany(h.ctx, h.accountingEntries)
 
 	if err != nil {
@@ -1101,7 +1107,32 @@ func (h *accountingEntry) saveAccountingEntries() error {
 	}
 
 	for paylinkId, merchantId := range paylinks {
-		err = h.Service.paylinkService.UpdatePaylinkTotalStat(h.ctx, paylinkId, merchantId)
+		pl, err := plr.GetByIdAndMerchant(h.ctx, paylinkId, merchantId)
+		if err != nil {
+			return err
+		}
+
+		visits, err := plvr.CountPaylinkVisits(h.ctx, paylinkId, 0, 0)
+		if err == nil {
+			pl.Visits = int32(visits)
+		}
+
+		stat, err := owr.GetPaylinkStat(h.ctx, paylinkId, merchantId, 0, 0)
+		if err != nil {
+			return err
+		}
+
+		pl.TotalTransactions = stat.TotalTransactions
+		pl.ReturnsCount = stat.ReturnsCount
+		pl.SalesCount = stat.SalesCount
+		pl.TransactionsCurrency = stat.TransactionsCurrency
+		pl.GrossTotalAmount = stat.GrossTotalAmount
+		pl.GrossSalesAmount = stat.GrossSalesAmount
+		pl.GrossReturnsAmount = stat.GrossReturnsAmount
+		pl.IsExpired = pl.IsPaylinkExpired()
+		pl.UpdateConversion()
+
+		err = h.Service.paylinkRepository.UpdateTotalStat(h.ctx, pl)
 		if err != nil {
 			return err
 		}

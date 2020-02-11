@@ -13,7 +13,6 @@ import (
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"net"
@@ -374,6 +373,7 @@ func (suite *TokenTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	err = suite.service.Init()
@@ -470,12 +470,8 @@ func (suite *TokenTestSuite) TestToken_CreateToken_NewCustomer_Ok() {
 	err = rep.getToken(rsp.Token)
 	assert.NoError(suite.T(), err)
 
-	oid, err := primitive.ObjectIDFromHex(rep.token.CustomerId)
+	customer, err := suite.service.customerRepository.GetById(context.TODO(), rep.token.CustomerId)
 	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-
-	var customer *billingpb.Customer
-	err = suite.service.db.Collection(collectionCustomer).FindOne(context.TODO(), filter).Decode(&customer)
 	assert.NotNil(suite.T(), customer)
 
 	assert.Equal(suite.T(), req.User.Id, customer.ExternalId)
@@ -566,41 +562,34 @@ func (suite *TokenTestSuite) TestToken_CreateToken_ExistCustomer_Ok() {
 
 	assert.Equal(suite.T(), rep.token.CustomerId, rep1.token.CustomerId)
 
-	oid, err := primitive.ObjectIDFromHex(rep.token.CustomerId)
+	customer, err := suite.service.customerRepository.GetById(context.TODO(), rep.token.CustomerId)
 	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
+	assert.NotEmpty(suite.T(), customer)
 
-	var customers []*billingpb.Customer
-	cursor, err := suite.service.db.Collection(collectionCustomer).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &customers)
-	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), customers, 1)
+	assert.Len(suite.T(), customer.Identity, 4)
+	assert.Equal(suite.T(), customer.Identity[3].Value, customer.Phone)
+	assert.False(suite.T(), customer.Identity[3].Verified)
+	assert.Equal(suite.T(), pkg.UserIdentityTypePhone, customer.Identity[3].Type)
+	assert.Equal(suite.T(), suite.project.Id, customer.Identity[3].ProjectId)
+	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[3].MerchantId)
 
-	assert.Len(suite.T(), customers[0].Identity, 4)
-	assert.Equal(suite.T(), customers[0].Identity[3].Value, customers[0].Phone)
-	assert.False(suite.T(), customers[0].Identity[3].Verified)
-	assert.Equal(suite.T(), pkg.UserIdentityTypePhone, customers[0].Identity[3].Type)
-	assert.Equal(suite.T(), suite.project.Id, customers[0].Identity[3].ProjectId)
-	assert.Equal(suite.T(), suite.project.MerchantId, customers[0].Identity[3].MerchantId)
+	assert.Equal(suite.T(), customer.Identity[2].Value, customer.Email)
+	assert.False(suite.T(), customer.Identity[2].Verified)
+	assert.Equal(suite.T(), pkg.UserIdentityTypeEmail, customer.Identity[2].Type)
+	assert.Equal(suite.T(), suite.project.Id, customer.Identity[2].ProjectId)
+	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[2].MerchantId)
 
-	assert.Equal(suite.T(), customers[0].Identity[2].Value, customers[0].Email)
-	assert.False(suite.T(), customers[0].Identity[2].Verified)
-	assert.Equal(suite.T(), pkg.UserIdentityTypeEmail, customers[0].Identity[2].Type)
-	assert.Equal(suite.T(), suite.project.Id, customers[0].Identity[2].ProjectId)
-	assert.Equal(suite.T(), suite.project.MerchantId, customers[0].Identity[2].MerchantId)
+	assert.Equal(suite.T(), email, customer.Identity[1].Value)
+	assert.True(suite.T(), customer.Identity[1].Verified)
+	assert.Equal(suite.T(), pkg.UserIdentityTypeEmail, customer.Identity[1].Type)
+	assert.Equal(suite.T(), suite.project.Id, customer.Identity[1].ProjectId)
+	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[1].MerchantId)
 
-	assert.Equal(suite.T(), email, customers[0].Identity[1].Value)
-	assert.True(suite.T(), customers[0].Identity[1].Verified)
-	assert.Equal(suite.T(), pkg.UserIdentityTypeEmail, customers[0].Identity[1].Type)
-	assert.Equal(suite.T(), suite.project.Id, customers[0].Identity[1].ProjectId)
-	assert.Equal(suite.T(), suite.project.MerchantId, customers[0].Identity[1].MerchantId)
-
-	assert.Equal(suite.T(), customers[0].Identity[0].Value, customers[0].ExternalId)
-	assert.True(suite.T(), customers[0].Identity[0].Verified)
-	assert.Equal(suite.T(), pkg.UserIdentityTypeExternal, customers[0].Identity[0].Type)
-	assert.Equal(suite.T(), suite.project.Id, customers[0].Identity[0].ProjectId)
-	assert.Equal(suite.T(), suite.project.MerchantId, customers[0].Identity[0].MerchantId)
+	assert.Equal(suite.T(), customer.Identity[0].Value, customer.ExternalId)
+	assert.True(suite.T(), customer.Identity[0].Verified)
+	assert.Equal(suite.T(), pkg.UserIdentityTypeExternal, customer.Identity[0].Type)
+	assert.Equal(suite.T(), suite.project.Id, customer.Identity[0].ProjectId)
+	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[0].MerchantId)
 }
 
 func (suite *TokenTestSuite) TestToken_CreateToken_ExistCustomer_UpdateExistIdentity_Ok() {
@@ -643,13 +632,10 @@ func (suite *TokenTestSuite) TestToken_CreateToken_ExistCustomer_UpdateExistIden
 	err = rep.getToken(rsp.Token)
 	assert.NoError(suite.T(), err)
 
-	oid, err := primitive.ObjectIDFromHex(rep.token.CustomerId)
+	customer, err := suite.service.customerRepository.GetById(context.TODO(), rep.token.CustomerId)
 	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-
-	var customer *billingpb.Customer
-	err = suite.service.db.Collection(collectionCustomer).FindOne(context.TODO(), filter).Decode(&customer)
 	assert.NotNil(suite.T(), customer)
+	assert.NotEmpty(suite.T(), customer.Identity)
 	assert.False(suite.T(), customer.Identity[1].Verified)
 
 	req.User.Phone = &billingpb.TokenUserPhoneValue{
@@ -689,44 +675,41 @@ func (suite *TokenTestSuite) TestToken_CreateToken_ExistCustomer_UpdateExistIden
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rep.token.CustomerId, rep1.token.CustomerId)
 
-	var customers []*billingpb.Customer
-	cursor, err := suite.service.db.Collection(collectionCustomer).Find(context.TODO(), filter)
+	customer, err = suite.service.customerRepository.GetById(context.TODO(), rep.token.CustomerId)
 	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &customers)
-	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), customers, 1)
+	assert.NotEmpty(suite.T(), customer)
 
-	assert.Len(suite.T(), customers[0].Identity, 3)
-	assert.Equal(suite.T(), customers[0].Identity[2].Value, customers[0].Phone)
-	assert.False(suite.T(), customers[0].Identity[2].Verified)
-	assert.Equal(suite.T(), pkg.UserIdentityTypePhone, customers[0].Identity[2].Type)
-	assert.Equal(suite.T(), suite.project.Id, customers[0].Identity[2].ProjectId)
-	assert.Equal(suite.T(), suite.project.MerchantId, customers[0].Identity[2].MerchantId)
+	assert.Len(suite.T(), customer.Identity, 3)
+	assert.Equal(suite.T(), customer.Identity[2].Value, customer.Phone)
+	assert.False(suite.T(), customer.Identity[2].Verified)
+	assert.Equal(suite.T(), pkg.UserIdentityTypePhone, customer.Identity[2].Type)
+	assert.Equal(suite.T(), suite.project.Id, customer.Identity[2].ProjectId)
+	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[2].MerchantId)
 
-	assert.Equal(suite.T(), email, customers[0].Identity[1].Value)
-	assert.True(suite.T(), customers[0].Identity[1].Verified)
-	assert.Equal(suite.T(), pkg.UserIdentityTypeEmail, customers[0].Identity[1].Type)
-	assert.Equal(suite.T(), suite.project.Id, customers[0].Identity[1].ProjectId)
-	assert.Equal(suite.T(), suite.project.MerchantId, customers[0].Identity[1].MerchantId)
+	assert.Equal(suite.T(), email, customer.Identity[1].Value)
+	assert.True(suite.T(), customer.Identity[1].Verified)
+	assert.Equal(suite.T(), pkg.UserIdentityTypeEmail, customer.Identity[1].Type)
+	assert.Equal(suite.T(), suite.project.Id, customer.Identity[1].ProjectId)
+	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[1].MerchantId)
 
-	assert.Equal(suite.T(), customers[0].Identity[0].Value, customers[0].ExternalId)
-	assert.True(suite.T(), customers[0].Identity[0].Verified)
-	assert.Equal(suite.T(), pkg.UserIdentityTypeExternal, customers[0].Identity[0].Type)
-	assert.Equal(suite.T(), suite.project.Id, customers[0].Identity[0].ProjectId)
-	assert.Equal(suite.T(), suite.project.MerchantId, customers[0].Identity[0].MerchantId)
+	assert.Equal(suite.T(), customer.Identity[0].Value, customer.ExternalId)
+	assert.True(suite.T(), customer.Identity[0].Verified)
+	assert.Equal(suite.T(), pkg.UserIdentityTypeExternal, customer.Identity[0].Type)
+	assert.Equal(suite.T(), suite.project.Id, customer.Identity[0].ProjectId)
+	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[0].MerchantId)
 
-	assert.Equal(suite.T(), req.User.Name.Value, customers[0].Name)
-	assert.Equal(suite.T(), req.User.Ip.Value, net.IP(customers[0].Ip).String())
-	assert.Equal(suite.T(), req.User.Locale.Value, customers[0].Locale)
-	assert.Equal(suite.T(), req.User.Address, customers[0].Address)
+	assert.Equal(suite.T(), req.User.Name.Value, customer.Name)
+	assert.Equal(suite.T(), req.User.Ip.Value, net.IP(customer.Ip).String())
+	assert.Equal(suite.T(), req.User.Locale.Value, customer.Locale)
+	assert.Equal(suite.T(), req.User.Address, customer.Address)
 
-	assert.Empty(suite.T(), customers[0].IpHistory)
-	assert.NotEmpty(suite.T(), customers[0].LocaleHistory)
-	assert.NotEmpty(suite.T(), customers[0].AddressHistory)
+	assert.Empty(suite.T(), customer.IpHistory)
+	assert.NotEmpty(suite.T(), customer.LocaleHistory)
+	assert.NotEmpty(suite.T(), customer.AddressHistory)
 
-	assert.Equal(suite.T(), address.Country, customers[0].AddressHistory[0].Country)
-	assert.Equal(suite.T(), address.City, customers[0].AddressHistory[0].City)
-	assert.Equal(suite.T(), address.PostalCode, customers[0].AddressHistory[0].PostalCode)
+	assert.Equal(suite.T(), address.Country, customer.AddressHistory[0].Country)
+	assert.Equal(suite.T(), address.City, customer.AddressHistory[0].City)
+	assert.Equal(suite.T(), address.PostalCode, customer.AddressHistory[0].PostalCode)
 }
 
 func (suite *TokenTestSuite) TestToken_CreateToken_CustomerIdentityInformationNotFound_Error() {

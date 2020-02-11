@@ -789,6 +789,21 @@ func helperCreateProject(
 		},
 		UrlRedirectSuccess: "http://localhost?success",
 		UrlRedirectFail:    "http://localhost?fail",
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
+		},
 	}
 
 	if err := service.project.Insert(context.TODO(), project); err != nil {

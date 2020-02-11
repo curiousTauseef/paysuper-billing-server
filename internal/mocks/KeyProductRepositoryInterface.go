@@ -11,6 +11,94 @@ type KeyProductRepositoryInterface struct {
 	mock.Mock
 }
 
+// CountByProjectIdSku provides a mock function with given fields: _a0, _a1, _a2
+func (_m *KeyProductRepositoryInterface) CountByProjectIdSku(_a0 context.Context, _a1 string, _a2 string) (int64, error) {
+	ret := _m.Called(_a0, _a1, _a2)
+
+	var r0 int64
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) int64); ok {
+		r0 = rf(_a0, _a1, _a2)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(_a0, _a1, _a2)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// Find provides a mock function with given fields: _a0, _a1, _a2, _a3, _a4, _a5, _a6, _a7
+func (_m *KeyProductRepositoryInterface) Find(_a0 context.Context, _a1 string, _a2 string, _a3 string, _a4 string, _a5 string, _a6 int64, _a7 int64) ([]*billingpb.KeyProduct, error) {
+	ret := _m.Called(_a0, _a1, _a2, _a3, _a4, _a5, _a6, _a7)
+
+	var r0 []*billingpb.KeyProduct
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, string, int64, int64) []*billingpb.KeyProduct); ok {
+		r0 = rf(_a0, _a1, _a2, _a3, _a4, _a5, _a6, _a7)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*billingpb.KeyProduct)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string, string, int64, int64) error); ok {
+		r1 = rf(_a0, _a1, _a2, _a3, _a4, _a5, _a6, _a7)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// FindByIdsProjectId provides a mock function with given fields: _a0, _a1, _a2
+func (_m *KeyProductRepositoryInterface) FindByIdsProjectId(_a0 context.Context, _a1 []string, _a2 string) ([]*billingpb.KeyProduct, error) {
+	ret := _m.Called(_a0, _a1, _a2)
+
+	var r0 []*billingpb.KeyProduct
+	if rf, ok := ret.Get(0).(func(context.Context, []string, string) []*billingpb.KeyProduct); ok {
+		r0 = rf(_a0, _a1, _a2)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*billingpb.KeyProduct)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, []string, string) error); ok {
+		r1 = rf(_a0, _a1, _a2)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// FindCount provides a mock function with given fields: _a0, _a1, _a2, _a3, _a4, _a5
+func (_m *KeyProductRepositoryInterface) FindCount(_a0 context.Context, _a1 string, _a2 string, _a3 string, _a4 string, _a5 string) (int64, error) {
+	ret := _m.Called(_a0, _a1, _a2, _a3, _a4, _a5)
+
+	var r0 int64
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, string) int64); ok {
+		r0 = rf(_a0, _a1, _a2, _a3, _a4, _a5)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string, string) error); ok {
+		r1 = rf(_a0, _a1, _a2, _a3, _a4, _a5)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetById provides a mock function with given fields: _a0, _a1
 func (_m *KeyProductRepositoryInterface) GetById(_a0 context.Context, _a1 string) (*billingpb.KeyProduct, error) {
 	ret := _m.Called(_a0, _a1)
@@ -36,6 +124,20 @@ func (_m *KeyProductRepositoryInterface) GetById(_a0 context.Context, _a1 string
 
 // Update provides a mock function with given fields: _a0, _a1
 func (_m *KeyProductRepositoryInterface) Update(_a0 context.Context, _a1 *billingpb.KeyProduct) error {
+	ret := _m.Called(_a0, _a1)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *billingpb.KeyProduct) error); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Upsert provides a mock function with given fields: _a0, _a1
+func (_m *KeyProductRepositoryInterface) Upsert(_a0 context.Context, _a1 *billingpb.KeyProduct) error {
 	ret := _m.Called(_a0, _a1)
 
 	var r0 error

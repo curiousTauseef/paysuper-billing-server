@@ -447,6 +447,7 @@ func (suite *PayoutsTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -499,7 +500,7 @@ func (suite *PayoutsTestSuite) helperInsertRoyaltyReports(data []*billingpb.Roya
 
 func (suite *PayoutsTestSuite) helperInsertPayoutDocuments(data []*billingpb.PayoutDocument) {
 	for _, p := range data {
-		if err := suite.service.payoutDocument.Insert(context.TODO(), p, "127.0.0.1", payoutChangeSourceAdmin); err != nil {
+		if err := suite.service.payoutRepository.Insert(context.TODO(), p, "127.0.0.1", payoutChangeSourceAdmin); err != nil {
 			suite.FailNow("Insert payout test data failed", "%v", err)
 		}
 	}
@@ -752,11 +753,11 @@ func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_NotEnough
 
 func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertError() {
 
-	pds := &mocks.PayoutDocumentServiceInterface{}
+	pds := &mocks.PayoutRepositoryInterface{}
 	pds.On("Insert", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
 	pds.On("GetBalanceAmount", mock2.Anything, mock2.Anything, mock2.Anything).Return(float64(0), nil)
 	pds.On("GetLast", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, nil)
-	suite.service.payoutDocument = pds
+	suite.service.payoutRepository = pds
 
 	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1, suite.report2})
 
@@ -777,11 +778,11 @@ func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertErr
 
 func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertErrorWithResponse() {
 
-	pds := &mocks.PayoutDocumentServiceInterface{}
+	pds := &mocks.PayoutRepositoryInterface{}
 	pds.On("Insert", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(newBillingServerErrorMsg("0", "test"))
 	pds.On("GetBalanceAmount", mock2.Anything, mock2.Anything, mock2.Anything).Return(float64(0), nil)
 	pds.On("GetLast", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, nil)
-	suite.service.payoutDocument = pds
+	suite.service.payoutRepository = pds
 
 	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1, suite.report2})
 
@@ -851,7 +852,7 @@ func (suite *PayoutsTestSuite) TestPayouts_UpdatePayoutDocument_Ok_PaidOk() {
 	assert.Equal(suite.T(), res.Item.Status, pkg.PayoutDocumentStatusPaid)
 	assert.Equal(suite.T(), res.Item.Transaction, "transaction123")
 
-	rr, err := suite.service.royaltyReport.GetById(context.TODO(), suite.report6.Id)
+	rr, err := suite.service.royaltyReportRepository.GetById(context.TODO(), suite.report6.Id)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rr.Status, billingpb.RoyaltyReportStatusPaid)
 	assert.Equal(suite.T(), rr.PayoutDocumentId, suite.payout2.Id)
@@ -917,10 +918,10 @@ func (suite *PayoutsTestSuite) TestPayouts_UpdatePayoutDocument_Failed_UpdateErr
 
 	suite.helperInsertPayoutDocuments([]*billingpb.PayoutDocument{suite.payout1})
 
-	pds := &mocks.PayoutDocumentServiceInterface{}
+	pds := &mocks.PayoutRepositoryInterface{}
 	pds.On("Update", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
 	pds.On("GetById", mock2.Anything, mock2.Anything).Return(suite.payout2, nil)
-	suite.service.payoutDocument = pds
+	suite.service.payoutRepository = pds
 
 	req := &billingpb.UpdatePayoutDocumentRequest{
 		PayoutDocumentId:   suite.payout2.Id,

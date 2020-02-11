@@ -105,6 +105,7 @@ func (suite *MerchantBalanceTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -307,7 +308,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 		FailureMessage:     "",
 		FailureCode:        "",
 	}
-	err = suite.service.payoutDocument.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
+	err = suite.service.payoutRepository.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
 	assert.NoError(suite.T(), err)
 
 	ae1 := &billingpb.AccountingEntry{
@@ -381,7 +382,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_getRollingReserveForB
 		FailureMessage:     "",
 		FailureCode:        "",
 	}
-	err = suite.service.payoutDocument.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
+	err = suite.service.payoutRepository.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
 	assert.NoError(suite.T(), err)
 
 	rr, err := suite.service.getRollingReserveForBalance(ctx, suite.merchant.Id, suite.merchant.GetPayoutCurrency())
@@ -490,7 +491,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		FailureMessage:     "",
 		FailureCode:        "",
 	}
-	err = suite.service.payoutDocument.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
+	err = suite.service.payoutRepository.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
 	assert.NoError(suite.T(), err)
 
 	req3 := &billingpb.UpdatePayoutDocumentRequest{

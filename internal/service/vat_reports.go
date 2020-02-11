@@ -16,9 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
-	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"time"
 )
 
@@ -128,16 +126,12 @@ func (s *Service) GetVatReportsDashboard(
 	req *billingpb.EmptyRequest,
 	res *billingpb.VatReportsResponse,
 ) error {
-
 	res.Status = billingpb.ResponseStatusOk
 
-	query := bson.M{
-		"status": bson.M{"$in": []string{pkg.VatReportStatusThreshold, pkg.VatReportStatusNeedToPay, pkg.VatReportStatusOverdue}},
-	}
-
-	opts := options.Find().
-		SetSort(bson.M{"country": 1, "status": 1})
-	cursor, err := s.db.Collection(collectionVatReports).Find(ctx, query, opts)
+	reports, err := s.vatReportRepository.GetByStatus(
+		ctx,
+		[]string{pkg.VatReportStatusThreshold, pkg.VatReportStatusNeedToPay, pkg.VatReportStatusOverdue},
+	)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -146,28 +140,6 @@ func (s *Service) GetVatReportsDashboard(
 			return nil
 		}
 
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionVatReports),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-
-		res.Status = billingpb.ResponseStatusSystemError
-		res.Message = errorVatReportQueryError
-		return nil
-	}
-
-	var reports []*billingpb.VatReport
-	err = cursor.All(ctx, &reports)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionVatReports),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errorVatReportQueryError
 		return nil
@@ -188,20 +160,7 @@ func (s *Service) GetVatReportsForCountry(
 ) error {
 	res.Status = billingpb.ResponseStatusOk
 
-	query := bson.M{
-		"country": req.Country,
-	}
-
-	sort := req.Sort
-	if len(sort) == 0 {
-		sort = []string{"-date_from"}
-	}
-
-	opts := options.Find().
-		SetSort(mongodb.ToSortOption(sort)).
-		SetLimit(req.Limit).
-		SetSkip(req.Offset)
-	cursor, err := s.db.Collection(collectionVatReports).Find(ctx, query, opts)
+	reports, err := s.vatReportRepository.GetByCountry(ctx, req.Country, req.Sort, req.Offset, req.Limit)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -210,28 +169,6 @@ func (s *Service) GetVatReportsForCountry(
 			return nil
 		}
 
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionVatReports),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-
-		res.Status = billingpb.ResponseStatusSystemError
-		res.Message = errorVatReportQueryError
-		return nil
-	}
-
-	var reports []*billingpb.VatReport
-	err = cursor.All(ctx, &reports)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionVatReports),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errorVatReportQueryError
 		return nil
@@ -252,7 +189,7 @@ func (s *Service) GetVatReport(
 ) error {
 	res.Status = billingpb.ResponseStatusOk
 
-	vr, err := s.getVatReportById(ctx, req.Id)
+	vr, err := s.vatReportRepository.GetById(ctx, req.Id)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -278,7 +215,7 @@ func (s *Service) GetVatReportTransactions(
 ) error {
 	res.Status = billingpb.ResponseStatusOk
 
-	vr, err := s.getVatReportById(ctx, req.VatReportId)
+	vr, err := s.vatReportRepository.GetById(ctx, req.VatReportId)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -383,7 +320,7 @@ func (s *Service) UpdateVatReportStatus(
 ) error {
 	res.Status = billingpb.ResponseStatusOk
 
-	vr, err := s.getVatReportById(ctx, req.Id)
+	vr, err := s.vatReportRepository.GetById(ctx, req.Id)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -430,24 +367,13 @@ func (s *Service) UpdateVatReportStatus(
 	return nil
 }
 
-func (s *Service) insertVatReport(ctx context.Context, vr *billingpb.VatReport) error {
-	_, err := s.db.Collection(collectionVatReports).InsertOne(ctx, vr)
-	return err
-}
-
 func (s *Service) updateVatReport(ctx context.Context, vr *billingpb.VatReport) error {
-	vr.UpdatedAt = ptypes.TimestampNow()
-
-	oid, _ := primitive.ObjectIDFromHex(vr.Id)
-	filter := bson.M{"_id": oid}
-	_, err := s.db.Collection(collectionVatReports).ReplaceOne(ctx, filter, vr)
-
-	if err != nil {
+	if err := s.vatReportRepository.Update(ctx, vr); err != nil {
 		return err
 	}
 
 	if helper.Contains(VatReportOnStatusNotifyToCentrifugo, vr.Status) {
-		if err = s.centrifugoDashboard.Publish(ctx, s.cfg.CentrifugoFinancierChannel, vr); err != nil {
+		if err := s.centrifugoDashboard.Publish(ctx, s.cfg.CentrifugoFinancierChannel, vr); err != nil {
 			return err
 		}
 	}
@@ -473,31 +399,6 @@ func (s *Service) updateVatReport(ctx context.Context, vr *billingpb.VatReport) 
 		}
 	}
 	return nil
-}
-
-func (s *Service) getVatReportById(ctx context.Context, id string) (*billingpb.VatReport, error) {
-	vr := &billingpb.VatReport{}
-	oid, err := primitive.ObjectIDFromHex(id)
-
-	if err != nil {
-		return nil, err
-	}
-
-	query := bson.M{"_id": oid}
-	err = s.db.Collection(collectionVatReports).FindOne(ctx, query).Decode(vr)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionVatReports),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-
-		return nil, err
-	}
-
-	return vr, nil
 }
 
 func (s *Service) getVatReportTime(VatPeriodMonth int32, date time.Time) (from, to time.Time, err error) {
@@ -541,36 +442,13 @@ func (s *Service) getLastVatReportTime(VatPeriodMonth int32) (from, to time.Time
 }
 
 func (h *vatReportProcessor) ProcessVatReportsStatus(ctx context.Context) error {
+	reports, err := h.vatReportRepository.GetByStatus(ctx, []string{pkg.VatReportStatusThreshold, pkg.VatReportStatusNeedToPay})
+
+	if err != nil {
+		return err
+	}
+
 	currentUnixTime := time.Now().Unix()
-
-	query := bson.M{
-		"status": bson.M{"$in": []string{pkg.VatReportStatusThreshold, pkg.VatReportStatusNeedToPay}},
-	}
-
-	cursor, err := h.Service.db.Collection(collectionVatReports).Find(ctx, query)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionVatReports),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return err
-	}
-
-	var reports []*billingpb.VatReport
-	err = cursor.All(ctx, &reports)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionVatReports),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return err
-	}
 
 	for _, report := range reports {
 		country := h.getCountry(report.Country)
@@ -889,18 +767,10 @@ func (h *vatReportProcessor) processVatReportForPeriod(ctx context.Context, coun
 
 	report.FeesAmount = tools.FormatAmount(report.FeesAmount)
 
-	selector := bson.M{
-		"country":   report.Country,
-		"date_from": from,
-		"date_to":   to,
-		"status":    pkg.VatReportStatusThreshold,
-	}
-
-	var vr *billingpb.VatReport
-	err = h.Service.db.Collection(collectionVatReports).FindOne(ctx, selector).Decode(&vr)
+	vr, err := h.vatReportRepository.GetByCountryPeriod(ctx, report.Country, from, to)
 
 	if err == mongo.ErrNoDocuments {
-		return h.Service.insertVatReport(ctx, report)
+		return h.Service.vatReportRepository.Insert(ctx, report)
 	}
 
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/casbinpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"github.com/paysuper/paysuper-proto/go/document_signerpb"
+	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	"github.com/paysuper/paysuper-proto/go/taxpb"
@@ -61,21 +62,16 @@ type Service struct {
 	smtpCl                               gomail.SendCloser
 	supportedCurrencies                  []string
 	currenciesPrecision                  map[string]int32
-	payoutDocument                       PayoutDocumentServiceInterface
-	royaltyReport                        RoyaltyReportServiceInterface
 	orderView                            OrderViewServiceInterface
 	accounting                           AccountingServiceInterface
-	productService                       ProductServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
 	merchantTariffRates                  MerchantTariffRatesInterface
 	dashboardRepository                  DashboardRepositoryInterface
-	keyProductRepository                 KeyProductRepositoryInterface
 	centrifugoPaymentForm                CentrifugoInterface
 	centrifugoDashboard                  CentrifugoInterface
 	formatter                            paysuper_i18n.Formatter
 	reporterService                      reporterpb.ReporterService
 	postmarkBroker                       rabbitmq.BrokerInterface
-	paylinkService                       PaylinkServiceInterface
 	casbinService                        casbinpb.CasbinService
 	paymentSystemGateway                 *Gateway
 	country                              repository.CountryRepositoryInterface
@@ -102,7 +98,16 @@ type Service struct {
 	paymentChannelCostSystemRepository   repository.PaymentChannelCostSystemRepositoryInterface
 	paymentChannelCostMerchantRepository repository.PaymentChannelCostMerchantRepositoryInterface
 	paymentMinLimitSystemRepository      repository.PaymentMinLimitSystemRepositoryInterface
+	notifier                             notifierpb.NotifierService
 	keyRepository                        repository.KeyRepositoryInterface
+	keyProductRepository                 repository.KeyProductRepositoryInterface
+	productRepository                    repository.ProductRepositoryInterface
+	paylinkRepository                    repository.PaylinkRepositoryInterface
+	paylinkVisitsRepository              repository.PaylinkVisitRepositoryInterface
+	royaltyReportRepository              repository.RoyaltyReportRepositoryInterface
+	vatReportRepository                  repository.VatReportRepositoryInterface
+	payoutRepository                     repository.PayoutRepositoryInterface
+	customerRepository                   repository.CustomerRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -137,6 +142,7 @@ func NewBillingService(
 	formatter paysuper_i18n.Formatter,
 	postmarkBroker rabbitmq.BrokerInterface,
 	casbinService casbinpb.CasbinService,
+	notifier notifierpb.NotifierService,
 ) *Service {
 	return &Service{
 		db:              db,
@@ -153,21 +159,17 @@ func NewBillingService(
 		formatter:       formatter,
 		postmarkBroker:  postmarkBroker,
 		casbinService:   casbinService,
+		notifier:        notifier,
 	}
 }
 
 func (s *Service) Init() (err error) {
-	s.payoutDocument = newPayoutService(s)
-	s.royaltyReport = newRoyaltyReport(s)
 	s.orderView = newOrderView(s)
 	s.accounting = newAccounting(s)
-	s.productService = newProductService(s)
 	s.merchantTariffRates = newMerchantsTariffRatesRepository(s)
 	s.dashboardRepository = newDashboardRepository(s)
-	s.keyProductRepository = newKeyProductRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
-	s.paylinkService = newPaylinkService(s)
 	s.paymentSystemGateway = s.newPaymentSystemGateway()
 
 	s.refundRepository = repository.NewRefundRepository(s.db)
@@ -195,6 +197,14 @@ func (s *Service) Init() (err error) {
 	s.paymentChannelCostMerchantRepository = repository.NewPaymentChannelCostMerchantRepository(s.db, s.cacher)
 	s.paymentMinLimitSystemRepository = repository.NewPaymentMinLimitSystemRepository(s.db, s.cacher)
 	s.keyRepository = repository.NewKeyRepository(s.db)
+	s.keyProductRepository = repository.NewKeyProductRepository(s.db)
+	s.productRepository = repository.NewProductRepository(s.db, s.cacher)
+	s.paylinkRepository = repository.NewPaylinkRepository(s.db, s.cacher)
+	s.paylinkVisitsRepository = repository.NewPaylinkVisitRepository(s.db)
+	s.royaltyReportRepository = repository.NewRoyaltyReportRepository(s.db, s.cacher)
+	s.vatReportRepository = repository.NewVatReportRepository(s.db)
+	s.payoutRepository = repository.NewPayoutRepository(s.db, s.cacher)
+	s.customerRepository = repository.NewCustomerRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

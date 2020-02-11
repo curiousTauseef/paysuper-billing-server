@@ -549,7 +549,7 @@ func (h *cardPay) auth(order *billingpb.Order) error {
 		return err
 	}
 
-	err = h.setToken(b, order.PaymentMethod.ExternalId)
+	err = h.setToken(b, order.PaymentMethod.Params.TerminalId)
 
 	if err != nil {
 		return err
@@ -602,7 +602,7 @@ func (h *cardPay) refresh(order *billingpb.Order) error {
 		return err
 	}
 
-	if err := h.setToken(b, order.PaymentMethod.ExternalId); err != nil {
+	if err := h.setToken(b, order.PaymentMethod.Params.TerminalId); err != nil {
 		return err
 	}
 

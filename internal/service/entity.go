@@ -14,12 +14,8 @@ type Entity struct {
 	mx  sync.Mutex
 }
 
-type PayoutDocument Entity
 type OrderView Entity
 type Accounting Entity
-type RoyaltyReport Entity
-type Paylink Entity
-type Product Entity
 
 type Repository struct {
 	svc *Service
@@ -27,7 +23,6 @@ type Repository struct {
 
 type MerchantsTariffRatesRepository Repository
 type DashboardRepository Repository
-type KeyProductRepository Repository
 
 type kvIntFloat struct {
 	Key   int
@@ -37,10 +32,6 @@ type kvIntFloat struct {
 type kvIntInt struct {
 	Key   int
 	Value int32
-}
-
-type balanceQueryResItem struct {
-	Amount float64 `bson:"amount"`
 }
 
 func timeTrack(start time.Time, name string) {

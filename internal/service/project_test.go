@@ -276,6 +276,7 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -1032,6 +1033,7 @@ func (suite *ProjectTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {

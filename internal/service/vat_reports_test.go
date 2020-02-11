@@ -17,7 +17,6 @@ import (
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -107,6 +106,7 @@ func (suite *VatReportsTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -343,16 +343,10 @@ func (suite *VatReportsTestSuite) TestVatReports_PaymentDateSet() {
 		PayUntilDate:          ptypes.TimestampNow(),
 	}
 
-	err := suite.service.insertVatReport(context.TODO(), vatReport)
+	err := suite.service.vatReportRepository.Insert(context.TODO(), vatReport)
 	assert.NoError(suite.T(), err)
 
-	oid, err := primitive.ObjectIDFromHex(vatReport.Id)
-	assert.NoError(suite.T(), err)
-	query := bson.M{
-		"_id": oid,
-	}
-	var vr *billingpb.VatReport
-	err = suite.service.db.Collection(collectionVatReports).FindOne(context.TODO(), query).Decode(&vr)
+	vr, err := suite.service.vatReportRepository.GetById(context.TODO(), vatReport.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotEqual(suite.T(), vr.Status, pkg.VatReportStatusPaid)
 	assert.EqualValues(suite.T(), -62135596800, vr.PaidAt.Seconds)
@@ -367,7 +361,7 @@ func (suite *VatReportsTestSuite) TestVatReports_PaymentDateSet() {
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 	assert.Empty(suite.T(), res.Message)
 
-	err = suite.service.db.Collection(collectionVatReports).FindOne(context.TODO(), query).Decode(&vr)
+	vr, err = suite.service.vatReportRepository.GetById(context.TODO(), vatReport.Id)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), vr.Status, pkg.VatReportStatusPaid)
 	assert.GreaterOrEqual(suite.T(), nowTimestamp, vr.PaidAt.Seconds)
