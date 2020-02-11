@@ -32,6 +32,9 @@ const (
 
 	MerchantAgreementTypeESign = 2
 
+	ProjectWebhookPreApproval   = "pre_approval"
+	ProjectWebhookDefault = "default"
+
 	ObjectTypeUser = "user"
 
 	UserIdentityTypeEmail    = "email"
@@ -132,6 +135,8 @@ const (
 	ErrorCacheFieldData   = "data"
 	ErrorCacheFieldCmd    = "command"
 
+	ErrorUserCheckFailed = "failed to check user"
+
 	ErrorRoyaltyReportGenerationFailed = "royalty report generation failed"
 	ErrorRoyaltyReportFieldMerchantId  = "merchant_id"
 	ErrorRoyaltyReportFieldFrom        = "from"
@@ -206,6 +211,12 @@ const (
 	RoleTypeMerchant = "merchant"
 	RoleTypeSystem   = "system"
 
+	UnknownTypeError = "unknown type in request"
+
+	TestCaseNonExistingUser = "non_existing_user"
+	TestCaseExistingUser = "existing_user"
+	TestCaseCorrectPayment = "correct_payment"
+	TestCaseIncorrectPayment = "invalid_signature"
 	UserRoleStatusInvited  = "invited"
 	UserRoleStatusAccepted = "accepted"
 

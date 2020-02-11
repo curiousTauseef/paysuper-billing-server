@@ -341,6 +341,7 @@ func (suite *OnboardingTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		casbin,
+		mocks.NewNotifierOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {

@@ -106,6 +106,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -128,6 +129,21 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		Status:                   billingpb.ProjectStatusDraft,
 		MerchantId:               suite.merchant.Id,
 		VatPayer:                 billingpb.VatPayerBuyer,
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
+		},
 	}
 
 	if err := suite.service.project.Insert(context.TODO(), suite.projectWithProducts); err != nil {

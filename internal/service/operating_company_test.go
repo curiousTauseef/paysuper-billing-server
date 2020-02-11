@@ -65,6 +65,7 @@ func (suite *OperatingCompanyTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		casbin,
+		nil,
 	)
 
 	if err := suite.service.Init(); err != nil {

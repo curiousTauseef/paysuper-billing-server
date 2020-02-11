@@ -964,7 +964,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		LimitsCurrency:           "USD",
 		MaxPaymentAmount:         15000,
 		MinPaymentAmount:         1,
-		Name:                     map[string]string{"en": "test project 1"},
+		Name:                     map[string]string{"en": "test project 0"},
 		IsProductsCheckout:       false,
 		AllowDynamicRedirectUrls: true,
 		SecretKey:                "test project 1 secret key",
@@ -977,6 +977,21 @@ func (suite *OrderTestSuite) SetupTest() {
 		},
 		UrlRedirectSuccess: "http://localhost?success",
 		UrlRedirectFail:    "http://localhost?fail",
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
+		},
 	}
 	projectFixedAmount := &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
@@ -998,6 +1013,21 @@ func (suite *OrderTestSuite) SetupTest() {
 		},
 		UrlRedirectSuccess: "http://localhost?success",
 		UrlRedirectFail:    "http://localhost?fail",
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
+		},
 	}
 
 	projectWithProductsInVirtualCurrency := &billingpb.Project{
@@ -1007,7 +1037,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		LimitsCurrency:           "USD",
 		MaxPaymentAmount:         15000,
 		MinPaymentAmount:         1,
-		Name:                     map[string]string{"en": "test project 1"},
+		Name:                     map[string]string{"en": "test project 2"},
 		IsProductsCheckout:       true,
 		AllowDynamicRedirectUrls: true,
 		SecretKey:                "test project X secret key",
@@ -1028,6 +1058,22 @@ func (suite *OrderTestSuite) SetupTest() {
 				},
 			},
 		},
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
+		},
+
 		VatPayer: billingpb.VatPayerBuyer,
 		RedirectSettings: &billingpb.ProjectRedirectSettings{
 			Mode:  pkg.ProjectRedirectModeAny,
@@ -1040,11 +1086,11 @@ func (suite *OrderTestSuite) SetupTest() {
 	projectWithProducts := &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
 		CallbackCurrency:         "RUB",
-		CallbackProtocol:         "default",
+		CallbackProtocol:         "empty",
 		LimitsCurrency:           "USD",
 		MaxPaymentAmount:         15000,
 		MinPaymentAmount:         1,
-		Name:                     map[string]string{"en": "test project 1"},
+		Name:                     map[string]string{"en": "test project 3"},
 		IsProductsCheckout:       true,
 		AllowDynamicRedirectUrls: true,
 		SecretKey:                "test project 1 secret key",
@@ -1061,11 +1107,11 @@ func (suite *OrderTestSuite) SetupTest() {
 	projectWithKeyProducts := &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
 		CallbackCurrency:         "RUB",
-		CallbackProtocol:         "default",
+		CallbackProtocol:         "empty",
 		LimitsCurrency:           "USD",
 		MaxPaymentAmount:         15000,
 		MinPaymentAmount:         1,
-		Name:                     map[string]string{"en": "test key project"},
+		Name:                     map[string]string{"en": "test key project 4"},
 		IsProductsCheckout:       false,
 		AllowDynamicRedirectUrls: true,
 		SecretKey:                "test key project secret key",
@@ -1082,7 +1128,7 @@ func (suite *OrderTestSuite) SetupTest() {
 	projectUahLimitCurrency := &billingpb.Project{
 		Id:                 primitive.NewObjectID().Hex(),
 		CallbackCurrency:   "RUB",
-		CallbackProtocol:   "default",
+		CallbackProtocol:   "empty",
 		LimitsCurrency:     "UAH",
 		MaxPaymentAmount:   15000,
 		MinPaymentAmount:   0,
@@ -1102,7 +1148,7 @@ func (suite *OrderTestSuite) SetupTest() {
 	projectIncorrectPaymentMethodId := &billingpb.Project{
 		Id:                 primitive.NewObjectID().Hex(),
 		CallbackCurrency:   "RUB",
-		CallbackProtocol:   "default",
+		CallbackProtocol:   "empty",
 		LimitsCurrency:     "RUB",
 		MaxPaymentAmount:   15000,
 		MinPaymentAmount:   0,
@@ -1123,7 +1169,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		Id:                 primitive.NewObjectID().Hex(),
 		MerchantId:         merchant1.Id,
 		CallbackCurrency:   "RUB",
-		CallbackProtocol:   "default",
+		CallbackProtocol:   "empty",
 		LimitsCurrency:     "RUB",
 		MaxPaymentAmount:   15000,
 		MinPaymentAmount:   0,
@@ -1143,11 +1189,11 @@ func (suite *OrderTestSuite) SetupTest() {
 		Id:                 primitive.NewObjectID().Hex(),
 		MerchantId:         merchant1.Id,
 		CallbackCurrency:   "RUB",
-		CallbackProtocol:   "default",
+		CallbackProtocol:   "empty",
 		LimitsCurrency:     "RUB",
 		MaxPaymentAmount:   15000,
 		MinPaymentAmount:   0,
-		Name:               map[string]string{"en": "test project 1"},
+		Name:               map[string]string{"en": "test project 5"},
 		IsProductsCheckout: true,
 		SecretKey:          "test project 1 secret key",
 		Status:             billingpb.ProjectStatusInProduction,
@@ -1167,7 +1213,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		LimitsCurrency:     "RUB",
 		MaxPaymentAmount:   15000,
 		MinPaymentAmount:   0,
-		Name:               map[string]string{"en": "test project 2"},
+		Name:               map[string]string{"en": "test project 6"},
 		IsProductsCheckout: true,
 		SecretKey:          "test project 2 secret key",
 		Status:             billingpb.ProjectStatusDeleted,
@@ -1414,6 +1460,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -2789,7 +2836,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessProjectOrderId_Duplicate_Error() {
 	err = processor.processPayerIp(context.TODO())
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPaylinkProducts()
+	err = processor.processPaylinkProducts(context.TODO())
 	assert.Error(suite.T(), err)
 
 	id := primitive.NewObjectID().Hex()
@@ -3317,7 +3364,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_Ok() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPaylinkProducts()
+	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processProjectOrderId()
@@ -3371,7 +3418,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_PaymentMethod_Ok() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPaylinkProducts()
+	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processProjectOrderId()
@@ -3434,7 +3481,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlVerify_Error() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPaylinkProducts()
+	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processProjectOrderId()
@@ -3485,7 +3532,7 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlRedirect_Error() {
 	err = processor.processCurrency(req.Type)
 	assert.Nil(suite.T(), err)
 
-	err = processor.processPaylinkProducts()
+	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
 	err = processor.processProjectOrderId()

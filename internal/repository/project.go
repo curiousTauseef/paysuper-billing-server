@@ -286,6 +286,7 @@ func (r *projectRepository) Find(
 				"virtual_currency":            "$virtual_currency",
 				"vat_payer":                   "$vat_payer",
 				"redirect_settings":           "$redirect_settings",
+				"webhook_mode":                "$webhook_mode",
 			},
 		},
 		{"$skip": offset},

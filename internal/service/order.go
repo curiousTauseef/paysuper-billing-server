@@ -20,6 +20,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
+	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-proto/go/taxpb"
@@ -123,12 +124,14 @@ var (
 	orderErrorCheckoutWithProducts                            = newBillingServerErrorMsg("fm000069", "request to processing simple payment can't contain products list")
 	orderErrorMerchantDoNotHaveCompanyInfo                    = newBillingServerErrorMsg("fm000070", "merchant don't have completed company info")
 	orderErrorMerchantDoNotHaveBanking                        = newBillingServerErrorMsg("fm000071", "merchant don't have completed banking info")
-	orderErrorAmountLowerThanMinLimitSystem                   = newBillingServerErrorMsg("fm000072", "order amount is lower than min system limit")
-	orderErrorAlreadyProcessed                                = newBillingServerErrorMsg("fm000073", "order is already processed")
-	orderErrorDontHaveReceiptUrl                              = newBillingServerErrorMsg("fm000074", "processed order don't have receipt url")
-	orderErrorWrongPrivateStatus                              = newBillingServerErrorMsg("fm000075", "order has wrong private status and cannot be recreated")
-	orderCountryChangeRestrictedError                         = newBillingServerErrorMsg("fm000076", "change country is not allowed")
-	orderErrorVatPayerUnknown                                 = newBillingServerErrorMsg("fm000077", "vat payer unknown")
+	orderErrorMerchantWebHookTestingNotPassed                 = newBillingServerErrorMsg("fm000072", "merchant don't passed webhook api testing")
+	orderErrorMerchantUserAccountNotChecked                   = newBillingServerErrorMsg("fm000073", "failed to check user account")
+	orderErrorAmountLowerThanMinLimitSystem                   = newBillingServerErrorMsg("fm000074", "order amount is lower than min system limit")
+	orderErrorAlreadyProcessed                                = newBillingServerErrorMsg("fm000075", "order is already processed")
+	orderErrorDontHaveReceiptUrl                              = newBillingServerErrorMsg("fm000076", "processed order don't have receipt url")
+	orderErrorWrongPrivateStatus                              = newBillingServerErrorMsg("fm000077", "order has wrong private status and cannot be recreated")
+	orderCountryChangeRestrictedError                         = newBillingServerErrorMsg("fm000078", "change country is not allowed")
+	orderErrorVatPayerUnknown                                 = newBillingServerErrorMsg("fm000079", "vat payer unknown")
 
 	virtualCurrencyPayoutCurrencyMissed = newBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
@@ -410,7 +413,7 @@ func (s *Service) OrderCreateProcess(
 		}
 		break
 	case pkg.OrderTypeVirtualCurrency:
-		err := processor.processVirtualCurrency()
+		err := processor.processVirtualCurrency(ctx)
 		if err != nil {
 			zap.L().Error(
 				pkg.MethodFinishedWithError,
@@ -423,7 +426,7 @@ func (s *Service) OrderCreateProcess(
 		}
 		break
 	case pkg.OrderType_product:
-		if err := processor.processPaylinkProducts(); err != nil {
+		if err := processor.processPaylinkProducts(ctx); err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
@@ -2143,6 +2146,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 		MccCode:                 v.checked.merchant.MccCode,
 		OperatingCompanyId:      v.checked.merchant.OperatingCompanyId,
 		IsHighRisk:              v.checked.merchant.IsHighRisk(),
+		TestingCase:             v.request.TestingCase,
 		IsCurrencyPredefined:    v.checked.isCurrencyPredefined,
 		VatPayer:                v.checked.project.VatPayer,
 		IsProduction:            v.checked.project.IsProduction(),
@@ -2385,6 +2389,13 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 
 	v.checked.priceGroup = priceGroup
 
+	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
+		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
+			!(v.checked.project.WebhookTesting.Keys.IsPassed)) {
+			return orderErrorMerchantWebHookTestingNotPassed
+		}
+	}
+
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
@@ -2393,8 +2404,7 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 	return nil
 }
 
-func (v *OrderCreateRequestProcessor) processPaylinkProducts() error {
-
+func (v *OrderCreateRequestProcessor) processPaylinkProducts(_ context.Context) error {
 	amount, priceGroup, items, isBuyForVirtual, err := v.processProducts(
 		v.ctx,
 		v.checked.project.Id,
@@ -2409,6 +2419,15 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts() error {
 		return err
 	}
 
+	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
+		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
+			!(v.checked.project.WebhookTesting.Products.IncorrectPayment &&
+				v.checked.project.WebhookTesting.Products.CorrectPayment &&
+				v.checked.project.WebhookTesting.Products.ExistingUser &&
+				v.checked.project.WebhookTesting.Products.NonExistingUser)) {
+			return orderErrorMerchantWebHookTestingNotPassed
+		}
+	}
 	v.checked.priceGroup = priceGroup
 
 	v.checked.products = v.request.Products
@@ -3171,6 +3190,40 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 
 	if order.ProjectAccount == "" {
 		order.ProjectAccount = order.User.Email
+	}
+
+	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault &&
+		v.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
+		checkReq := &notifierpb.CheckUserRequest{Url: v.checked.project.UrlCheckAccount,
+			SecretKey: v.checked.project.GetSecretKey(),
+			User: &notifierpb.User{
+				ProjectAccount: order.ProjectAccount,
+				Email:          order.User.Email,
+				Name:           order.User.Name,
+				Metadata:       order.User.Metadata,
+				Phone:          order.User.Phone,
+			},
+		}
+
+		resp, err := v.service.notifier.CheckUser(context.TODO(), checkReq)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorGrpcServiceCallFailed,
+				zap.Error(err),
+				zap.String(errorFieldService, "Notifier"),
+				zap.String(errorFieldMethod, "CheckUser"),
+			)
+			return orderErrorMerchantUserAccountNotChecked
+		}
+
+		if resp.Status != billingpb.ResponseStatusOk {
+			zap.L().Error(
+				pkg.ErrorUserCheckFailed,
+				zap.String(errorFieldStatus, string(resp.Status)),
+				zap.String(errorFieldMessage, resp.Message),
+			)
+			return orderErrorMerchantUserAccountNotChecked
+		}
 	}
 
 	return nil
@@ -4348,7 +4401,7 @@ func (s *Service) paymentSystemPaymentCallbackComplete(ctx context.Context, orde
 	return s.centrifugoPaymentForm.Publish(ctx, ch, message)
 }
 
-func (v *OrderCreateRequestProcessor) processVirtualCurrency() error {
+func (v *OrderCreateRequestProcessor) processVirtualCurrency(_ context.Context) error {
 	amount := v.request.Amount
 	virtualCurrency := v.checked.project.VirtualCurrency
 
@@ -4362,12 +4415,23 @@ func (v *OrderCreateRequestProcessor) processVirtualCurrency() error {
 		return orderErrorVirtualCurrencyFracNotSupported
 	}
 
-	if v.checked.amount < virtualCurrency.MinPurchaseValue ||
+	if amount < virtualCurrency.MinPurchaseValue ||
 		(virtualCurrency.MaxPurchaseValue > 0 && amount > virtualCurrency.MaxPurchaseValue) {
 		return orderErrorVirtualCurrencyLimits
 	}
 
 	v.checked.virtualAmount = amount
+
+	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
+		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
+			!(v.checked.project.WebhookTesting.VirtualCurrency.IncorrectPayment &&
+				v.checked.project.WebhookTesting.VirtualCurrency.CorrectPayment &&
+				v.checked.project.WebhookTesting.VirtualCurrency.ExistingUser &&
+				v.checked.project.WebhookTesting.VirtualCurrency.NonExistingUser)) {
+			return orderErrorMerchantWebHookTestingNotPassed
+		}
+	}
+
 	return nil
 }
 
