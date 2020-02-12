@@ -33,7 +33,7 @@ func NewMoneyBackCostMerchantRepository(db mongodb.SourceInterface, cache databa
 	return s
 }
 
-func (r moneyBackCostMerchantRepository) Insert(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) (err error) {
+func (r *moneyBackCostMerchantRepository) Insert(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) (err error) {
 	obj.FixAmount = tools.FormatAmount(obj.FixAmount)
 	obj.Percent = tools.ToPrecise(obj.Percent)
 	obj.IsActive = true
@@ -56,7 +56,7 @@ func (r moneyBackCostMerchantRepository) Insert(ctx context.Context, obj *billin
 	return nil
 }
 
-func (r moneyBackCostMerchantRepository) MultipleInsert(ctx context.Context, objs []*billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) MultipleInsert(ctx context.Context, objs []*billingpb.MoneyBackCostMerchant) error {
 	c := make([]interface{}, len(objs))
 
 	for i, v := range objs {
@@ -90,7 +90,7 @@ func (r moneyBackCostMerchantRepository) MultipleInsert(ctx context.Context, obj
 	return nil
 }
 
-func (r moneyBackCostMerchantRepository) Update(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) Update(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
 	oid, err := primitive.ObjectIDFromHex(obj.Id)
 
 	if err != nil {
@@ -124,7 +124,7 @@ func (r moneyBackCostMerchantRepository) Update(ctx context.Context, obj *billin
 	return r.updateCaches(obj)
 }
 
-func (r moneyBackCostMerchantRepository) GetById(ctx context.Context, id string) (*billingpb.MoneyBackCostMerchant, error) {
+func (r *moneyBackCostMerchantRepository) GetById(ctx context.Context, id string) (*billingpb.MoneyBackCostMerchant, error) {
 	obj := billingpb.MoneyBackCostMerchant{}
 	key := fmt.Sprintf(cacheMoneyBackCostMerchantKeyId, id)
 
@@ -162,7 +162,7 @@ func (r moneyBackCostMerchantRepository) GetById(ctx context.Context, id string)
 	return &obj, nil
 }
 
-func (r moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, merchantId string) (*billingpb.MoneyBackCostMerchantList, error) {
+func (r *moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, merchantId string) (*billingpb.MoneyBackCostMerchantList, error) {
 	item := billingpb.MoneyBackCostMerchantList{}
 	key := fmt.Sprintf(cacheMoneyBackCostMerchantAll, merchantId)
 
@@ -224,7 +224,7 @@ func (r moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, 
 	return &item, nil
 }
 
-func (r moneyBackCostMerchantRepository) Find(
+func (r *moneyBackCostMerchantRepository) Find(
 	ctx context.Context,
 	merchantId string,
 	name string,
@@ -329,7 +329,7 @@ func (r moneyBackCostMerchantRepository) Find(
 	return c, nil
 }
 
-func (r moneyBackCostMerchantRepository) Delete(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) Delete(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
 	oid, err := primitive.ObjectIDFromHex(obj.Id)
 
 	if err != nil {
@@ -361,7 +361,7 @@ func (r moneyBackCostMerchantRepository) Delete(ctx context.Context, obj *billin
 	return r.updateCaches(obj)
 }
 
-func (r moneyBackCostMerchantRepository) updateCaches(obj *billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) updateCaches(obj *billingpb.MoneyBackCostMerchant) error {
 	groupKeys := []string{
 		fmt.Sprintf(cacheMoneyBackCostMerchantKey, obj.MerchantId, obj.Name, obj.PayoutCurrency, obj.UndoReason, obj.Region, obj.Country, obj.PaymentStage, obj.MccCode),
 		fmt.Sprintf(cacheMoneyBackCostMerchantKey, obj.MerchantId, obj.Name, obj.PayoutCurrency, obj.UndoReason, obj.Region, "", obj.PaymentStage, obj.MccCode),

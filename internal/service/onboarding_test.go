@@ -535,26 +535,6 @@ func (suite *OnboardingTestSuite) SetupTest() {
 		},
 	}
 
-	var tariffs []interface{}
-
-	for _, v := range euTariff {
-		tariffs = append(tariffs, v)
-	}
-
-	for _, v := range cisTariff {
-		tariffs = append(tariffs, v)
-	}
-
-	for _, v := range asiaTariff {
-		tariffs = append(tariffs, v)
-	}
-
-	_, err = suite.service.db.Collection(collectionMerchantsPaymentTariffs).InsertMany(ctx, tariffs)
-
-	if err != nil {
-		suite.FailNow("Insert merchant tariffs test data failed", "%v", err)
-	}
-
 	tariffsSettings := &billingpb.MerchantTariffRatesSettings{
 		Refund: []*billingpb.MerchantTariffRatesSettingsItem{
 			{
@@ -616,12 +596,6 @@ func (suite *OnboardingTestSuite) SetupTest() {
 		MccCode: billingpb.MccCodeLowRisk,
 	}
 
-	_, err = suite.service.db.Collection(collectionMerchantTariffsSettings).InsertOne(ctx, tariffsSettings)
-
-	if err != nil {
-		suite.FailNow("Insert merchant tariffs settings test data failed", "%v", err)
-	}
-
 	suite.merchant = merchant
 	suite.merchantAgreement = merchantAgreement
 	suite.merchant1 = merchant1
@@ -655,6 +629,32 @@ func (suite *OnboardingTestSuite) SetupTest() {
 
 	if err != nil {
 		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
+	}
+
+	err = suite.service.merchantTariffsSettingsRepository.Insert(ctx, tariffsSettings)
+
+	if err != nil {
+		suite.FailNow("Insert merchant tariffs settings test data failed", "%v", err)
+	}
+
+	var tariffs []*billingpb.MerchantTariffRatesPayment
+
+	for _, v := range euTariff {
+		tariffs = append(tariffs, v)
+	}
+
+	for _, v := range cisTariff {
+		tariffs = append(tariffs, v)
+	}
+
+	for _, v := range asiaTariff {
+		tariffs = append(tariffs, v)
+	}
+
+	err = suite.service.merchantPaymentTariffsRepository.MultipleInsert(ctx, tariffs)
+
+	if err != nil {
+		suite.FailNow("Insert merchant tariffs test data failed", "%v", err)
 	}
 }
 
@@ -2834,11 +2834,15 @@ func (suite *OnboardingTestSuite) TestOnboarding_GetMerchantTariffRates_WithoutR
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_GetMerchantTariffRates_RepositoryError() {
-	mtf := &mocks.MerchantTariffRatesInterface{}
-	mtf.On("GetBy", mock2.Anything, mock2.Anything).Return(nil, merchantErrorUnknown)
-	suite.service.merchantTariffRates = mtf
+	mtf := &mocks.MerchantPaymentTariffsInterface{}
+	mtf.On("Find", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(nil, merchantErrorUnknown)
+	suite.service.merchantPaymentTariffsRepository = mtf
 
-	req := &billingpb.GetMerchantTariffRatesRequest{HomeRegion: "russia_and_cis"}
+	req := &billingpb.GetMerchantTariffRatesRequest{
+		HomeRegion:             "russia_and_cis",
+		MerchantOperationsType: pkg.MerchantOperationTypeLowRisk,
+	}
 	rsp := &billingpb.GetMerchantTariffRatesResponse{}
 	err := suite.service.GetMerchantTariffRates(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -2961,9 +2965,10 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Merchant
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_GetBy_Error() {
-	mtf := &mocks.MerchantTariffRatesInterface{}
-	mtf.On("GetBy", mock2.Anything, mock2.Anything).Return(nil, errors.New(mocks.SomeError))
-	suite.service.merchantTariffRates = mtf
+	mtf := &mocks.MerchantPaymentTariffsInterface{}
+	mtf.On("Find", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(nil, errors.New(mocks.SomeError))
+	suite.service.merchantPaymentTariffsRepository = mtf
 
 	req := &billingpb.SetMerchantTariffRatesRequest{
 		MerchantId:             suite.merchant.Id,
@@ -2978,9 +2983,9 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_GetBy_Er
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_InsertPaymentCosts_Error() {
-	rep := &mocks.MoneyBackCostMerchantRepositoryInterface{}
+	rep := &mocks.PaymentChannelCostMerchantRepositoryInterface{}
 	rep.On("MultipleInsert", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
-	suite.service.moneyBackCostMerchantRepository = rep
+	suite.service.paymentChannelCostMerchantRepository = rep
 
 	req := &billingpb.SetMerchantTariffRatesRequest{
 		MerchantId:             suite.merchant.Id,
@@ -2995,11 +3000,9 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_InsertPa
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_InsertMoneyBackCosts_Error() {
-	ci := &mocks.CacheInterface{}
-	ci.On("Get", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
-	ci.On("Set", mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
-	ci.On("Delete", mock2.Anything).Return(errors.New(mocks.SomeError))
-	suite.service.cacher = ci
+	rep := &mocks.MoneyBackCostMerchantRepositoryInterface{}
+	rep.On("MultipleInsert", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
+	suite.service.moneyBackCostMerchantRepository = rep
 
 	req := &billingpb.SetMerchantTariffRatesRequest{
 		MerchantId:             suite.merchant.Id,

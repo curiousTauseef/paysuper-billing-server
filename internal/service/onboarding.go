@@ -1165,7 +1165,7 @@ func (s *Service) GetMerchantTariffRates(
 		req.PayerRegion = req.HomeRegion
 	}
 
-	tariffs, err := s.merchantTariffRates.GetBy(ctx, req)
+	tariffs, err := s.getMerchantTariffRates(ctx, req)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -1239,7 +1239,7 @@ func (s *Service) SetMerchantTariffRates(
 		HomeRegion:             req.HomeRegion,
 		MerchantOperationsType: req.MerchantOperationsType,
 	}
-	tariffs, err := s.merchantTariffRates.GetBy(ctx, query)
+	tariffs, err := s.getMerchantTariffRates(ctx, query)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError

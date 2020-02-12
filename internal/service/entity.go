@@ -20,7 +20,6 @@ type Repository struct {
 	svc *Service
 }
 
-type MerchantsTariffRatesRepository Repository
 type DashboardRepository Repository
 
 type kvIntFloat struct {
