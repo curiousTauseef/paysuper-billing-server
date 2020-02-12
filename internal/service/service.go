@@ -63,7 +63,6 @@ type Service struct {
 	supportedCurrencies                  []string
 	currenciesPrecision                  map[string]int32
 	orderView                            OrderViewServiceInterface
-	accounting                           AccountingServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
 	merchantTariffRates                  MerchantTariffRatesInterface
 	dashboardRepository                  DashboardRepositoryInterface
@@ -108,6 +107,7 @@ type Service struct {
 	vatReportRepository                  repository.VatReportRepositoryInterface
 	payoutRepository                     repository.PayoutRepositoryInterface
 	customerRepository                   repository.CustomerRepositoryInterface
+	accountingRepository                 repository.AccountingEntryRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -165,7 +165,6 @@ func NewBillingService(
 
 func (s *Service) Init() (err error) {
 	s.orderView = newOrderView(s)
-	s.accounting = newAccounting(s)
 	s.merchantTariffRates = newMerchantsTariffRatesRepository(s)
 	s.dashboardRepository = newDashboardRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
@@ -205,6 +204,7 @@ func (s *Service) Init() (err error) {
 	s.vatReportRepository = repository.NewVatReportRepository(s.db)
 	s.payoutRepository = repository.NewPayoutRepository(s.db, s.cacher)
 	s.customerRepository = repository.NewCustomerRepository(s.db)
+	s.accountingRepository = repository.NewAccountingEntryRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

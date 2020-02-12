@@ -339,8 +339,8 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 		CreatedAt:  ptypes.TimestampNow(),
 	}
 
-	accountingEntries := []interface{}{ae1, ae2}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).InsertMany(ctx, accountingEntries)
+	accountingEntries := []*billingpb.AccountingEntry{ae1, ae2}
+	err = suite.service.accountingRepository.MultipleInsert(ctx, accountingEntries)
 	assert.NoError(suite.T(), err)
 
 	count := suite.mbRecordsCount(suite.merchant.Id, suite.merchant.GetPayoutCurrency())

@@ -15,7 +15,6 @@ type Entity struct {
 }
 
 type OrderView Entity
-type Accounting Entity
 
 type Repository struct {
 	svc *Service

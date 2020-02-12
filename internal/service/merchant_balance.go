@@ -5,10 +5,10 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
+	"time"
 )
 
 var (
@@ -19,11 +19,6 @@ var (
 		pkg.AccountingEntryTypeMerchantRollingReserveRelease,
 	}
 )
-
-type reserveQueryResItem struct {
-	Type   string  `bson:"_id"`
-	Amount float64 `bson:"amount"`
-}
 
 func (s *Service) GetMerchantBalance(
 	ctx context.Context,
@@ -127,57 +122,19 @@ func (s *Service) getRollingReserveForBalance(ctx context.Context, merchantId, c
 		return 0, err
 	}
 
-	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
-	matchQuery := bson.M{
-		"merchant_id": merchantOid,
-		"currency":    currency,
-		"type":        bson.M{"$in": accountingEntriesForRollingReserve},
-	}
-
+	createdAt := time.Time{}
 	if pd != nil {
-		createdAt, err := ptypes.Timestamp(pd.CreatedAt)
+		createdAt, err = ptypes.Timestamp(pd.CreatedAt)
 		if err != nil {
-			zap.L().Error(
-				"Time conversion error",
-				zap.Error(err),
-			)
 			return 0, err
 		}
-
-		matchQuery["created_at"] = bson.M{"$gt": createdAt}
 	}
 
-	query := []bson.M{
-		{
-			"$match": matchQuery,
-		},
-		{
-			"$group": bson.M{"_id": "$type", "amount": bson.M{"$sum": "$amount"}},
-		},
-	}
-
-	var items []*reserveQueryResItem
-	cursor, err := s.db.Collection(collectionAccountingEntry).Aggregate(ctx, query)
+	items, err := s.accountingRepository.GetRollingReserveForBalance(
+		ctx, merchantId, currency, accountingEntriesForRollingReserve, createdAt,
+	)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return 0, err
-	}
-
-	err = cursor.All(ctx, &items)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return 0, err
 	}
 
