@@ -1,9 +1,33 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2020-02-04
+
+### Added
+- Checking connection with the Redis server, the Redis cluster and database using the health check request.
+- The new parameter to filter the transactions log by the production or test mode.
+- The new parameter to display the email address on the payment form.
+- The new settings group to redirect user at the end of the payment process.
+- The new settings option to update the text on the redirect button displaying at the end of the payment process when creating the payment token.
+- Added checking to disable the partial refunds.
+
+### Changed
+- Changed the context lifetime created with the health check request.
+- Some entities moved to the external repository (Price group, User profile, ZIP code, Country, User role).
+- Removed unused code.
+- Updated GO and Alpine Linux versions in the dockerfile
+- Update project's dependencies.
+
+### Fixed
+- Fixed the automatically payouts method.
+- Fixed the order's structure tags.
+- Edited the descriptions of the structures.
+
+***
+
 ## [1.1.0] - 2019-12-24
 
-###Added
+### Added
 - The centrifugo has been split into multiple instances for sending notification to the Dashboard and the payment form.
 - Added an API method for VAT calculating in a payment process.
 
@@ -22,7 +46,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.0.0] - 2019-12-19
 
-###Added
+### Added
 - Limiting payments by country depending on the country issuing of the customer's bank card.
 - The logic of the rounding method for a payment amount for various currencies considering the presence or absence of a currency's fractional part.
 
