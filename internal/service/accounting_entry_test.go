@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
@@ -1125,9 +1124,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Empty(suite.T(), rsp.Message)
 	assert.NotNil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	oid, _ := primitive.ObjectIDFromHex(rsp.Item.Id)
-	err = suite.service.db.Collection(collectionAccountingEntry).FindOne(ctx, bson.M{"_id": oid}).Decode(&accountingEntry)
+	accountingEntry, err := suite.service.accountingRepository.GetById(ctx, rsp.Item.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), accountingEntry)
 
@@ -1178,10 +1175,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorMerchantNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.MerchantId, "source.type": repository.CollectionMerchant}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.MerchantId, repository.CollectionMerchant)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_OrderNotFound_Error() {
@@ -1201,10 +1197,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorOrderNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": repository.CollectionOrder}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.OrderId, repository.CollectionOrder)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_RefundNotFound_Error() {
@@ -1224,10 +1219,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorRefundNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": repository.CollectionRefund}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.RefundId, repository.CollectionRefund)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_Refund_OrderNotFound_Error() {
@@ -1266,10 +1260,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorOrderNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": repository.CollectionRefund}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.RefundId, repository.CollectionRefund)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_EntryNotExist_Error() {
@@ -1279,6 +1272,10 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 
 	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
+
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), aes)
 
 	req := &billingpb.CreateAccountingEntryRequest{
 		Type:     "not_exist_accounting_entry_name",
@@ -1290,26 +1287,20 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Reason:   "unit test",
 	}
 	rsp := &billingpb.CreateAccountingEntryResponse{}
-	err := suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
+	err = suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
 	assert.Equal(suite.T(), accountingEntryErrorUnknownEntry, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": repository.CollectionOrder}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes2, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), aes2)
+	assert.EqualValues(suite.T(), aes[0].Id, aes2[0].Id)
 }
 
 func (suite *AccountingEntryTestSuite) helperGetAccountingEntries(orderId, collection string) []*billingpb.AccountingEntry {
-	var accountingEntries []*billingpb.AccountingEntry
-	oid, err := primitive.ObjectIDFromHex(orderId)
-	assert.NoError(suite.T(), err)
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).
-		Find(ctx, bson.M{"source.id": oid, "source.type": collection})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(ctx, &accountingEntries)
+	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, orderId, collection)
 	assert.NoError(suite.T(), err)
 
 	return accountingEntries

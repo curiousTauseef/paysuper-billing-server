@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -7446,13 +7445,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_AccountingEntries_
 	assert.IsType(suite.T(), &billingpb.Order{}, order)
 	assert.Equal(suite.T(), int32(recurringpb.OrderStatusPaymentSystemComplete), order.PrivateStatus)
 
-	oid, err := primitive.ObjectIDFromHex(order.Id)
-	filter := bson.M{"source.id": oid, "source.type": repository.CollectionOrder}
-
-	var accountingEntries []*billingpb.AccountingEntry
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &accountingEntries)
+	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), accountingEntries)
 }
@@ -7552,13 +7545,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Error() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), pkg.StatusErrorValidation, callbackResponse.Status)
 
-	oid, err := primitive.ObjectIDFromHex(order.Id)
-	filter := bson.M{"source.id": oid, "source.type": repository.CollectionOrder}
-
-	var accountingEntries []*billingpb.AccountingEntry
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &accountingEntries)
+	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), accountingEntries)
 

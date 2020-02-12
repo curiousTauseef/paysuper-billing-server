@@ -637,7 +637,7 @@ func (h *royaltyHandler) getRoyaltyReportCorrections(ctx context.Context, mercha
 	total float64,
 	err error) {
 
-	accountingEntries, err := h.accounting.GetCorrectionsForRoyaltyReport(ctx, merchantId, currency, h.from, h.to)
+	accountingEntries, err := h.accountingRepository.GetCorrectionsForRoyaltyReport(ctx, merchantId, currency, h.from, h.to)
 	if err != nil {
 		return
 	}
@@ -663,7 +663,10 @@ func (h *royaltyHandler) getRoyaltyReportRollingReserves(
 	total float64,
 	err error) {
 
-	accountingEntries, err := h.accounting.GetRollingReservesForRoyaltyReport(ctx, merchantId, currency, h.from, h.to)
+	accountingEntries, err := h.accountingRepository.GetRollingReservesForRoyaltyReport(
+		ctx, merchantId, currency, rollingReserveAccountingEntriesList, h.from, h.to,
+	)
+
 	if err != nil {
 		return
 	}

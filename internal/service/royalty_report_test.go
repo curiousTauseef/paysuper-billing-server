@@ -1136,15 +1136,6 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 		suite.FailNow("update order failed", "%v", err)
 	}
 
-	oid, err := primitive.ObjectIDFromHex(project.GetMerchantId())
-	assert.NoError(suite.T(), err)
-	query := bson.M{"merchant_id": oid}
-	set := bson.M{"$set": bson.M{"created_at": date}}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).UpdateMany(context.TODO(), query, set)
-	if !assert.NoError(suite.T(), err) {
-		suite.FailNow("accounting entries update failed", "%v", err)
-	}
-
 	return order
 }
 

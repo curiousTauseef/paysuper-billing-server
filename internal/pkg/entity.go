@@ -41,3 +41,8 @@ type BinData struct {
 type BalanceQueryResItem struct {
 	Amount float64 `bson:"amount"`
 }
+
+type ReserveQueryResItem struct {
+	Type   string  `bson:"_id"`
+	Amount float64 `bson:"amount"`
+}

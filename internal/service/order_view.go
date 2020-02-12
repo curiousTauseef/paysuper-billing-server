@@ -63,19 +63,16 @@ func newOrderView(svc *Service) OrderViewServiceInterface {
 // does not return any documents in result,
 // so, this query cannot be iterated with driver's BatchSize() and Next() methods
 func (s *Service) updateOrderView(ctx context.Context, ids []string) error {
+	var err error
+
 	batchSize := s.cfg.OrderViewUpdateBatchSize
 	count := len(ids)
 
 	if count == 0 {
-		res, err := s.db.Collection(collectionAccountingEntry).Distinct(ctx, "source.id", bson.M{})
+		ids, err = s.accountingRepository.GetDistinctBySourceId(ctx)
 
 		if err != nil {
-			zap.S().Errorf(pkg.ErrorDatabaseQueryFailed, "err", err.Error(), "collection", collectionAccountingEntry)
 			return err
-		}
-
-		for _, id := range res {
-			ids = append(ids, id.(primitive.ObjectID).Hex())
 		}
 
 		count = len(ids)
