@@ -457,8 +457,8 @@ func (suite *ProjectCRUDTestSuite) TestProjectCRUD_ChangeProject_ExistProject_Ok
 	assert.Equal(suite.T(), req.MerchantId, rsp.Item.MerchantId)
 	assert.Equal(suite.T(), req.Name, rsp.Item.Name)
 	assert.Equal(suite.T(), req.CallbackProtocol, rsp.Item.CallbackProtocol)
-	assert.NotEqual(suite.T(), req.Status, rsp.Item.Status)
-	assert.Equal(suite.T(), billingpb.ProjectStatusDraft, rsp.Item.Status)
+	assert.Equal(suite.T(), req.Status, rsp.Item.Status)
+	assert.Equal(suite.T(), billingpb.ProjectStatusInProduction, rsp.Item.Status)
 
 	project, err := suite.service.project.GetById(context.TODO(), rsp.Item.Id)
 	assert.NoError(suite.T(), err)
