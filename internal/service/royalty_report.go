@@ -48,6 +48,7 @@ var (
 	royaltyReportErrorCorrectionAmountRequired        = newBillingServerErrorMsg("rr00009", "correction amount required and must be not zero")
 	royaltyReportErrorPayoutDocumentIdInvalid         = newBillingServerErrorMsg("rr00010", "payout document id is invalid")
 	royaltyReportErrorNotOwnedByMerchant              = newBillingServerErrorMsg("rr00011", "payout document is not owned by merchant")
+	royaltyReportErrorMerchantNotFound                = newBillingServerErrorMsg("rr00012", "royalty report merchant owner not found")
 
 	orderStatusForRoyaltyReports = []string{
 		recurringpb.OrderPublicStatusProcessed,
@@ -183,7 +184,14 @@ func (s *Service) AutoAcceptRoyaltyReports(
 		if err != nil {
 			return err
 		}
+
+		err = s.royaltyReportChangedEmail(ctx, report)
+
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -340,6 +348,14 @@ func (s *Service) MerchantReviewRoyaltyReport(
 
 			return nil
 		}
+	}
+
+	err = s.royaltyReportChangedEmail(ctx, report)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = err.(*billingpb.ResponseErrorMessage)
+		return nil
 	}
 
 	rsp.Status = billingpb.ResponseStatusOk
@@ -1004,5 +1020,70 @@ func (s *Service) royaltyReportSetPayoutDocumentId(ctx context.Context, reportId
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *Service) royaltyReportChangedEmail(ctx context.Context, report *billingpb.RoyaltyReport) error {
+	merchant, err := s.merchantRepository.GetById(ctx, report.MerchantId)
+
+	if err != nil {
+		zap.L().Error(
+			"get merchant for send email about royalty report document was changed failed",
+			zap.Error(err),
+			zap.Any("merchant_id", report.MerchantId),
+			zap.Any("report_id", report.Id),
+		)
+		return royaltyReportErrorMerchantNotFound
+	}
+
+	periodFrom, err := ptypes.Timestamp(report.PeriodFrom)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorTimeConversion,
+			zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
+			zap.Any(pkg.ErrorTimeConversionValue, report.PeriodFrom),
+			zap.Error(err),
+		)
+		return royaltyReportEntryErrorUnknown
+	}
+
+	periodTo, err := ptypes.Timestamp(report.PeriodTo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorTimeConversion,
+			zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
+			zap.Any(pkg.ErrorTimeConversionValue, report.PeriodTo),
+			zap.Error(err),
+		)
+		return royaltyReportEntryErrorUnknown
+	}
+
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.EmailTemplates.UpdateRoyaltyReport,
+		TemplateModel: map[string]string{
+			"merchant_id":         merchant.Id,
+			"royalty_report_id":   report.Id,
+			"period_from":         periodFrom.Format("2006-01-02"),
+			"period_to":           periodTo.Format("2006-01-02"),
+			"license_agreement":   merchant.AgreementNumber,
+			"merchant_greeting":   merchant.GetOwnerName(),
+			"royalty_reports_url": s.cfg.GetRoyaltyReportsUrl(),
+		},
+		To: merchant.GetOwnerEmail(),
+	}
+
+	err = s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+
+	if err != nil {
+		zap.L().Error(
+			"Publication message about merchant royalty report document was changed to queue failed",
+			zap.Error(err),
+			zap.Any("report", report),
+		)
+		return royaltyReportEntryErrorUnknown
+	}
+
 	return nil
 }
