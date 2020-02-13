@@ -62,7 +62,6 @@ type Service struct {
 	smtpCl                               gomail.SendCloser
 	supportedCurrencies                  []string
 	currenciesPrecision                  map[string]int32
-	orderView                            OrderViewServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
 	dashboardRepository                  DashboardRepositoryInterface
 	centrifugoPaymentForm                CentrifugoInterface
@@ -71,6 +70,7 @@ type Service struct {
 	reporterService                      reporterpb.ReporterService
 	postmarkBroker                       rabbitmq.BrokerInterface
 	casbinService                        casbinpb.CasbinService
+	notifier                             notifierpb.NotifierService
 	paymentSystemGateway                 *Gateway
 	country                              repository.CountryRepositoryInterface
 	refundRepository                     repository.RefundRepositoryInterface
@@ -96,7 +96,6 @@ type Service struct {
 	paymentChannelCostSystemRepository   repository.PaymentChannelCostSystemRepositoryInterface
 	paymentChannelCostMerchantRepository repository.PaymentChannelCostMerchantRepositoryInterface
 	paymentMinLimitSystemRepository      repository.PaymentMinLimitSystemRepositoryInterface
-	notifier                             notifierpb.NotifierService
 	keyRepository                        repository.KeyRepositoryInterface
 	keyProductRepository                 repository.KeyProductRepositoryInterface
 	productRepository                    repository.ProductRepositoryInterface
@@ -109,6 +108,7 @@ type Service struct {
 	accountingRepository                 repository.AccountingEntryRepositoryInterface
 	merchantTariffsSettingsRepository    repository.MerchantTariffsSettingsInterface
 	merchantPaymentTariffsRepository     repository.MerchantPaymentTariffsInterface
+	orderViewRepository                  repository.OrderViewRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -165,7 +165,6 @@ func NewBillingService(
 }
 
 func (s *Service) Init() (err error) {
-	s.orderView = newOrderView(s)
 	s.dashboardRepository = newDashboardRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
@@ -207,6 +206,7 @@ func (s *Service) Init() (err error) {
 	s.accountingRepository = repository.NewAccountingEntryRepository(s.db)
 	s.merchantTariffsSettingsRepository = repository.NewMerchantTariffsSettingsRepository(s.db, s.cacher)
 	s.merchantPaymentTariffsRepository = repository.NewMerchantPaymentTariffsRepository(s.db, s.cacher)
+	s.orderViewRepository = repository.NewOrderViewRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

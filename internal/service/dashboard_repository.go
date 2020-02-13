@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -452,7 +453,7 @@ func (m *DashboardRepository) NewDashboardReportProcessor(
 	processor := &DashboardReportProcessor{
 		Match:       bson.M{"merchant_id": merchantOid, "status": status, "type": "order"},
 		Db:          db,
-		Collection:  collectionOrderView,
+		Collection:  repository.CollectionOrderView,
 		Cache:       cache,
 		CacheExpire: time.Duration(0),
 		Errors: map[string]*billingpb.ResponseErrorMessage{
