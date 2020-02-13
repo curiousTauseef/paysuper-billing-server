@@ -64,7 +64,6 @@ type Service struct {
 	currenciesPrecision                  map[string]int32
 	orderView                            OrderViewServiceInterface
 	documentSigner                       document_signerpb.DocumentSignerService
-	merchantTariffRates                  MerchantTariffRatesInterface
 	dashboardRepository                  DashboardRepositoryInterface
 	centrifugoPaymentForm                CentrifugoInterface
 	centrifugoDashboard                  CentrifugoInterface
@@ -108,6 +107,8 @@ type Service struct {
 	payoutRepository                     repository.PayoutRepositoryInterface
 	customerRepository                   repository.CustomerRepositoryInterface
 	accountingRepository                 repository.AccountingEntryRepositoryInterface
+	merchantTariffsSettingsRepository    repository.MerchantTariffsSettingsInterface
+	merchantPaymentTariffsRepository     repository.MerchantPaymentTariffsInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -165,7 +166,6 @@ func NewBillingService(
 
 func (s *Service) Init() (err error) {
 	s.orderView = newOrderView(s)
-	s.merchantTariffRates = newMerchantsTariffRatesRepository(s)
 	s.dashboardRepository = newDashboardRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
@@ -205,6 +205,8 @@ func (s *Service) Init() (err error) {
 	s.payoutRepository = repository.NewPayoutRepository(s.db, s.cacher)
 	s.customerRepository = repository.NewCustomerRepository(s.db)
 	s.accountingRepository = repository.NewAccountingEntryRepository(s.db)
+	s.merchantTariffsSettingsRepository = repository.NewMerchantTariffsSettingsRepository(s.db, s.cacher)
+	s.merchantPaymentTariffsRepository = repository.NewMerchantPaymentTariffsRepository(s.db, s.cacher)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {
