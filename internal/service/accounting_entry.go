@@ -328,7 +328,7 @@ func (s *Service) processEvent(handler *accountingEntry, eventType string) error
 		return err
 	}
 
-	return handler.saveAccountingEntries(s.orderView, s.paylinkRepository, s.paylinkVisitsRepository)
+	return handler.saveAccountingEntries(s.orderViewRepository, s.paylinkRepository, s.paylinkVisitsRepository)
 }
 
 func (h *accountingEntry) processManualCorrectionEvent() error {
@@ -1026,7 +1026,7 @@ func (h *accountingEntry) addEntry(entry *billingpb.AccountingEntry) error {
 }
 
 func (h *accountingEntry) saveAccountingEntries(
-	owr OrderViewServiceInterface,
+	owr repository.OrderViewRepositoryInterface,
 	plr repository.PaylinkRepositoryInterface,
 	plvr repository.PaylinkVisitRepositoryInterface,
 ) error {

@@ -4,12 +4,11 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
-	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	tools "github.com/paysuper/paysuper-tools/number"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"time"
@@ -24,11 +23,6 @@ var (
 	errorTurnoversCurrencyRatesPolicyNotSupported = newBillingServerErrorMsg("to000001", "vat currency rates policy not supported")
 	errorTurnoversExchangeFailed                  = newBillingServerErrorMsg("to000002", "currency exchange failed")
 )
-
-type turnoverQueryResItem struct {
-	Id     string  `bson:"_id"`
-	Amount float64 `bson:"amount"`
-}
 
 func (s *Service) CalcAnnualTurnovers(ctx context.Context, req *billingpb.EmptyRequest, res *billingpb.EmptyResponse) error {
 	operatingCompanies, err := s.operatingCompanyRepository.GetAll(ctx)
@@ -166,86 +160,20 @@ func (s *Service) getTurnover(
 	from, to time.Time,
 	countryCode, targetCurrency, currencyPolicy, ratesType, ratesSource, operatingCompanyId string,
 ) (amount float64, err error) {
+	policy := []string{pkg.VatCurrencyRatesPolicyOnDay, pkg.VatCurrencyRatesPolicyLastDay}
 
-	matchQuery := bson.M{
-		"pm_order_close_date": bson.M{
-			"$gte": from,
-			"$lte": to,
-		},
-		"operating_company_id": operatingCompanyId,
-		"is_production":        true,
-		"type":                 pkg.OrderTypeOrder,
-		"status":               recurringpb.OrderPublicStatusProcessed,
-		"payment_gross_revenue_origin": bson.M{
-			"$ne": nil,
-		},
-	}
-	if countryCode != "" {
-		matchQuery["country_code"] = countryCode
-	} else {
-		matchQuery["country_code"] = bson.M{"$ne": ""}
-	}
-
-	query := []bson.M{
-		{
-			"$match": matchQuery,
-		},
-	}
-
-	switch currencyPolicy {
-	case pkg.VatCurrencyRatesPolicyOnDay:
-		query = append(query, bson.M{
-			"$group": bson.M{
-				"_id": "$payment_gross_revenue_local.currency",
-				"amount": bson.M{
-					"$sum": "$payment_gross_revenue_local.amount",
-				},
-			},
-		})
-		break
-
-	case pkg.VatCurrencyRatesPolicyLastDay:
-		query = append(query, bson.M{
-			"$group": bson.M{
-				"_id": "$payment_gross_revenue_origin.currency",
-				"amount": bson.M{
-					"$sum": "$payment_gross_revenue_origin.amount",
-				},
-			},
-		})
-		break
-
-	default:
+	if !helper.Contains(policy, currencyPolicy) {
 		err = errorTurnoversCurrencyRatesPolicyNotSupported
 		return
 	}
 
-	cursor, err := s.db.Collection(collectionOrderView).Aggregate(ctx, query)
+	res, err := s.orderViewRepository.GetTurnoverSummary(ctx, operatingCompanyId, countryCode, currencyPolicy, from, to)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			err = nil
 			return
 		}
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return
-	}
-
-	var res []*turnoverQueryResItem
-	err = cursor.All(ctx, &res)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return
 	}
 

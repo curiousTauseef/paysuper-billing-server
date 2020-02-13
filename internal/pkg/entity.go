@@ -46,3 +46,28 @@ type ReserveQueryResItem struct {
 	Type   string  `bson:"_id"`
 	Amount float64 `bson:"amount"`
 }
+
+type VatReportQueryResItem struct {
+	Id                             string  `bson:"_id"`
+	Count                          int32   `bson:"count"`
+	PaymentGrossRevenueLocal       float64 `bson:"payment_gross_revenue_local"`
+	PaymentTaxFeeLocal             float64 `bson:"payment_tax_fee_local"`
+	PaymentRefundGrossRevenueLocal float64 `bson:"payment_refund_gross_revenue_local"`
+	PaymentRefundTaxFeeLocal       float64 `bson:"payment_refund_tax_fee_local"`
+	PaymentFeesTotal               float64 `bson:"fees_total"`
+	PaymentRefundFeesTotal         float64 `bson:"refund_fees_total"`
+}
+
+type TurnoverQueryResItem struct {
+	Id     string  `bson:"_id"`
+	Amount float64 `bson:"amount"`
+}
+
+type RoyaltyReportMerchant struct {
+	Id primitive.ObjectID `bson:"_id"`
+}
+
+type RoyaltySummaryResult struct {
+	Items []*billingpb.RoyaltyReportProductSummaryItem `bson:"top"`
+	Total *billingpb.RoyaltyReportProductSummaryItem   `bson:"total"`
+}

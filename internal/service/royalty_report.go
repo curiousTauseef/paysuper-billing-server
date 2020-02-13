@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
+	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -55,10 +56,6 @@ var (
 	}
 )
 
-type RoyaltyReportMerchant struct {
-	Id primitive.ObjectID `bson:"_id"`
-}
-
 type royaltyHandler struct {
 	*Service
 	from time.Time
@@ -86,7 +83,7 @@ func (s *Service) CreateRoyaltyReport(
 
 	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
 
-	var merchants []*RoyaltyReportMerchant
+	var merchants []*pkg2.RoyaltyReportMerchant
 
 	if len(req.Merchants) > 0 {
 		for _, v := range req.Merchants {
@@ -96,10 +93,10 @@ func (s *Service) CreateRoyaltyReport(
 				continue
 			}
 
-			merchants = append(merchants, &RoyaltyReportMerchant{Id: oid})
+			merchants = append(merchants, &pkg2.RoyaltyReportMerchant{Id: oid})
 		}
 	} else {
-		merchants = s.getRoyaltyReportMerchantsByPeriod(ctx, from, to)
+		merchants, _ = s.orderViewRepository.GetRoyaltyForMerchants(ctx, orderStatusForRoyaltyReports, from, to)
 	}
 
 	if len(merchants) <= 0 {
@@ -574,7 +571,7 @@ func (s *Service) ListRoyaltyReportOrders(
 		"is_production":       true,
 	}
 
-	ts, err := s.orderView.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
+	ts, err := s.orderViewRepository.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
 
 	if err != nil {
 		return err
@@ -586,50 +583,6 @@ func (s *Service) ListRoyaltyReportOrders(
 	}
 
 	return nil
-}
-
-func (s *Service) getRoyaltyReportMerchantsByPeriod(ctx context.Context, from, to time.Time) []*RoyaltyReportMerchant {
-	var merchants []*RoyaltyReportMerchant
-
-	query := []bson.M{
-		{
-			"$match": bson.M{
-				"pm_order_close_date": bson.M{"$gte": from, "$lte": to},
-				"status":              bson.M{"$in": orderStatusForRoyaltyReports},
-				"is_production":       true,
-			},
-		},
-		{"$project": bson.M{"project.merchant_id": true}},
-		{"$group": bson.M{"_id": "$project.merchant_id"}},
-	}
-
-	cursor, err := s.db.Collection(collectionOrderView).Aggregate(ctx, query)
-
-	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-		}
-		return nil
-	}
-
-	err = cursor.All(ctx, &merchants)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil
-	}
-
-	return merchants
 }
 
 func (h *royaltyHandler) getRoyaltyReportCorrections(ctx context.Context, merchantId, currency string) (
@@ -697,7 +650,7 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		return royaltyReportErrorAlreadyExistsAndCannotBeUpdated
 	}
 
-	summaryItems, summaryTotal, err := h.orderView.GetRoyaltySummary(ctx, merchant.Id, merchant.GetPayoutCurrency(), h.from, h.to)
+	summaryItems, summaryTotal, err := h.orderViewRepository.GetRoyaltySummary(ctx, merchant.Id, merchant.GetPayoutCurrency(), h.from, h.to)
 	if err != nil {
 		return err
 	}

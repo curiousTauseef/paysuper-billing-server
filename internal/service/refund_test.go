@@ -19,7 +19,6 @@ import (
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
@@ -1543,13 +1542,8 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 	assert.NotNil(suite.T(), originalOrder)
 	assert.False(suite.T(), originalOrder.IsRefundAllowed)
 
-	oid, err := primitive.ObjectIDFromHex(refund.OriginalOrder.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-
 	// check RefundAllowed flag for original order has correct value on order view
-	originalOrderViewPublic := new(billingpb.OrderViewPublic)
-	err = suite.service.db.Collection(collectionOrderView).FindOne(context.TODO(), filter).Decode(&originalOrderViewPublic)
+	originalOrderViewPublic, err := suite.service.orderViewRepository.GetById(context.TODO(), refund.OriginalOrder.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), originalOrder)
 	assert.False(suite.T(), originalOrderViewPublic.RefundAllowed)
