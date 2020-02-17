@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/go-querystring/query"
 	"github.com/jinzhu/now"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,7 +17,7 @@ import (
 	"time"
 )
 
-type orderViewPaylinkStatFunc func(OrderViewServiceInterface, context.Context, string, string, int64, int64) (*billingpb.GroupStatCommon, error)
+type orderViewPaylinkStatFunc func(repository.OrderViewRepositoryInterface, context.Context, string, string, int64, int64) (*billingpb.GroupStatCommon, error)
 
 type utmQueryParams struct {
 	UtmSource   string `url:"utm_source,omitempty"`
@@ -37,10 +38,10 @@ var (
 	errorPaylinkProductNotFoundOrInvalidType = newBillingServerErrorMsg("pl000010", "at least one of paylink products is not found or have type differ from given products_type value")
 
 	orderViewPaylinkStatFuncMap = map[string]orderViewPaylinkStatFunc{
-		"GetPaylinkStatByCountry":  OrderViewServiceInterface.GetPaylinkStatByCountry,
-		"GetPaylinkStatByReferrer": OrderViewServiceInterface.GetPaylinkStatByReferrer,
-		"GetPaylinkStatByDate":     OrderViewServiceInterface.GetPaylinkStatByDate,
-		"GetPaylinkStatByUtm":      OrderViewServiceInterface.GetPaylinkStatByUtm,
+		"GetPaylinkStatByCountry":  repository.OrderViewRepositoryInterface.GetPaylinkStatByCountry,
+		"GetPaylinkStatByReferrer": repository.OrderViewRepositoryInterface.GetPaylinkStatByReferrer,
+		"GetPaylinkStatByDate":     repository.OrderViewRepositoryInterface.GetPaylinkStatByDate,
+		"GetPaylinkStatByUtm":      repository.OrderViewRepositoryInterface.GetPaylinkStatByUtm,
 	}
 )
 
@@ -138,7 +139,7 @@ func (s *Service) GetPaylinkTransactions(
 		"issuer.reference":      pl.Id,
 	}
 
-	ts, err := s.orderView.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
+	ts, err := s.orderViewRepository.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
 
 	if err != nil {
 		return err
@@ -429,7 +430,7 @@ func (s *Service) GetPaylinkStatTotal(
 		return err
 	}
 
-	res.Item, err = s.orderView.GetPaylinkStat(ctx, pl.Id, req.MerchantId, req.PeriodFrom, req.PeriodTo)
+	res.Item, err = s.orderViewRepository.GetPaylinkStat(ctx, pl.Id, req.MerchantId, req.PeriodFrom, req.PeriodTo)
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 			res.Status = billingpb.ResponseStatusBadData
@@ -520,7 +521,7 @@ func (s *Service) getPaylinkStatGroup(
 		return err
 	}
 
-	res.Item, err = orderViewPaylinkStatFuncMap[function](s.orderView, ctx, pl.Id, pl.MerchantId, req.PeriodFrom, req.PeriodTo)
+	res.Item, err = orderViewPaylinkStatFuncMap[function](s.orderViewRepository, ctx, pl.Id, pl.MerchantId, req.PeriodFrom, req.PeriodTo)
 	if err != nil {
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 			res.Status = billingpb.ResponseStatusBadData

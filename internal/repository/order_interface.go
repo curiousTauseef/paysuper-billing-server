@@ -24,4 +24,7 @@ type OrderRepositoryInterface interface {
 
 	// GetByProjectOrderId returns a order by project and order identifiers.
 	GetByProjectOrderId(context.Context, string, string) (*billingpb.Order, error)
+
+	// UpdateOrderView updates orders into order view.
+	UpdateOrderView(context.Context, []string) error
 }

@@ -5,16 +5,7 @@ import (
 	"go.uber.org/zap"
 	"net"
 	"net/url"
-	"sync"
-	"time"
 )
-
-type Entity struct {
-	svc *Service
-	mx  sync.Mutex
-}
-
-type OrderView Entity
 
 type Repository struct {
 	svc *Service
@@ -30,15 +21,6 @@ type kvIntFloat struct {
 type kvIntInt struct {
 	Key   int
 	Value int32
-}
-
-func timeTrack(start time.Time, name string) {
-	elapsed := time.Since(start)
-	zap.L().Info(
-		"function execution time",
-		zap.String("name", name),
-		zap.Duration("time", elapsed),
-	)
 }
 
 func getHostFromUrl(urlString string) string {

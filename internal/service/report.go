@@ -27,7 +27,7 @@ func (s *Service) FindAllOrdersPublic(
 	req *billingpb.ListOrdersRequest,
 	rsp *billingpb.ListOrdersPublicResponse,
 ) error {
-	count, orders, err := s.getOrdersList(ctx, req, collectionOrderView, make([]*billingpb.OrderViewPublic, 1))
+	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrderView, make([]*billingpb.OrderViewPublic, 1))
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -59,7 +59,7 @@ func (s *Service) FindAllOrdersPrivate(
 	req *billingpb.ListOrdersRequest,
 	rsp *billingpb.ListOrdersPrivateResponse,
 ) error {
-	count, orders, err := s.getOrdersList(ctx, req, collectionOrderView, make([]*billingpb.OrderViewPrivate, 1))
+	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrderView, make([]*billingpb.OrderViewPrivate, 1))
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -105,15 +105,11 @@ func (s *Service) GetOrderPublic(
 	req *billingpb.GetOrderRequest,
 	rsp *billingpb.GetOrderPublicResponse,
 ) error {
-	order, err := s.orderView.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPublic))
+	order, err := s.orderViewRepository.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPublic))
 
 	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
-		if err == orderErrorNotFound {
-			rsp.Status = billingpb.ResponseStatusNotFound
-		}
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = orderErrorNotFound
 
 		return nil
 	}
@@ -137,15 +133,11 @@ func (s *Service) GetOrderPrivate(
 	req *billingpb.GetOrderRequest,
 	rsp *billingpb.GetOrderPrivateResponse,
 ) error {
-	order, err := s.orderView.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPrivate))
+	order, err := s.orderViewRepository.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPrivate))
 
 	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
-		if err == orderErrorNotFound {
-			rsp.Status = billingpb.ResponseStatusNotFound
-		}
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = orderErrorNotFound
 
 		return nil
 	}

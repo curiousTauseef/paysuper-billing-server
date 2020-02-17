@@ -17,7 +17,6 @@ import (
 	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
@@ -358,70 +357,12 @@ func (suite *TurnoversTestSuite) fillAccountingEntries(operatingCompanyId, count
 		count++
 	}
 
-	err = handler.saveAccountingEntries(suite.service.orderView, suite.service.paylinkRepository, suite.service.paylinkVisitsRepository)
+	err = handler.saveAccountingEntries(suite.service.orderViewRepository, suite.service.paylinkRepository, suite.service.paylinkVisitsRepository)
 	assert.NoError(suite.T(), err)
 }
 
 func (suite *TurnoversTestSuite) getTurnoverReference(from, to time.Time, operatingCompanyId, countryCode, targetCurrency, currencyPolicy string) float64 {
-	matchQuery := bson.M{
-		"pm_order_close_date": bson.M{
-			"$gte": from,
-			"$lte": to,
-		},
-		"operating_company_id": operatingCompanyId,
-		"is_production":        true,
-		"type":                 pkg.OrderTypeOrder,
-		"status":               recurringpb.OrderPublicStatusProcessed,
-		"payment_gross_revenue_origin": bson.M{
-			"$ne": nil,
-		},
-		"payment_gross_revenue_local": bson.M{
-			"$ne": nil,
-		},
-	}
-	if countryCode != "" {
-		matchQuery["country_code"] = countryCode
-	} else {
-		matchQuery["country_code"] = bson.M{"$ne": ""}
-	}
-
-	query := []bson.M{
-		{
-			"$match": matchQuery,
-		},
-	}
-
-	switch currencyPolicy {
-	case pkg.VatCurrencyRatesPolicyOnDay:
-		query = append(query, bson.M{
-			"$group": bson.M{
-				"_id": "$payment_gross_revenue_local.currency",
-				"amount": bson.M{
-					"$sum": "$payment_gross_revenue_local.amount",
-				},
-			},
-		})
-		break
-
-	case pkg.VatCurrencyRatesPolicyLastDay:
-		query = append(query, bson.M{
-			"$group": bson.M{
-				"_id": "$payment_gross_revenue_origin.currency",
-				"amount": bson.M{
-					"$sum": "$payment_gross_revenue_origin.amount",
-				},
-			},
-		})
-		break
-
-	default:
-		return -1
-	}
-
-	var res []*turnoverQueryResItem
-
-	cursor, err := suite.service.db.Collection(collectionOrderView).Aggregate(context.TODO(), query)
-	assert.NoError(suite.T(), err)
+	res, err := suite.service.orderViewRepository.GetTurnoverSummary(context.TODO(), operatingCompanyId, countryCode, currencyPolicy, from, to)
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -430,8 +371,6 @@ func (suite *TurnoversTestSuite) getTurnoverReference(from, to time.Time, operat
 		assert.NoError(suite.T(), err)
 	}
 
-	err = cursor.All(context.TODO(), &res)
-	assert.NoError(suite.T(), err)
 	amount := float64(0)
 
 	for _, v := range res {
