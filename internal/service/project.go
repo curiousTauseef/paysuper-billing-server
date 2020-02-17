@@ -341,11 +341,6 @@ func (s *Service) updateProject(ctx context.Context, req *billingpb.Project, pro
 	project.UrlRedirectSuccess = req.UrlRedirectSuccess
 	project.Status = req.Status
 	project.UpdatedAt = ptypes.TimestampNow()
-
-	if project.NeedChangeStatusToDraft(req) == true {
-		project.Status = billingpb.ProjectStatusDraft
-	}
-
 	project.CallbackProtocol = req.CallbackProtocol
 	project.UrlCheckAccount = req.UrlCheckAccount
 	project.UrlProcessPayment = req.UrlProcessPayment

@@ -1284,3 +1284,79 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_OnlyT
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), reports)
 }
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_DisputeAndCorrection_SendEmail_MerchantNotFound_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report := new(billingpb.RoyaltyReport)
+	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.EqualValues(suite.T(), -62135596800, report.AcceptedAt.Seconds)
+	assert.Len(suite.T(), report.Summary.Corrections, 0)
+	assert.Equal(suite.T(), report.Totals.CorrectionAmount, float64(0))
+
+	merchantRepositoryMock := &mocks.MerchantRepositoryInterface{}
+	merchantRepositoryMock.On("GetById", mock.Anything, mock.Anything).
+		Return(nil, errors.New("some error"))
+	suite.service.merchantRepository = merchantRepositoryMock
+
+	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
+		ReportId:      report.Id,
+		IsAccepted:    false,
+		DisputeReason: "unit-test",
+		Ip:            "127.0.0.1",
+	}
+	rsp1 := &billingpb.ResponseError{}
+	err = suite.service.MerchantReviewRoyaltyReport(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), rsp1.Message, royaltyReportErrorMerchantNotFound)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_DisputeAndCorrection_SendEmail_MessagePublish_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report := new(billingpb.RoyaltyReport)
+	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.EqualValues(suite.T(), -62135596800, report.AcceptedAt.Seconds)
+	assert.Len(suite.T(), report.Summary.Corrections, 0)
+	assert.Equal(suite.T(), report.Totals.CorrectionAmount, float64(0))
+
+	brokerMock := &mocks.BrokerInterface{}
+	brokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("some error"))
+	suite.service.postmarkBroker = brokerMock
+
+	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
+		ReportId:      report.Id,
+		IsAccepted:    false,
+		DisputeReason: "unit-test",
+		Ip:            "127.0.0.1",
+	}
+	rsp1 := &billingpb.ResponseError{}
+	err = suite.service.MerchantReviewRoyaltyReport(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), rsp1.Message, royaltyReportEntryErrorUnknown)
+}
