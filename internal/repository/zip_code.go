@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -29,7 +30,17 @@ func NewZipCodeRepository(db mongodb.SourceInterface, cache database.CacheInterf
 }
 
 func (h *zipCodeRepository) Insert(ctx context.Context, zipCode *billingpb.ZipCode) error {
-	_, err := h.db.Collection(collectionZipCode).InsertOne(ctx, zipCode)
+	mgo, err := models.MapZipCodeToMgo(zipCode)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, zipCode),
+		)
+		return err
+	}
+
+	_, err = h.db.Collection(collectionZipCode).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -58,15 +69,16 @@ func (h *zipCodeRepository) Insert(ctx context.Context, zipCode *billingpb.ZipCo
 }
 
 func (h *zipCodeRepository) GetByZipAndCountry(ctx context.Context, zip, country string) (*billingpb.ZipCode, error) {
-	data := &billingpb.ZipCode{}
+	obj := &billingpb.ZipCode{}
 	var key = fmt.Sprintf(cacheZipCodeByZipAndCountry, zip, country)
 
-	if err := h.cache.Get(key, data); err == nil {
-		return data, nil
+	if err := h.cache.Get(key, obj); err == nil {
+		return obj, nil
 	}
 
 	query := bson.M{"zip": zip, "country": country}
-	err := h.db.Collection(collectionZipCode).FindOne(ctx, query).Decode(&data)
+	var mgo = models.MgoZipCode{}
+	err := h.db.Collection(collectionZipCode).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -78,22 +90,30 @@ func (h *zipCodeRepository) GetByZipAndCountry(ctx context.Context, zip, country
 		return nil, err
 	}
 
-	if err = h.cache.Set(key, data, 0); err != nil {
+	obj, err = models.MapMgoToZipCode(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+	}
+
+	if err = h.cache.Set(key, obj, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, data),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
 		)
 	}
 
-	return data, nil
+	return obj, nil
 }
 
 func (h *zipCodeRepository) FindByZipAndCountry(ctx context.Context, zip, country string, offset, limit int64) ([]*billingpb.ZipCode, error) {
-	var data []*billingpb.ZipCode
-
 	query := bson.D{{"zip", primitive.Regex{Pattern: zip}}, {"country", country}}
 	opts := options.Find().SetLimit(limit).SetSkip(offset)
 	cursor, err := h.db.Collection(collectionZipCode).Find(ctx, query, opts)
@@ -108,7 +128,8 @@ func (h *zipCodeRepository) FindByZipAndCountry(ctx context.Context, zip, countr
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &data)
+	var mgoZipCodes []*models.MgoZipCode
+	err = cursor.All(ctx, &mgoZipCodes)
 
 	if err != nil {
 		zap.L().Error(
@@ -120,7 +141,21 @@ func (h *zipCodeRepository) FindByZipAndCountry(ctx context.Context, zip, countr
 		return nil, err
 	}
 
-	return data, nil
+	objs := make([]*billingpb.ZipCode, len(mgoZipCodes))
+
+	for i, obj := range mgoZipCodes {
+		objs[i], err = models.MapMgoToZipCode(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+	}
+
+	return objs, nil
 }
 
 func (h *zipCodeRepository) CountByZip(ctx context.Context, zip, country string) (int64, error) {
