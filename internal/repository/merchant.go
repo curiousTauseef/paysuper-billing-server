@@ -11,7 +11,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
-	"log"
 )
 
 const (
@@ -206,9 +205,7 @@ func (h *merchantRepository) UpdateTariffs(ctx context.Context, merchantId strin
 		"tariff.payment.$.is_active":          tariff.IsActive,
 	}
 
-	res, err := h.db.Collection(CollectionMerchant).UpdateOne(ctx, query, set)
-
-	log.Println(res)
+	_, err = h.db.Collection(CollectionMerchant).UpdateOne(ctx, query, set)
 
 	if err != nil {
 		zap.L().Error(
