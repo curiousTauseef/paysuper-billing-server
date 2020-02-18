@@ -50,6 +50,11 @@ func (suite *PriceGroupTestSuite) SetupTest() {
 	}
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -112,6 +117,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetPriceGroup_Error_NotFound() 
 func (suite *PriceGroupTestSuite) TestPriceGroup_GetPriceGroup_Ok() {
 	id := primitive.NewObjectID().Hex()
 	err := suite.service.priceGroupRepository.Insert(context.TODO(), &billingpb.PriceGroup{Id: id, Currency: "USD", IsActive: true})
+	assert.NoError(suite.T(), err)
 
 	pgReq := &billingpb.GetPriceGroupRequest{
 		Id: id,

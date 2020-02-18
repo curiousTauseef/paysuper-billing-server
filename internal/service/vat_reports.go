@@ -242,6 +242,11 @@ func (s *Service) GetVatReportTransactions(
 	}
 
 	n, err := s.orderViewRepository.CountTransactions(ctx, match)
+
+	if err != nil {
+		return err
+	}
+
 	vts, err := s.orderViewRepository.GetTransactionsPrivate(ctx, match, req.Limit, req.Offset)
 
 	if err != nil {
@@ -738,7 +743,7 @@ func (h *vatReportProcessor) processAccountingEntriesForPeriod(ctx context.Conte
 		now.New(to).EndOfDay(),
 	)
 
-	if len(aes) == 0 {
+	if err != nil || len(aes) == 0 {
 		return nil
 	}
 

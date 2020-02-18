@@ -326,6 +326,11 @@ func (suite *OnboardingTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -1037,6 +1042,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_StatusesQuery_Ok(
 
 	merchant.Status = billingpb.MerchantStatusAgreementSigned
 	err = suite.service.merchantRepository.Update(ctx, merchant)
+	assert.NoError(suite.T(), err)
 
 	// Create merchant with MerchantStatusAgreementSigning status
 	req.User.Id = primitive.NewObjectID().Hex()
@@ -1051,6 +1057,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_StatusesQuery_Ok(
 
 	merchant.Status = billingpb.MerchantStatusAgreementSigning
 	err = suite.service.merchantRepository.Update(ctx, merchant)
+	assert.NoError(suite.T(), err)
 
 	// Create merchant with MerchantStatusAgreementSigned status
 	req.User.Id = primitive.NewObjectID().Hex()
@@ -1065,6 +1072,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_StatusesQuery_Ok(
 
 	merchant.Status = billingpb.MerchantStatusAgreementSigned
 	err = suite.service.merchantRepository.Update(ctx, merchant)
+	assert.NoError(suite.T(), err)
 
 	// Create merchant with MerchantStatusAgreementSigned status
 	req.User.Id = primitive.NewObjectID().Hex()
@@ -1079,6 +1087,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_StatusesQuery_Ok(
 
 	merchant.Status = billingpb.MerchantStatusAgreementSigned
 	err = suite.service.merchantRepository.Update(ctx, merchant)
+	assert.NoError(suite.T(), err)
 
 	// List merchants by status
 	req1 := &billingpb.MerchantListingRequest{Statuses: []int32{billingpb.MerchantStatusDraft}}
@@ -2112,6 +2121,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchantData_Ok() {
 	merchant.Status = billingpb.MerchantStatusAgreementSigning
 	merchant.AgreementType = pkg.MerchantAgreementTypeESign
 	err = suite.service.merchantRepository.Update(context.TODO(), merchant)
+	assert.NoError(suite.T(), err)
 
 	req1 := &billingpb.ChangeMerchantDataRequest{
 		MerchantId:           merchant.Id,
@@ -3303,6 +3313,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 		}
 
 		err = suite.service.merchantRepository.Upsert(context.TODO(), rsp.Item)
+		assert.NoError(suite.T(), err)
 	}
 
 	req2 := &billingpb.MerchantListingRequest{RegistrationDateFrom: time.Now().Add(-49 * time.Hour).Unix()}
@@ -3354,6 +3365,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 		}
 
 		err = suite.service.merchantRepository.Upsert(context.TODO(), rsp.Item)
+		assert.NoError(suite.T(), err)
 	}
 
 	req2 := &billingpb.MerchantListingRequest{ReceivedDateFrom: time.Now().Add(-49 * time.Hour).Unix()}
@@ -3871,6 +3883,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchantData_SignedPublis
 
 	merchant.Status = billingpb.MerchantStatusAgreementSigning
 	err = suite.service.merchantRepository.Update(context.TODO(), merchant)
+	assert.NoError(suite.T(), err)
 
 	suite.service.postmarkBroker = mocks.NewBrokerMockError()
 	req1 := &billingpb.ChangeMerchantDataRequest{

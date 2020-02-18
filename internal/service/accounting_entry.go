@@ -509,6 +509,10 @@ func (h *accountingEntry) processPaymentEvent() error {
 	// 16. merchantMethodFixedFee
 	merchantMethodFixedFee := h.newEntry(pkg.AccountingEntryTypeMerchantMethodFixedFee)
 	merchantMethodFixedFee.Amount, err = h.GetExchangePsCurrentMerchant(paymentChannelCostMerchant.MethodFixAmountCurrency, paymentChannelCostMerchant.MethodFixAmount)
+	if err != nil {
+		return err
+	}
+
 	if err = h.addEntry(merchantMethodFixedFee); err != nil {
 		return err
 	}
@@ -516,6 +520,10 @@ func (h *accountingEntry) processPaymentEvent() error {
 	// 17. realMerchantMethodFixedFee
 	realMerchantMethodFixedFee := h.newEntry(pkg.AccountingEntryTypeRealMerchantMethodFixedFee)
 	realMerchantMethodFixedFee.Amount, err = h.GetExchangePsCurrentCommon(paymentChannelCostMerchant.MethodFixAmountCurrency, paymentChannelCostMerchant.MethodFixAmount)
+	if err != nil {
+		return err
+	}
+
 	if err = h.addEntry(realMerchantMethodFixedFee); err != nil {
 		return err
 	}
@@ -659,7 +667,7 @@ func (h *accountingEntry) processRefundEvent() error {
 	realRefundTaxFee.OriginalAmount = realTaxFee.OriginalAmount * partialRefundCorrection
 	realRefundTaxFee.OriginalCurrency = realTaxFee.OriginalCurrency
 
-	// fills with original values, if not deduction, to substract the same vat amount that was added on payment
+	// fills with original values, if not deduction, to subtract the same vat amount that was added on payment
 	// otherwise local values will be automatically re-calculated with exchange rates for current vat period
 	if !h.refundOrder.IsVatDeduction {
 		realRefundTaxFee.LocalAmount = realTaxFee.LocalAmount * partialRefundCorrection
@@ -680,6 +688,10 @@ func (h *accountingEntry) processRefundEvent() error {
 	// 4. realRefundFixedFee
 	realRefundFixedFee := h.newEntry(pkg.AccountingEntryTypeRealRefundFixedFee)
 	realRefundFixedFee.Amount, err = h.GetExchangePsCurrentCommon(moneyBackCostSystem.FixAmountCurrency, moneyBackCostSystem.FixAmount)
+	if err != nil {
+		return err
+	}
+
 	if err = h.addEntry(realRefundFixedFee); err != nil {
 		return err
 	}
@@ -1406,7 +1418,7 @@ func (s *Service) FixTaxes(ctx context.Context) error {
 	}
 
 	if hasErrors {
-		return errors.New("errors occured while processing tax fixes")
+		return errors.New("errors occurred while processing tax fixes")
 	}
 
 	return nil

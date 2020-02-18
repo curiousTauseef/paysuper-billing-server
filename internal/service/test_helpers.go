@@ -11,21 +11,19 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
-	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math/rand"
 	"strconv"
 	"time"
 )
 
-func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
+func HelperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 	*billingpb.Merchant,
 	*billingpb.Project,
 	*billingpb.PaymentMethod,
@@ -51,7 +49,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		suite.FailNow("Insert PaymentMinLimitSystem test data failed", "%v", err)
 	}
 
-	operatingCompany := helperOperatingCompany(suite, service)
+	operatingCompany := HelperOperatingCompany(suite, service)
 
 	keyRub := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
 	keyUsd := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
@@ -139,9 +137,9 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		RefundAllowed:   true,
 	}
 
-	merchant := helperCreateMerchant(suite, service, "USD", "RU", pmBankCard, 0, operatingCompany.Id)
+	merchant := HelperCreateMerchant(suite, service, "USD", "RU", pmBankCard, 0, operatingCompany.Id)
 
-	projectFixedAmount := helperCreateProject(suite, service, merchant.Id, billingpb.VatPayerBuyer)
+	projectFixedAmount := HelperCreateProject(suite, service, merchant.Id, billingpb.VatPayerBuyer)
 
 	bin := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
@@ -363,7 +361,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 	return merchant, projectFixedAmount, pmBankCard, paymentSystem
 }
 
-func helperOperatingCompany(
+func HelperOperatingCompany(
 	suite suite.Suite,
 	service *Service,
 ) *billingpb.OperatingCompany {
@@ -389,7 +387,7 @@ func helperOperatingCompany(
 	return operatingCompany
 }
 
-func helperCreateMerchant(
+func HelperCreateMerchant(
 	suite suite.Suite,
 	service *Service,
 	currency string,
@@ -763,7 +761,7 @@ func helperCreateMerchant(
 	return merchant
 }
 
-func helperCreateProject(
+func HelperCreateProject(
 	suite suite.Suite,
 	service *Service,
 	merchantId string,
@@ -813,7 +811,7 @@ func helperCreateProject(
 	return project
 }
 
-func helperCreateAndPayPaylinkOrder(
+func HelperCreateAndPayPaylinkOrder(
 	suite suite.Suite,
 	service *Service,
 	paylinkId, country string,
@@ -859,10 +857,10 @@ func helperCreateAndPayPaylinkOrder(
 	assert.NotNil(suite.T(), order)
 	assert.IsType(suite.T(), &billingpb.Order{}, order)
 
-	return helperPayOrder(suite, service, order, paymentMethod, country)
+	return HelperPayOrder(suite, service, order, paymentMethod, country)
 }
 
-func helperCreateAndPayOrder(
+func HelperCreateAndPayOrder(
 	suite suite.Suite,
 	service *Service,
 	amount float64,
@@ -905,10 +903,10 @@ func helperCreateAndPayOrder(
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
 
-	return helperPayOrder(suite, service, rsp.Item, paymentMethod, country)
+	return HelperPayOrder(suite, service, rsp.Item, paymentMethod, country)
 }
 
-func helperPayOrder(
+func HelperPayOrder(
 	suite suite.Suite,
 	service *Service,
 	order *billingpb.Order,
@@ -1001,7 +999,7 @@ func helperPayOrder(
 	return order
 }
 
-func helperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Order, amount float64, isChargeback bool) *billingpb.Refund {
+func HelperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Order, amount float64, isChargeback bool) *billingpb.Refund {
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:      order.Uuid,
 		Amount:       amount,
@@ -1062,17 +1060,15 @@ func helperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Orde
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp3.Status)
 	assert.Empty(suite.T(), rsp3.Error)
 
-	var refund *billingpb.Refund
-	oid, _ := primitive.ObjectIDFromHex(rsp2.Item.Id)
-	filter := bson.M{"_id": oid}
-	err = service.db.Collection(repository.CollectionRefund).FindOne(context.TODO(), filter).Decode(&refund)
+	refund, err := service.refundRepository.GetById(context.TODO(), rsp2.Item.Id)
+	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), refund)
 	assert.Equal(suite.T(), pkg.RefundStatusCompleted, refund.Status)
 
 	return refund
 }
 
-func createProductsForProject(
+func CreateProductsForProject(
 	suite suite.Suite,
 	service *Service,
 	project *billingpb.Project,
@@ -1125,7 +1121,7 @@ func createProductsForProject(
 	return products
 }
 
-func createKeyProductsForProject(
+func CreateKeyProductsForProject(
 	suite suite.Suite,
 	service *Service,
 	project *billingpb.Project,
@@ -1203,7 +1199,7 @@ func createKeyProductsForProject(
 	return products
 }
 
-func helperCreateAndPayOrder2(
+func HelperCreateAndPayOrder2(
 	suite suite.Suite,
 	service *Service,
 	amount float64,

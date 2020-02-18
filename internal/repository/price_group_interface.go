@@ -22,6 +22,6 @@ type PriceGroupRepositoryInterface interface {
 	// GetByRegion returns the price group by region name.
 	GetByRegion(context.Context, string) (*billingpb.PriceGroup, error)
 
-	// GetByRegion returns all price groups.
+	// GetAll returns all price groups.
 	GetAll(context.Context) ([]*billingpb.PriceGroup, error)
 }

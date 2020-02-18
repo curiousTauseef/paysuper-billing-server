@@ -172,7 +172,6 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 	defer helper.TimeTrack(time.Now(), "updateOrderView")
 
 	idsHex := []primitive.ObjectID{}
-	match := bson.M{}
 
 	for _, id := range ids {
 		oid, err := primitive.ObjectIDFromHex(id)
@@ -183,6 +182,8 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 
 		idsHex = append(idsHex, oid)
 	}
+
+	var match bson.M
 
 	if len(idsHex) == 1 {
 		match = bson.M{
