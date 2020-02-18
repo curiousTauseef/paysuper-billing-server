@@ -125,7 +125,6 @@ func (app *Application) Init() {
 
 	options := []micro.Option{
 		micro.Name(billingpb.ServiceName),
-		micro.Version(billingpb.ServiceVersion),
 		micro.WrapHandler(metrics.NewHandlerWrapper()),
 		micro.AfterStop(func() error {
 			app.logger.Info("Micro service stopped")
