@@ -187,7 +187,7 @@ func (h *merchantRepository) UpdateTariffs(ctx context.Context, merchantId strin
 		"_id": oid,
 		"tariff.payment": bson.M{
 			"$elemMatch": bson.M{
-				"method_name":               tariff.Name,
+				"method_name":               primitive.Regex{Pattern: tariff.Name, Options: "i"},
 				"payer_region":              tariff.Region,
 				"mcc_code":                  tariff.MccCode,
 				"method_fixed_fee_currency": tariff.MethodFixAmountCurrency,
