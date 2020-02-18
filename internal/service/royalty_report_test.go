@@ -14,6 +14,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -1224,7 +1225,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
 	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	err = suite.service.db.Collection(repository.CollectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
@@ -1262,7 +1263,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
 	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	err = suite.service.db.Collection(repository.CollectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
