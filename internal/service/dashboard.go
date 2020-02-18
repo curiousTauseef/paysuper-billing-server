@@ -7,8 +7,7 @@ import (
 )
 
 var (
-	dashboardErrorUnknown         = newBillingServerErrorMsg("db000001", "unknown error. try request later")
-	dashboardErrorIncorrectPeriod = newBillingServerErrorMsg("db000002", "incorrect dashboard period")
+	dashboardErrorUnknown = newBillingServerErrorMsg("db000001", "unknown error. try request later")
 )
 
 func (s *Service) GetDashboardMainReport(
@@ -33,7 +32,7 @@ func (s *Service) GetDashboardMainReport(
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
+		rsp.Message = dashboardErrorUnknown
 
 		return nil
 	}
@@ -66,7 +65,7 @@ func (s *Service) GetDashboardRevenueDynamicsReport(
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
+		rsp.Message = dashboardErrorUnknown
 
 		return nil
 	}
@@ -99,7 +98,7 @@ func (s *Service) GetDashboardBaseReport(
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
+		rsp.Message = dashboardErrorUnknown
 
 		return nil
 	}

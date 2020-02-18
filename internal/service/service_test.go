@@ -62,6 +62,11 @@ func (suite *BillingServiceTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	cache, err := database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -331,6 +336,11 @@ func (suite *BillingServiceTestSuite) TestBillingService_AccountingCurrencyInitE
 	assert.NoError(suite.T(), err)
 
 	suite.cache, err = database.NewCacheRedis(mocks.NewTestRedis(), "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	service := NewBillingService(
 		suite.db,
 		cfg,

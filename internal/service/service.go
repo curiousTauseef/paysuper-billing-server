@@ -48,67 +48,69 @@ const (
 )
 
 type Service struct {
-	db                                   mongodb.SourceInterface
-	mx                                   sync.Mutex
-	cfg                                  *config.Config
-	ctx                                  context.Context
-	geo                                  proto.GeoIpService
-	rep                                  recurringpb.RepositoryService
-	tax                                  taxpb.TaxService
-	broker                               rabbitmq.BrokerInterface
-	redis                                redis.Cmdable
-	cacher                               database.CacheInterface
-	curService                           currenciespb.CurrencyRatesService
-	smtpCl                               gomail.SendCloser
-	supportedCurrencies                  []string
-	currenciesPrecision                  map[string]int32
-	documentSigner                       document_signerpb.DocumentSignerService
-	dashboardRepository                  DashboardRepositoryInterface
-	centrifugoPaymentForm                CentrifugoInterface
-	centrifugoDashboard                  CentrifugoInterface
-	formatter                            paysuper_i18n.Formatter
-	reporterService                      reporterpb.ReporterService
-	postmarkBroker                       rabbitmq.BrokerInterface
-	casbinService                        casbinpb.CasbinService
-	notifier                             notifierpb.NotifierService
-	paymentSystemGateway                 *Gateway
-	country                              repository.CountryRepositoryInterface
-	refundRepository                     repository.RefundRepositoryInterface
-	orderRepository                      repository.OrderRepositoryInterface
-	userRoleRepository                   repository.UserRoleRepositoryInterface
-	zipCodeRepository                    repository.ZipCodeRepositoryInterface
-	userProfileRepository                repository.UserProfileRepositoryInterface
-	turnoverRepository                   repository.TurnoverRepositoryInterface
-	priceGroupRepository                 repository.PriceGroupRepositoryInterface
-	merchantRepository                   repository.MerchantRepositoryInterface
-	merchantBalanceRepository            repository.MerchantBalanceRepositoryInterface
-	moneyBackCostMerchantRepository      repository.MoneyBackCostMerchantRepositoryInterface
-	moneyBackCostSystemRepository        repository.MoneyBackCostSystemRepositoryInterface
-	project                              repository.ProjectRepositoryInterface
-	priceTableRepository                 repository.PriceTableRepositoryInterface
-	notificationRepository               repository.NotificationRepositoryInterface
-	operatingCompanyRepository           repository.OperatingCompanyRepositoryInterface
-	bankBinRepository                    repository.BankBinRepositoryInterface
-	notifySalesRepository                repository.NotifySalesRepositoryInterface
-	notifyRegionRepository               repository.NotifyRegionRepositoryInterface
-	paymentSystemRepository              repository.PaymentSystemRepositoryInterface
-	paymentMethodRepository              repository.PaymentMethodRepositoryInterface
-	paymentChannelCostSystemRepository   repository.PaymentChannelCostSystemRepositoryInterface
-	paymentChannelCostMerchantRepository repository.PaymentChannelCostMerchantRepositoryInterface
-	paymentMinLimitSystemRepository      repository.PaymentMinLimitSystemRepositoryInterface
-	keyRepository                        repository.KeyRepositoryInterface
-	keyProductRepository                 repository.KeyProductRepositoryInterface
-	productRepository                    repository.ProductRepositoryInterface
-	paylinkRepository                    repository.PaylinkRepositoryInterface
-	paylinkVisitsRepository              repository.PaylinkVisitRepositoryInterface
-	royaltyReportRepository              repository.RoyaltyReportRepositoryInterface
-	vatReportRepository                  repository.VatReportRepositoryInterface
-	payoutRepository                     repository.PayoutRepositoryInterface
-	customerRepository                   repository.CustomerRepositoryInterface
-	accountingRepository                 repository.AccountingEntryRepositoryInterface
-	merchantTariffsSettingsRepository    repository.MerchantTariffsSettingsInterface
-	merchantPaymentTariffsRepository     repository.MerchantPaymentTariffsInterface
-	orderViewRepository                  repository.OrderViewRepositoryInterface
+	db                                     mongodb.SourceInterface
+	mx                                     sync.Mutex
+	cfg                                    *config.Config
+	ctx                                    context.Context
+	geo                                    proto.GeoIpService
+	rep                                    recurringpb.RepositoryService
+	tax                                    taxpb.TaxService
+	broker                                 rabbitmq.BrokerInterface
+	redis                                  redis.Cmdable
+	cacher                                 database.CacheInterface
+	curService                             currenciespb.CurrencyRatesService
+	smtpCl                                 gomail.SendCloser
+	supportedCurrencies                    []string
+	currenciesPrecision                    map[string]int32
+	documentSigner                         document_signerpb.DocumentSignerService
+	centrifugoPaymentForm                  CentrifugoInterface
+	centrifugoDashboard                    CentrifugoInterface
+	formatter                              paysuper_i18n.Formatter
+	reporterService                        reporterpb.ReporterService
+	postmarkBroker                         rabbitmq.BrokerInterface
+	casbinService                          casbinpb.CasbinService
+	notifier                               notifierpb.NotifierService
+	paymentSystemGateway                   *Gateway
+	country                                repository.CountryRepositoryInterface
+	refundRepository                       repository.RefundRepositoryInterface
+	orderRepository                        repository.OrderRepositoryInterface
+	userRoleRepository                     repository.UserRoleRepositoryInterface
+	zipCodeRepository                      repository.ZipCodeRepositoryInterface
+	userProfileRepository                  repository.UserProfileRepositoryInterface
+	turnoverRepository                     repository.TurnoverRepositoryInterface
+	priceGroupRepository                   repository.PriceGroupRepositoryInterface
+	merchantRepository                     repository.MerchantRepositoryInterface
+	merchantBalanceRepository              repository.MerchantBalanceRepositoryInterface
+	moneyBackCostMerchantRepository        repository.MoneyBackCostMerchantRepositoryInterface
+	moneyBackCostSystemRepository          repository.MoneyBackCostSystemRepositoryInterface
+	project                                repository.ProjectRepositoryInterface
+	priceTableRepository                   repository.PriceTableRepositoryInterface
+	notificationRepository                 repository.NotificationRepositoryInterface
+	operatingCompanyRepository             repository.OperatingCompanyRepositoryInterface
+	bankBinRepository                      repository.BankBinRepositoryInterface
+	notifySalesRepository                  repository.NotifySalesRepositoryInterface
+	notifyRegionRepository                 repository.NotifyRegionRepositoryInterface
+	paymentSystemRepository                repository.PaymentSystemRepositoryInterface
+	paymentMethodRepository                repository.PaymentMethodRepositoryInterface
+	paymentChannelCostSystemRepository     repository.PaymentChannelCostSystemRepositoryInterface
+	paymentChannelCostMerchantRepository   repository.PaymentChannelCostMerchantRepositoryInterface
+	paymentMinLimitSystemRepository        repository.PaymentMinLimitSystemRepositoryInterface
+	keyRepository                          repository.KeyRepositoryInterface
+	keyProductRepository                   repository.KeyProductRepositoryInterface
+	productRepository                      repository.ProductRepositoryInterface
+	paylinkRepository                      repository.PaylinkRepositoryInterface
+	paylinkVisitsRepository                repository.PaylinkVisitRepositoryInterface
+	royaltyReportRepository                repository.RoyaltyReportRepositoryInterface
+	vatReportRepository                    repository.VatReportRepositoryInterface
+	payoutRepository                       repository.PayoutRepositoryInterface
+	customerRepository                     repository.CustomerRepositoryInterface
+	accountingRepository                   repository.AccountingEntryRepositoryInterface
+	merchantTariffsSettingsRepository      repository.MerchantTariffsSettingsInterface
+	merchantPaymentTariffsRepository       repository.MerchantPaymentTariffsInterface
+	orderViewRepository                    repository.OrderViewRepositoryInterface
+	merchantPaymentMethodHistoryRepository repository.MerchantPaymentMethodHistoryRepositoryInterface
+	feedbackRepository                     repository.FeedbackRepositoryInterface
+	dashboardRepository                    repository.DashboardRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -165,7 +167,6 @@ func NewBillingService(
 }
 
 func (s *Service) Init() (err error) {
-	s.dashboardRepository = newDashboardRepository(s)
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
 	s.paymentSystemGateway = s.newPaymentSystemGateway()
@@ -207,6 +208,9 @@ func (s *Service) Init() (err error) {
 	s.merchantTariffsSettingsRepository = repository.NewMerchantTariffsSettingsRepository(s.db, s.cacher)
 	s.merchantPaymentTariffsRepository = repository.NewMerchantPaymentTariffsRepository(s.db, s.cacher)
 	s.orderViewRepository = repository.NewOrderViewRepository(s.db)
+	s.merchantPaymentMethodHistoryRepository = repository.NewMerchantPaymentMethodHistoryRepository(s.db)
+	s.feedbackRepository = repository.NewFeedbackRepository(s.db)
+	s.dashboardRepository = repository.NewDashboardRepository(s.db, s.cacher)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {

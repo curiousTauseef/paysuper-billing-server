@@ -48,6 +48,11 @@ func (suite *PaymentChannelCostSystemTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -70,7 +75,7 @@ func (suite *PaymentChannelCostSystemTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.operatingCompany = helperOperatingCompany(suite.Suite, suite.service)
+	suite.operatingCompany = HelperOperatingCompany(suite.Suite, suite.service)
 
 	countryAz := &billingpb.Country{
 		Id:                primitive.NewObjectID().Hex(),

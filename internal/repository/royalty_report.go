@@ -128,6 +128,258 @@ func (r *royaltyReportRepository) GetByPayoutId(ctx context.Context, payoutId st
 	return
 }
 
+func (r *royaltyReportRepository) GetAll(ctx context.Context) ([]*billingpb.RoyaltyReport, error) {
+	cursor, err := r.db.Collection(collectionRoyaltyReport).Find(ctx, bson.M{})
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+		)
+		return nil, err
+	}
+
+	result := []*billingpb.RoyaltyReport{}
+	err = cursor.All(ctx, &result)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+		)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *royaltyReportRepository) GetByPeriod(ctx context.Context, from, to time.Time) ([]*billingpb.RoyaltyReport, error) {
+	query := bson.M{"period_from": from, "period_to": to}
+	cursor, err := r.db.Collection(collectionRoyaltyReport).Find(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	result := []*billingpb.RoyaltyReport{}
+	err = cursor.All(ctx, &result)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *royaltyReportRepository) GetByAcceptedExpireWithStatus(
+	ctx context.Context, date time.Time, status string,
+) ([]*billingpb.RoyaltyReport, error) {
+	query := bson.M{
+		"accept_expire_at": bson.M{"$lte": date},
+		"status":           status,
+	}
+
+	cursor, err := r.db.Collection(collectionRoyaltyReport).Find(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	result := []*billingpb.RoyaltyReport{}
+	err = cursor.All(ctx, &result)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *royaltyReportRepository) GetRoyaltyHistoryById(ctx context.Context, id string) ([]*billingpb.RoyaltyReportChanges, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.String(pkg.ErrorDatabaseFieldQuery, id),
+		)
+		return nil, err
+	}
+
+	query := bson.M{"royalty_report_id": oid}
+	opts := options.Find().SetSort(bson.M{"created_at": 1})
+	cursor, err := r.db.Collection(collectionRoyaltyReportChanges).Find(ctx, query, opts)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	result := []*billingpb.RoyaltyReportChanges{}
+	err = cursor.All(ctx, &result)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *royaltyReportRepository) FindByMerchantStatusDates(
+	ctx context.Context, merchantId string, status []string, dateFrom, dateTo, offset, limit int64,
+) ([]*billingpb.RoyaltyReport, error) {
+	var err error
+	query := bson.M{}
+
+	if merchantId != "" {
+		query["merchant_id"], err = primitive.ObjectIDFromHex(merchantId)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+				zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+			)
+			return nil, err
+		}
+	}
+
+	if len(status) > 0 {
+		query["status"] = bson.M{"$in": status}
+	}
+
+	if dateFrom > 0 || dateTo > 0 {
+		date := bson.M{}
+		if dateFrom > 0 {
+			date["$gte"] = time.Unix(dateFrom, 0)
+		}
+		if dateTo > 0 {
+			date["$lte"] = time.Unix(dateTo, 0)
+		}
+		query["created_at"] = date
+	}
+
+	opts := options.Find().
+		SetLimit(limit).
+		SetSkip(offset)
+	cursor, err := r.db.Collection(collectionRoyaltyReport).Find(ctx, query, opts)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	result := []*billingpb.RoyaltyReport{}
+	err = cursor.All(ctx, &result)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *royaltyReportRepository) FindCountByMerchantStatusDates(
+	ctx context.Context, merchantId string, status []string, dateFrom, dateTo int64,
+) (int64, error) {
+	var err error
+	query := bson.M{}
+
+	if merchantId != "" {
+		query["merchant_id"], err = primitive.ObjectIDFromHex(merchantId)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+				zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+			)
+			return int64(0), err
+		}
+	}
+
+	if len(status) > 0 {
+		query["status"] = bson.M{"$in": status}
+	}
+
+	if dateFrom > 0 || dateTo > 0 {
+		date := bson.M{}
+		if dateFrom > 0 {
+			date["$gte"] = time.Unix(dateFrom, 0)
+		}
+		if dateTo > 0 {
+			date["$lte"] = time.Unix(dateTo, 0)
+		}
+		query["created_at"] = date
+	}
+
+	count, err := r.db.Collection(collectionRoyaltyReport).CountDocuments(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return int64(0), err
+	}
+
+	return count, nil
+}
+
 func (r *royaltyReportRepository) GetBalanceAmount(ctx context.Context, merchantId, currency string) (float64, error) {
 	oid, err := primitive.ObjectIDFromHex(merchantId)
 
@@ -323,6 +575,25 @@ func (r *royaltyReportRepository) Update(ctx context.Context, rr *billingpb.Roya
 			zap.String(pkg.ErrorCacheFieldKey, key),
 			zap.Any(pkg.ErrorCacheFieldData, rr),
 		)
+	}
+
+	return nil
+}
+
+func (r *royaltyReportRepository) UpdateMany(ctx context.Context, query bson.M, set bson.M) error {
+	_, err := r.db.Collection(collectionRoyaltyReport).UpdateMany(context.TODO(), query, set)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
+			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationUpdate),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			zap.Any(pkg.ErrorDatabaseFieldSet, set),
+		)
+
+		return err
 	}
 
 	return nil

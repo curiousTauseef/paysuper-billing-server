@@ -32,8 +32,8 @@ const (
 
 	MerchantAgreementTypeESign = 2
 
-	ProjectWebhookPreApproval   = "pre_approval"
-	ProjectWebhookDefault = "default"
+	ProjectWebhookPreApproval = "pre_approval"
+	ProjectWebhookDefault     = "default"
 
 	ObjectTypeUser = "user"
 
@@ -127,6 +127,7 @@ const (
 	ErrorDatabaseFieldOperationUpsert = "upsert"
 	ErrorDatabaseFieldOperationDelete = "delete"
 	ErrorDatabaseFieldDocument        = "document"
+	ErrorDatabaseMapModelFailed       = "Map entity failed"
 
 	ErrorJsonMarshallingFailed = "json marshalling failed"
 
@@ -213,12 +214,12 @@ const (
 
 	UnknownTypeError = "unknown type in request"
 
-	TestCaseNonExistingUser = "non_existing_user"
-	TestCaseExistingUser = "existing_user"
-	TestCaseCorrectPayment = "correct_payment"
+	TestCaseNonExistingUser  = "non_existing_user"
+	TestCaseExistingUser     = "existing_user"
+	TestCaseCorrectPayment   = "correct_payment"
 	TestCaseIncorrectPayment = "invalid_signature"
-	UserRoleStatusInvited  = "invited"
-	UserRoleStatusAccepted = "accepted"
+	UserRoleStatusInvited    = "invited"
+	UserRoleStatusAccepted   = "accepted"
 
 	// MerchantId_UserId
 	CasbinMerchantUserMask = "%s_%s"

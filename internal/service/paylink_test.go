@@ -120,8 +120,8 @@ func (suite *PaylinkTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
-	suite.merchant2 = helperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, suite.merchant.MinPayoutAmount, suite.merchant.OperatingCompanyId)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant2 = HelperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, suite.merchant.MinPayoutAmount, suite.merchant.OperatingCompanyId)
 
 	suite.product1 = &billingpb.Product{
 		Id:              primitive.NewObjectID().Hex(),
@@ -780,6 +780,7 @@ func (suite *PaylinkTestSuite) Test_Paylink_Delete_Ok() {
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 
 	pl, err = suite.service.paylinkRepository.GetByIdAndMerchant(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId)
+	assert.Empty(suite.T(), pl)
 	assert.Error(suite.T(), err)
 }
 

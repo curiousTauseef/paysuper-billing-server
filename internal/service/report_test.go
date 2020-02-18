@@ -99,7 +99,7 @@ func (suite *ReportTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	_, suite.project, suite.pmBankCard, _ = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	_, suite.project, suite.pmBankCard, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 }
 
 func (suite *ReportTestSuite) TearDownTest() {
@@ -153,7 +153,7 @@ func (suite *ReportTestSuite) TestReport_FindById() {
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	req = &billingpb.ListOrdersRequest{Id: order.Uuid}
 	req.Merchant = append(req.Merchant, suite.project.MerchantId)
@@ -189,9 +189,9 @@ func (suite *ReportTestSuite) TestReport_FindByMerchantId() {
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
 
-	order1 := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
-	order2 := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
-	order3 := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order1 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order2 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order3 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -222,7 +222,7 @@ func (suite *ReportTestSuite) TestReport_FindByProject() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -250,7 +250,7 @@ func (suite *ReportTestSuite) TestReport_FindByCountry() {
 	var orderIds []string
 
 	for i := 0; i < 4; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -278,7 +278,7 @@ func (suite *ReportTestSuite) TestReport_FindByPaymentMethod() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -306,7 +306,7 @@ func (suite *ReportTestSuite) TestReport_FindByStatus() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -334,7 +334,7 @@ func (suite *ReportTestSuite) TestReport_FindByAccount() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -386,7 +386,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateFrom() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -415,7 +415,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
 	date := &timestamp.Timestamp{}
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 		date = order.PaymentMethodOrderClosedAt
 	}
@@ -445,7 +445,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateFrom() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -473,7 +473,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateTo() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -508,7 +508,7 @@ func (suite *ReportTestSuite) TestReport_GetOrder() {
 	assert.Equal(suite.T(), orderErrorNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	req.OrderId = order.Uuid
 	err = suite.service.GetOrderPublic(context.TODO(), req, rsp)

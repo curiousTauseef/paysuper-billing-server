@@ -28,6 +28,28 @@ func NewProductRepository(db mongodb.SourceInterface, cache database.CacheInterf
 	return s
 }
 
+func (r productRepository) MultipleInsert(ctx context.Context, pg []*billingpb.Product) error {
+	c := make([]interface{}, len(pg))
+	for i, v := range pg {
+		c[i] = v
+	}
+
+	_, err := r.db.Collection(collectionProduct).InsertMany(ctx, c)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionProduct),
+			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationInsert),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, c),
+		)
+		return err
+	}
+
+	return nil
+}
+
 func (r *productRepository) Upsert(ctx context.Context, product *billingpb.Product) error {
 	oid, err := primitive.ObjectIDFromHex(product.Id)
 
@@ -117,6 +139,35 @@ func (r *productRepository) CountByProjectSku(ctx context.Context, projectId str
 	}
 
 	query := bson.M{"project_id": oid, "sku": sku, "deleted": false}
+	count, err := r.db.Collection(collectionProduct).CountDocuments(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionProduct),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *productRepository) CountByProject(ctx context.Context, projectId string) (int64, error) {
+	oid, err := primitive.ObjectIDFromHex(projectId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionProduct),
+			zap.String(pkg.ErrorDatabaseFieldQuery, projectId),
+		)
+		return int64(0), err
+	}
+
+	query := bson.M{"project_id": oid, "deleted": false}
 	count, err := r.db.Collection(collectionProduct).CountDocuments(ctx, query)
 
 	if err != nil {

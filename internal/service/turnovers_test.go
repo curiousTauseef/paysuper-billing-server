@@ -57,6 +57,11 @@ func (suite *TurnoversTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -79,7 +84,7 @@ func (suite *TurnoversTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.operatingCompany = helperOperatingCompany(suite.Suite, suite.service)
+	suite.operatingCompany = HelperOperatingCompany(suite.Suite, suite.service)
 
 	pg := &billingpb.PriceGroup{
 		Id:       primitive.NewObjectID().Hex(),
@@ -260,6 +265,7 @@ func (suite *TurnoversTestSuite) TestTurnovers_CalcAnnualTurnovers() {
 	assert.Equal(suite.T(), at.Currency, "EUR")
 
 	worldAmount, err := suite.service.getTurnover(context.TODO(), now.BeginningOfYear(), time.Now(), "", "EUR", "on-day", currenciespb.RateTypeOxr, "", suite.operatingCompany.Id)
+	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), tools.FormatAmount(at.Amount), tools.FormatAmount(worldAmount))
 
 	countries, err := suite.service.country.FindByVatEnabled(context.TODO())
@@ -334,7 +340,8 @@ func (suite *TurnoversTestSuite) fillAccountingEntries(operatingCompanyId, count
 			IsProduction:               true,
 		}
 
-		_, err = suite.service.db.Collection(repository.CollectionOrder).InsertOne(context.TODO(), order)
+		err = suite.service.orderRepository.Insert(context.TODO(), order)
+		assert.NoError(suite.T(), err)
 
 		entry := &billingpb.AccountingEntry{
 			Id:     primitive.NewObjectID().Hex(),

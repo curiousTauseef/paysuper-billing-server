@@ -199,7 +199,7 @@ func (s *Service) GetProject(
 		return nil
 	}
 
-	project.ProductsCount = s.getProductsCountByProject(ctx, project.Id)
+	project.ProductsCount, _ = s.productRepository.CountByProject(ctx, project.Id)
 
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Item = project
@@ -368,7 +368,7 @@ func (s *Service) updateProject(ctx context.Context, req *billingpb.Project, pro
 		return projectErrorUnknown
 	}
 
-	project.ProductsCount = s.getProductsCountByProject(ctx, project.Id)
+	project.ProductsCount, _ = s.productRepository.CountByProject(ctx, project.Id)
 
 	return nil
 }

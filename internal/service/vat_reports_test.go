@@ -113,7 +113,7 @@ func (suite *VatReportsTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	_, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	_, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 
 	var core zapcore.Core
 
@@ -239,7 +239,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			amounts[count%2],
@@ -262,7 +262,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 		if i%3 == 0 {
 			continue
 		}
-		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 		assert.NotNil(suite.T(), refund)
 	}
 
@@ -381,7 +381,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports_OnlyTestOrder
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			amounts[count%2],
@@ -401,7 +401,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports_OnlyTestOrder
 	assert.NoError(suite.T(), err)
 
 	for _, order := range orders {
-		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount*0.5, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount*0.5, false)
 		assert.NotNil(suite.T(), refund)
 	}
 
