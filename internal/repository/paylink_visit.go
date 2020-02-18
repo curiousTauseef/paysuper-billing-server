@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -66,7 +67,7 @@ func (r *paylinkVisitRepository) CountPaylinkVisits(ctx context.Context, id stri
 
 func (r *paylinkVisitRepository) IncrVisits(ctx context.Context, id string) (err error) {
 	oid, _ := primitive.ObjectIDFromHex(id)
-	visit := &paylinkVisits{PaylinkId: oid, Date: time.Now()}
+	visit := &pkg2.PaylinkVisits{PaylinkId: oid, Date: time.Now()}
 	_, err = r.db.Collection(collectionPaylinkVisits).InsertOne(ctx, visit)
 
 	if err != nil {

@@ -11,6 +11,27 @@ type ProductRepositoryInterface struct {
 	mock.Mock
 }
 
+// CountByProject provides a mock function with given fields: _a0, _a1
+func (_m *ProductRepositoryInterface) CountByProject(_a0 context.Context, _a1 string) (int64, error) {
+	ret := _m.Called(_a0, _a1)
+
+	var r0 int64
+	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(_a0, _a1)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CountByProjectSku provides a mock function with given fields: _a0, _a1, _a2
 func (_m *ProductRepositoryInterface) CountByProjectSku(_a0 context.Context, _a1 string, _a2 string) (int64, error) {
 	ret := _m.Called(_a0, _a1, _a2)
@@ -97,6 +118,20 @@ func (_m *ProductRepositoryInterface) GetById(_a0 context.Context, _a1 string) (
 	}
 
 	return r0, r1
+}
+
+// MultipleInsert provides a mock function with given fields: _a0, _a1
+func (_m *ProductRepositoryInterface) MultipleInsert(_a0 context.Context, _a1 []*billingpb.Product) error {
+	ret := _m.Called(_a0, _a1)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*billingpb.Product) error); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // Upsert provides a mock function with given fields: ctx, product

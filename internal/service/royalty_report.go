@@ -21,17 +21,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"mime"
 	"path/filepath"
 	"reflect"
 	"time"
-)
-
-const (
-	collectionRoyaltyReport        = "royalty_report"
-	collectionRoyaltyReportChanges = "royalty_report_changes"
 )
 
 var (
@@ -137,35 +131,9 @@ func (s *Service) AutoAcceptRoyaltyReports(
 	_ *billingpb.EmptyRequest,
 	_ *billingpb.EmptyResponse,
 ) error {
-	tNow := time.Now()
-	query := bson.M{
-		"accept_expire_at": bson.M{"$lte": tNow},
-		"status":           billingpb.RoyaltyReportStatusPending,
-	}
-
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := s.db.Collection(collectionRoyaltyReport).Find(ctx, query)
-	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-		}
-		return err
-	}
-
-	err = cursor.All(ctx, &reports)
+	reports, err := s.royaltyReportRepository.GetByAcceptedExpireWithStatus(ctx, time.Now(), billingpb.RoyaltyReportStatusPending)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return err
 	}
 
@@ -202,37 +170,11 @@ func (s *Service) ListRoyaltyReports(
 ) error {
 	rsp.Status = billingpb.ResponseStatusOk
 
-	query := bson.M{}
-
-	if req.MerchantId != "" {
-		query["merchant_id"], _ = primitive.ObjectIDFromHex(req.MerchantId)
-	}
-
-	if len(req.Status) > 0 {
-		query["status"] = bson.M{"$in": req.Status}
-	}
-
-	if req.PeriodFrom > 0 || req.PeriodTo > 0 {
-		date := bson.M{}
-		if req.PeriodFrom > 0 {
-			date["$gte"] = time.Unix(req.PeriodFrom, 0)
-		}
-		if req.PeriodTo > 0 {
-			date["$lte"] = time.Unix(req.PeriodTo, 0)
-		}
-		query["created_at"] = date
-	}
-
-	count, err := s.db.Collection(collectionRoyaltyReport).CountDocuments(ctx, query)
+	count, err := s.royaltyReportRepository.FindCountByMerchantStatusDates(
+		ctx, req.MerchantId, req.Status, req.PeriodFrom, req.PeriodTo,
+	)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = royaltyReportEntryErrorUnknown
 
@@ -244,37 +186,14 @@ func (s *Service) ListRoyaltyReports(
 		return nil
 	}
 
-	var reports []*billingpb.RoyaltyReport
-	opts := options.Find().
-		SetLimit(req.Limit).
-		SetSkip(req.Offset)
-	cursor, err := s.db.Collection(collectionRoyaltyReport).Find(ctx, query, opts)
+	reports, err := s.royaltyReportRepository.FindByMerchantStatusDates(
+		ctx, req.MerchantId, req.Status, req.PeriodFrom, req.PeriodTo, req.Offset, req.Limit,
+	)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = royaltyReportEntryErrorUnknown
 
-		return nil
-	}
-
-	err = cursor.All(ctx, &reports)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionRoyaltyReport),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = royaltyReportEntryErrorUnknown
 		return nil
 	}
 
@@ -761,6 +680,9 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		)
 
 		err = h.royaltyReportRepository.Insert(ctx, newReport, "", pkg.RoyaltyReportChangeSourceAuto)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = h.Service.renderRoyaltyReport(ctx, newReport, merchant)

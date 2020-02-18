@@ -432,6 +432,11 @@ func (suite *PayoutsTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -492,7 +497,7 @@ func (suite *PayoutsTestSuite) TearDownTest() {
 
 func (suite *PayoutsTestSuite) helperInsertRoyaltyReports(data []*billingpb.RoyaltyReport) {
 	for _, r := range data {
-		if _, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(context.TODO(), r); err != nil {
+		if err := suite.service.royaltyReportRepository.Insert(context.TODO(), r, "", pkg.RoyaltyReportChangeSourceAuto); err != nil {
 			suite.FailNow("Insert royalty report test data failed", "%v", err)
 		}
 	}

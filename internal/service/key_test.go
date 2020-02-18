@@ -601,8 +601,8 @@ func (suite *KeyTestSuite) TestKey_KeyDaemonProcess_Error_CancelById() {
 }
 
 func (suite *KeyTestSuite) TestKey_FindUnfinished_Ok() {
-	reserveExpireTime, err := ptypes.TimestampProto(time.Now().AddDate(0, 0, -1))
-	reserveNoExpireTime, err := ptypes.TimestampProto(time.Now().AddDate(0, 0, 1))
+	reserveExpireTime, _ := ptypes.TimestampProto(time.Now().AddDate(0, 0, -1))
+	reserveNoExpireTime, _ := ptypes.TimestampProto(time.Now().AddDate(0, 0, 1))
 
 	keyReserveExpire := &billingpb.Key{
 		Id:           primitive.NewObjectID().Hex(),

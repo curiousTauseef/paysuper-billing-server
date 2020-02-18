@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"go.mongodb.org/mongo-driver/bson"
 	"time"
 )
 
@@ -13,6 +14,9 @@ type RoyaltyReportRepositoryInterface interface {
 
 	// Update updates the royalty report in the collection.
 	Update(ctx context.Context, document *billingpb.RoyaltyReport, ip, source string) error
+
+	// UpdateMany updates multiplies royalty reports by dynamic criteria.
+	UpdateMany(ctx context.Context, query bson.M, set bson.M) error
 
 	// GetById returns the royalty report by unique identity.
 	GetById(ctx context.Context, id string) (*billingpb.RoyaltyReport, error)
@@ -28,4 +32,22 @@ type RoyaltyReportRepositoryInterface interface {
 
 	// GetReportExists returns exists a royalty reports by merchant id, currency and dates from/to.
 	GetReportExists(ctx context.Context, merchantId, currency string, from, to time.Time) (report *billingpb.RoyaltyReport)
+
+	// GetAll returns the all royalty reports.
+	GetAll(ctx context.Context) ([]*billingpb.RoyaltyReport, error)
+
+	// GetByPeriod returns the royalty reports by period of dates.
+	GetByPeriod(context.Context, time.Time, time.Time) ([]*billingpb.RoyaltyReport, error)
+
+	// GetByAcceptedExpireWithStatus returns the royalty reports by accepted expire dates with status by filter.
+	GetByAcceptedExpireWithStatus(context.Context, time.Time, string) ([]*billingpb.RoyaltyReport, error)
+
+	// GetRoyaltyHistoryById returns the history list of royalty report by report identifier.
+	GetRoyaltyHistoryById(ctx context.Context, id string) ([]*billingpb.RoyaltyReportChanges, error)
+
+	// FindByMerchantStatusDates returns the royalty reports by merchant id, status and dates from/to.
+	FindByMerchantStatusDates(context.Context, string, []string, int64, int64, int64, int64) ([]*billingpb.RoyaltyReport, error)
+
+	// FindCountByMerchantStatusDates returns count of royalty reports by merchant id, status and dates from/to.
+	FindCountByMerchantStatusDates(context.Context, string, []string, int64, int64) (int64, error)
 }

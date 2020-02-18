@@ -17,7 +17,7 @@ const (
 	collectionPaylinks = "paylinks"
 
 	cacheKeyPaylink         = "paylink:id:%s"
-	cacheKeyPaylinkMerchant = "paylink:id:%s:merhcant_id:%s"
+	cacheKeyPaylinkMerchant = "paylink:id:%s:merchant_id:%s"
 )
 
 type paylinkRepository repository

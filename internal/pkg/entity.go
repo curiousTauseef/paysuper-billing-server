@@ -3,6 +3,7 @@ package pkg
 import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"time"
 )
 
 type PaymentChannelCostMerchantSet struct {
@@ -70,4 +71,19 @@ type RoyaltyReportMerchant struct {
 type RoyaltySummaryResult struct {
 	Items []*billingpb.RoyaltyReportProductSummaryItem `bson:"top"`
 	Total *billingpb.RoyaltyReportProductSummaryItem   `bson:"total"`
+}
+
+type PaylinkVisits struct {
+	PaylinkId primitive.ObjectID `bson:"paylink_id"`
+	Date      time.Time          `bson:"date"`
+}
+
+type GrossRevenueAndVatReports struct {
+	GrossRevenue *billingpb.DashboardAmountItemWithChart `bson:"gross_revenue"`
+	Vat          *billingpb.DashboardAmountItemWithChart `bson:"vat"`
+}
+
+type TotalTransactionsAndArpuReports struct {
+	TotalTransactions *billingpb.DashboardMainReportTotalTransactions `bson:"total_transactions"`
+	Arpu              *billingpb.DashboardAmountItemWithChart         `bson:"arpu"`
 }

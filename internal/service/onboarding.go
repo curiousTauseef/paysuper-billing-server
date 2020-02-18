@@ -25,8 +25,6 @@ import (
 )
 
 const (
-	collectionMerchantPaymentMethodHistory = "payment_method_history"
-
 	merchantStatusSigningMessage  = "We've got your license agreement signing request. If we will need your further assistance, processing this request, our onboarding manager will contact you directly."
 	merchantStatusSignedMessage   = "Your license agreement signing request is confirmed and document is signed by Pay Super. Let us have productive cooperation!"
 	merchantStatusRejectedMessage = "Your license agreement signing request was confirmed as SPAM and will be no longer processed."
@@ -202,6 +200,10 @@ func (s *Service) ListMerchants(
 	}
 
 	rsp.Items, err = s.merchantRepository.Find(ctx, query, req.Sort, req.Offset, req.Limit)
+
+	if err != nil {
+		return merchantErrorUnknown
+	}
 
 	return nil
 }
@@ -947,7 +949,7 @@ func (s *Service) ChangeMerchantPaymentMethod(
 		CreatedAt:     ptypes.TimestampNow(),
 		PaymentMethod: mpm,
 	}
-	_, err = s.db.Collection(collectionMerchantPaymentMethodHistory).InsertOne(ctx, history)
+	err = s.merchantPaymentMethodHistoryRepository.Insert(ctx, history)
 	if err != nil {
 		zap.S().Errorf("Query to update merchant payment methods history", "err", err.Error(), "data", merchant)
 

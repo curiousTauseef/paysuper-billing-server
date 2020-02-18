@@ -113,7 +113,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 
 	suite.projectWithProducts = &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
@@ -150,7 +150,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		suite.FailNow("Insert project test data failed", "%v", err)
 	}
 
-	products := createProductsForProject(suite.Suite, suite.service, suite.projectWithProducts, 1)
+	products := CreateProductsForProject(suite.Suite, suite.service, suite.projectWithProducts, 1)
 	assert.Len(suite.T(), products, 1)
 
 	paylinkBod, _ := ptypes.TimestampProto(now.BeginningOfDay())
@@ -207,7 +207,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_updateOrderView() {
 
 	count := 0
 	for count < suite.service.cfg.OrderViewUpdateBatchSize+10 {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			amounts[count%2],
@@ -226,7 +226,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_updateOrderView() {
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Ok() {
-	order := helperCreateAndPayOrder(
+	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -266,7 +266,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Productio
 		suite.FailNow("Insert project test data failed", "%v", err)
 	}
 
-	order := helperCreateAndPayOrder(
+	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -286,7 +286,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Productio
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
-	order := helperCreateAndPayOrder(
+	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -310,7 +310,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -319,7 +319,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
 		suite.projectFixedAmount,
 		suite.paymentMethod,
 	)
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		200,
@@ -343,7 +343,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPublic_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 0)
 
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -364,7 +364,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPrivate_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 0)
 
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -418,7 +418,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			10,
@@ -500,7 +500,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			10,
@@ -520,7 +520,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 	assert.NoError(suite.T(), err)
 
 	for _, order := range orders {
-		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 		assert.NotNil(suite.T(), refund)
 	}
 
@@ -612,7 +612,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 		err = suite.service.IncrPaylinkVisits(context.TODO(), visitsReq, &billingpb.EmptyResponse{})
 		assert.NoError(suite.T(), err)
 
-		order := helperCreateAndPayPaylinkOrder(
+		order := HelperCreateAndPayPaylinkOrder(
 			suite.Suite,
 			suite.service,
 			suite.paylink1.Id,
@@ -632,7 +632,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 
 	count = 0
 	for count < maxRefunds {
-		refund := helperMakeRefund(suite.Suite, suite.service, orders[count], orders[count].ChargeAmount, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, orders[count], orders[count].ChargeAmount, false)
 		assert.NotNil(suite.T(), refund)
 		count++
 	}

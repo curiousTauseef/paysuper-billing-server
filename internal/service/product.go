@@ -5,14 +5,8 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
-)
-
-const (
-	cacheProductId    = "product:id:%s"
-	collectionProduct = "product"
 )
 
 var (
@@ -365,16 +359,4 @@ func (s *Service) UpdateProductPrices(ctx context.Context, req *billingpb.Update
 	}
 
 	return nil
-}
-
-func (s *Service) getProductsCountByProject(ctx context.Context, projectId string) int64 {
-	oid, _ := primitive.ObjectIDFromHex(projectId)
-	query := bson.M{"project_id": oid, "deleted": false}
-	count, err := s.db.Collection(collectionProduct).CountDocuments(ctx, query)
-
-	if err != nil {
-		zap.S().Errorf("Query to get project products count failed", "err", err.Error(), "query", query)
-	}
-
-	return count
 }

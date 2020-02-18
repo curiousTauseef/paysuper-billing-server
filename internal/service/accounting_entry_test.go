@@ -19,7 +19,6 @@ import (
 	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
@@ -111,7 +110,7 @@ func (suite *AccountingEntryTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 }
 
 func (suite *AccountingEntryTestSuite) TearDownTest() {
@@ -201,14 +200,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 		"ps_refund_profit":                     -12.15,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err = suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	accountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -248,8 +247,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -312,14 +310,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 		"ps_refund_profit":                     -1.3159375,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -359,8 +357,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -423,14 +420,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 		"ps_refund_profit":                     -1.356154,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -470,8 +467,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -534,7 +530,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 		"ps_refund_profit":                     -1.2744353448,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerBuyer)
 	assert.NotNil(suite.T(), order.Tax)
@@ -546,7 +542,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -586,14 +582,13 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPayer_Seller() {
-	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerSeller)
+	project := HelperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerSeller)
 
 	// Order currency RUB
 	// Royalty currency USD
@@ -652,7 +647,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 		"ps_refund_profit":                     -1.166003,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerSeller)
 	assert.NotNil(suite.T(), order.Tax)
@@ -664,7 +659,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -704,14 +699,13 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPayer_Nobody() {
-	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerNobody)
+	project := HelperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerNobody)
 
 	// Order currency RUB
 	// Royalty currency USD
@@ -770,7 +764,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 		"ps_refund_profit":                     -1.166154,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerNobody)
 	assert.NotNil(suite.T(), order.Tax)
@@ -782,7 +776,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -822,8 +816,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -873,14 +866,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 		"ps_refund_profit":                     22.866,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err = suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -899,8 +892,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -935,14 +927,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 		"ps_refund_profit":                     1.2693519231,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -961,8 +953,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -997,14 +989,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 		"ps_refund_profit":                     1.3474769231,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -1023,8 +1015,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1059,14 +1051,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 		"ps_refund_profit":                     1.343042,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -1085,8 +1077,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1096,14 +1088,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
 	req := &billingpb.CreateAccountingEntryRequest{
@@ -1146,14 +1138,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
 	req := &billingpb.CreateAccountingEntryRequest{
@@ -1229,19 +1221,18 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
 	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
 	refund.OriginalOrder.Id = primitive.NewObjectID().Hex()
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	_, err = suite.service.db.Collection(repository.CollectionRefund).ReplaceOne(ctx, bson.M{"_id": oid}, refund)
+	err = suite.service.refundRepository.Update(ctx, refund)
 	assert.NoError(suite.T(), err)
 
 	req := &billingpb.CreateAccountingEntryRequest{
@@ -1270,7 +1261,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	aes, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
@@ -1450,8 +1441,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 	royaltyCurrency := "EUR"
 	merchantCountry := "DE"
 
-	merchant := helperCreateMerchant(suite.Suite, suite.service, royaltyCurrency, merchantCountry, suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
-	project := helperCreateProject(suite.Suite, suite.service, merchant.Id, billingpb.VatPayerBuyer)
+	merchant := HelperCreateMerchant(suite.Suite, suite.service, royaltyCurrency, merchantCountry, suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
+	project := HelperCreateProject(suite.Suite, suite.service, merchant.Id, billingpb.VatPayerBuyer)
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
@@ -1475,7 +1466,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 	err = suite.service.paymentChannelCostMerchantRepository.Insert(ctx, paymentMerCost)
 	assert.NoError(suite.T(), err)
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)

@@ -1,4 +1,4 @@
-package service
+package repository
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
-	"github.com/paysuper/paysuper-billing-server/internal/repository"
+	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -47,132 +47,108 @@ var (
 	}
 )
 
-type DashboardRepositoryInterface interface {
-	GetMainReport(context.Context, string, string) (*billingpb.DashboardMainReport, error)
-	GetRevenueDynamicsReport(context.Context, string, string) (*billingpb.DashboardRevenueDynamicReport, error)
-	GetBaseReport(context.Context, string, string) (*billingpb.DashboardBaseReports, error)
-	GetBaseRevenueByCountryReport(context.Context, string, string) (*billingpb.DashboardRevenueByCountryReport, error)
-	GetBaseSalesTodayReport(context.Context, string, string) (*billingpb.DashboardSalesTodayReport, error)
-	GetBaseSourcesReport(context.Context, string, string) (*billingpb.DashboardSourcesReport, error)
+type dashboardRepository repository
+
+// NewDashboardRepository create and return an object for working with the key repository.
+// The returned object implements the DashboardRepositoryInterface interface.
+func NewDashboardRepository(db mongodb.SourceInterface, cache database.CacheInterface) DashboardRepositoryInterface {
+	s := &dashboardRepository{db: db, cache: cache}
+	return s
 }
 
-type DashboardReportProcessorInterface interface {
-	ExecuteReport(interface{}) (interface{}, error)
-	ExecuteGrossRevenueAndVatReports(interface{}) (interface{}, error)
-	ExecuteTotalTransactionsAndArpuReports(interface{}) (interface{}, error)
-	ExecuteRevenueDynamicReport(interface{}) (interface{}, error)
-	ExecuteRevenueByCountryReport(interface{}) (interface{}, error)
-	ExecuteSalesTodayReport(interface{}) (interface{}, error)
-	ExecuteSourcesReport(interface{}) (interface{}, error)
-}
-
-type GrossRevenueAndVatReports struct {
-	GrossRevenue *billingpb.DashboardAmountItemWithChart `bson:"gross_revenue"`
-	Vat          *billingpb.DashboardAmountItemWithChart `bson:"vat"`
-}
-
-type TotalTransactionsAndArpuReports struct {
-	TotalTransactions *billingpb.DashboardMainReportTotalTransactions `bson:"total_transactions"`
-	Arpu              *billingpb.DashboardAmountItemWithChart         `bson:"arpu"`
-}
-
-func newDashboardRepository(s *Service) DashboardRepositoryInterface {
-	return &DashboardRepository{svc: s}
-}
-
-func (m *DashboardRepository) GetMainReport(
+func (r *dashboardRepository) GetMainReport(
 	ctx context.Context,
 	merchantId, period string,
 ) (*billingpb.DashboardMainReport, error) {
-	processorGrossRevenueAndVatCurrent, err := m.NewDashboardReportProcessor(
+	processorGrossRevenueAndVatCurrent, err := r.newDashboardReportProcessor(
 		merchantId,
 		period,
 		dashboardMainGrossRevenueAndVatCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorGrossRevenueAndVatCurrent.DbQueryFn = processorGrossRevenueAndVatCurrent.ExecuteGrossRevenueAndVatReports
-	dataGrossRevenueAndVatCurrent, err := processorGrossRevenueAndVatCurrent.ExecuteReport(ctx, new(GrossRevenueAndVatReports))
+	dataGrossRevenueAndVatCurrent, err := processorGrossRevenueAndVatCurrent.ExecuteReport(
+		ctx,
+		new(pkg2.GrossRevenueAndVatReports),
+		processorGrossRevenueAndVatCurrent.ExecuteGrossRevenueAndVatReports,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorGrossRevenueAndVatPrevious, err := m.NewDashboardReportProcessor(
+	processorGrossRevenueAndVatPrevious, err := r.newDashboardReportProcessor(
 		merchantId,
 		dashboardReportBasePreviousPeriodsNames[period],
 		dashboardMainGrossRevenueAndVatCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorGrossRevenueAndVatPrevious.DbQueryFn = processorGrossRevenueAndVatPrevious.ExecuteGrossRevenueAndVatReports
-	dataGrossRevenueAndVatPrevious, err := processorGrossRevenueAndVatPrevious.ExecuteReport(ctx, new(GrossRevenueAndVatReports))
+	dataGrossRevenueAndVatPrevious, err := processorGrossRevenueAndVatPrevious.ExecuteReport(
+		ctx,
+		new(pkg2.GrossRevenueAndVatReports),
+		processorGrossRevenueAndVatPrevious.ExecuteGrossRevenueAndVatReports,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorTotalTransactionsAndArpuCurrent, err := m.NewDashboardReportProcessor(
+	processorTotalTransactionsAndArpuCurrent, err := r.newDashboardReportProcessor(
 		merchantId,
 		period,
 		dashboardMainTotalTransactionsAndArpuCacheKey,
 		bson.M{"$in": []string{"processed", "refunded", "chargeback"}},
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorTotalTransactionsAndArpuCurrent.DbQueryFn = processorTotalTransactionsAndArpuCurrent.ExecuteTotalTransactionsAndArpuReports
-	dataTotalTransactionsAndArpuCurrent, err := processorTotalTransactionsAndArpuCurrent.ExecuteReport(ctx, new(TotalTransactionsAndArpuReports))
+	dataTotalTransactionsAndArpuCurrent, err := processorTotalTransactionsAndArpuCurrent.ExecuteReport(
+		ctx,
+		new(pkg2.TotalTransactionsAndArpuReports),
+		processorTotalTransactionsAndArpuCurrent.ExecuteTotalTransactionsAndArpuReports,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorTotalTransactionsAndArpuPrevious, err := m.NewDashboardReportProcessor(
+	processorTotalTransactionsAndArpuPrevious, err := r.newDashboardReportProcessor(
 		merchantId,
 		dashboardReportBasePreviousPeriodsNames[period],
 		dashboardMainTotalTransactionsAndArpuCacheKey,
 		bson.M{"$in": []string{"processed", "refunded", "chargeback"}},
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorTotalTransactionsAndArpuPrevious.DbQueryFn = processorTotalTransactionsAndArpuPrevious.ExecuteTotalTransactionsAndArpuReports
-	dataTotalTransactionsAndArpuPrevious, err := processorTotalTransactionsAndArpuPrevious.ExecuteReport(ctx, new(TotalTransactionsAndArpuReports))
+	dataTotalTransactionsAndArpuPrevious, err := processorTotalTransactionsAndArpuPrevious.ExecuteReport(
+		ctx,
+		new(pkg2.TotalTransactionsAndArpuReports),
+		processorTotalTransactionsAndArpuPrevious.ExecuteTotalTransactionsAndArpuReports,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	dataGrossRevenueAndVatCurrentTyped := dataGrossRevenueAndVatCurrent.(*GrossRevenueAndVatReports)
-	dataGrossRevenueAndVatPreviousTyped := dataGrossRevenueAndVatPrevious.(*GrossRevenueAndVatReports)
+	dataGrossRevenueAndVatCurrentTyped := dataGrossRevenueAndVatCurrent.(*pkg2.GrossRevenueAndVatReports)
+	dataGrossRevenueAndVatPreviousTyped := dataGrossRevenueAndVatPrevious.(*pkg2.GrossRevenueAndVatReports)
 
 	if dataGrossRevenueAndVatPreviousTyped == nil {
-		dataGrossRevenueAndVatPreviousTyped = &GrossRevenueAndVatReports{
+		dataGrossRevenueAndVatPreviousTyped = &pkg2.GrossRevenueAndVatReports{
 			GrossRevenue: &billingpb.DashboardAmountItemWithChart{},
 			Vat:          &billingpb.DashboardAmountItemWithChart{},
 		}
@@ -180,11 +156,11 @@ func (m *DashboardRepository) GetMainReport(
 	dataGrossRevenueAndVatCurrentTyped.GrossRevenue.AmountPrevious = dataGrossRevenueAndVatPreviousTyped.GrossRevenue.AmountCurrent
 	dataGrossRevenueAndVatCurrentTyped.Vat.AmountPrevious = dataGrossRevenueAndVatPreviousTyped.Vat.AmountCurrent
 
-	dataTotalTransactionsAndArpuCurrentTyped := dataTotalTransactionsAndArpuCurrent.(*TotalTransactionsAndArpuReports)
-	dataTotalTransactionsAndArpuPreviousTyped := dataTotalTransactionsAndArpuPrevious.(*TotalTransactionsAndArpuReports)
+	dataTotalTransactionsAndArpuCurrentTyped := dataTotalTransactionsAndArpuCurrent.(*pkg2.TotalTransactionsAndArpuReports)
+	dataTotalTransactionsAndArpuPreviousTyped := dataTotalTransactionsAndArpuPrevious.(*pkg2.TotalTransactionsAndArpuReports)
 
 	if dataTotalTransactionsAndArpuPreviousTyped == nil {
-		dataTotalTransactionsAndArpuPreviousTyped = &TotalTransactionsAndArpuReports{
+		dataTotalTransactionsAndArpuPreviousTyped = &pkg2.TotalTransactionsAndArpuReports{
 			TotalTransactions: &billingpb.DashboardMainReportTotalTransactions{},
 			Arpu:              &billingpb.DashboardAmountItemWithChart{},
 		}
@@ -202,57 +178,23 @@ func (m *DashboardRepository) GetMainReport(
 	return result, nil
 }
 
-func (m *DashboardRepository) GetRevenueDynamicsReport(
-	ctx context.Context,
-	merchantId, period string,
-) (*billingpb.DashboardRevenueDynamicReport, error) {
-	processor, err := m.NewDashboardReportProcessor(
-		merchantId,
-		period,
-		dashboardRevenueDynamicCacheKey,
-		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
-	)
-
-	if err != nil {
-		return nil, dashboardErrorUnknown
-	}
-
-	processor.DbQueryFn = processor.ExecuteRevenueDynamicReport
-	data, err := processor.ExecuteReport(ctx, new(billingpb.DashboardRevenueDynamicReport))
-
-	if err != nil {
-		return nil, dashboardErrorUnknown
-	}
-
-	dataTyped := data.(*billingpb.DashboardRevenueDynamicReport)
-
-	if len(dataTyped.Items) > 0 {
-		dataTyped.Currency = dataTyped.Items[0].Currency
-	}
-
-	return dataTyped, nil
-}
-
-func (m *DashboardRepository) GetBaseReport(
+func (r *dashboardRepository) GetBaseReport(
 	ctx context.Context,
 	merchantId, period string,
 ) (*billingpb.DashboardBaseReports, error) {
-	revenueByCountryReport, err := m.GetBaseRevenueByCountryReport(ctx, merchantId, period)
+	revenueByCountryReport, err := r.getBaseRevenueByCountryReport(ctx, merchantId, period)
 
 	if err != nil {
 		return nil, err
 	}
 
-	salesTodayReport, err := m.GetBaseSalesTodayReport(ctx, merchantId, period)
+	salesTodayReport, err := r.getBaseSalesTodayReport(ctx, merchantId, period)
 
 	if err != nil {
 		return nil, err
 	}
 
-	sourcesReport, err := m.GetBaseSourcesReport(ctx, merchantId, period)
+	sourcesReport, err := r.getBaseSourcesReport(ctx, merchantId, period)
 
 	if err != nil {
 		return nil, err
@@ -267,50 +209,84 @@ func (m *DashboardRepository) GetBaseReport(
 	return reports, nil
 }
 
-func (m *DashboardRepository) GetBaseRevenueByCountryReport(
+func (r *dashboardRepository) GetRevenueDynamicsReport(
+	ctx context.Context,
+	merchantId, period string,
+) (*billingpb.DashboardRevenueDynamicReport, error) {
+	processor, err := r.newDashboardReportProcessor(
+		merchantId,
+		period,
+		dashboardRevenueDynamicCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := processor.ExecuteReport(
+		ctx,
+		new(billingpb.DashboardRevenueDynamicReport),
+		processor.ExecuteRevenueDynamicReport,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	dataTyped := data.(*billingpb.DashboardRevenueDynamicReport)
+
+	if len(dataTyped.Items) > 0 {
+		dataTyped.Currency = dataTyped.Items[0].Currency
+	}
+
+	return dataTyped, nil
+}
+
+func (r *dashboardRepository) getBaseRevenueByCountryReport(
 	ctx context.Context,
 	merchantId, period string,
 ) (*billingpb.DashboardRevenueByCountryReport, error) {
-	processorCurrent, err := m.NewDashboardReportProcessor(
+	processorCurrent, err := r.newDashboardReportProcessor(
 		merchantId,
 		period,
 		dashboardBaseRevenueByCountryCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorPrevious, err := m.NewDashboardReportProcessor(
+	processorPrevious, err := r.newDashboardReportProcessor(
 		merchantId,
 		dashboardReportBasePreviousPeriodsNames[period],
 		dashboardBaseRevenueByCountryCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorCurrent.DbQueryFn = processorCurrent.ExecuteRevenueByCountryReport
-	processorPrevious.DbQueryFn = processorPrevious.ExecuteRevenueByCountryReport
-	dataCurrent, err := processorCurrent.ExecuteReport(ctx, new(billingpb.DashboardRevenueByCountryReport))
+	dataCurrent, err := processorCurrent.ExecuteReport(
+		ctx,
+		new(billingpb.DashboardRevenueByCountryReport),
+		processorCurrent.ExecuteRevenueByCountryReport,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	dataPrevious, err := processorPrevious.ExecuteReport(ctx, new(billingpb.DashboardRevenueByCountryReport))
+	dataPrevious, err := processorPrevious.ExecuteReport(
+		ctx,
+		new(billingpb.DashboardRevenueByCountryReport),
+		processorPrevious.ExecuteRevenueByCountryReport,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
 	dataCurrentTyped := dataCurrent.(*billingpb.DashboardRevenueByCountryReport)
@@ -330,50 +306,50 @@ func (m *DashboardRepository) GetBaseRevenueByCountryReport(
 	return dataCurrentTyped, nil
 }
 
-func (m *DashboardRepository) GetBaseSalesTodayReport(
+func (r *dashboardRepository) getBaseSalesTodayReport(
 	ctx context.Context,
 	merchantId, period string,
 ) (*billingpb.DashboardSalesTodayReport, error) {
-	processorCurrent, err := m.NewDashboardReportProcessor(
+	processorCurrent, err := r.newDashboardReportProcessor(
 		merchantId,
 		period,
 		dashboardBaseSalesTodayCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorPrevious, err := m.NewDashboardReportProcessor(
+	processorPrevious, err := r.newDashboardReportProcessor(
 		merchantId,
 		dashboardReportBasePreviousPeriodsNames[period],
 		dashboardBaseSalesTodayCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorCurrent.DbQueryFn = processorCurrent.ExecuteSalesTodayReport
-	processorPrevious.DbQueryFn = processorPrevious.ExecuteSalesTodayReport
-	dataCurrent, err := processorCurrent.ExecuteReport(ctx, new(billingpb.DashboardSalesTodayReport))
+	dataCurrent, err := processorCurrent.ExecuteReport(
+		ctx,
+		new(billingpb.DashboardSalesTodayReport),
+		processorCurrent.ExecuteSalesTodayReport,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	dataPrevious, err := processorPrevious.ExecuteReport(ctx, new(billingpb.DashboardSalesTodayReport))
+	dataPrevious, err := processorPrevious.ExecuteReport(
+		ctx,
+		new(billingpb.DashboardSalesTodayReport),
+		processorPrevious.ExecuteSalesTodayReport,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
 	dataCurrentTyped := dataCurrent.(*billingpb.DashboardSalesTodayReport)
@@ -383,50 +359,50 @@ func (m *DashboardRepository) GetBaseSalesTodayReport(
 	return dataCurrentTyped, nil
 }
 
-func (m *DashboardRepository) GetBaseSourcesReport(
+func (r *dashboardRepository) getBaseSourcesReport(
 	ctx context.Context,
 	merchantId, period string,
 ) (*billingpb.DashboardSourcesReport, error) {
-	processorCurrent, err := m.NewDashboardReportProcessor(
+	processorCurrent, err := r.newDashboardReportProcessor(
 		merchantId,
 		period,
 		dashboardBaseSourcesCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorPrevious, err := m.NewDashboardReportProcessor(
+	processorPrevious, err := r.newDashboardReportProcessor(
 		merchantId,
 		dashboardReportBasePreviousPeriodsNames[period],
 		dashboardBaseSourcesCacheKey,
 		"processed",
-		m.svc.db,
-		m.svc.cacher,
-		ctx,
 	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	processorCurrent.DbQueryFn = processorCurrent.ExecuteSourcesReport
-	processorPrevious.DbQueryFn = processorPrevious.ExecuteSourcesReport
-	dataCurrent, err := processorCurrent.ExecuteReport(ctx, new(billingpb.DashboardSourcesReport))
+	dataCurrent, err := processorCurrent.ExecuteReport(
+		ctx,
+		new(billingpb.DashboardSourcesReport),
+		processorCurrent.ExecuteSourcesReport,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
-	dataPrevious, err := processorPrevious.ExecuteReport(ctx, new(billingpb.DashboardSourcesReport))
+	dataPrevious, err := processorPrevious.ExecuteReport(
+		ctx,
+		new(billingpb.DashboardSourcesReport),
+		processorPrevious.ExecuteSourcesReport,
+	)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
 	dataCurrentTyped := dataCurrent.(*billingpb.DashboardSourcesReport)
@@ -436,29 +412,23 @@ func (m *DashboardRepository) GetBaseSourcesReport(
 	return dataCurrentTyped, nil
 }
 
-func (m *DashboardRepository) NewDashboardReportProcessor(
+func (r *dashboardRepository) newDashboardReportProcessor(
 	merchantId, period, cacheKeyMask string,
 	status interface{},
-	db mongodb.SourceInterface,
-	cache database.CacheInterface,
-	ctx context.Context,
-) (*DashboardReportProcessor, error) {
+) (DashboardProcessorRepositoryInterface, error) {
 	current := time.Now()
 	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
 
 	if err != nil {
-		return nil, dashboardErrorUnknown
+		return nil, err
 	}
 
 	processor := &DashboardReportProcessor{
 		Match:       bson.M{"merchant_id": merchantOid, "status": status, "type": "order"},
-		Db:          db,
-		Collection:  repository.CollectionOrderView,
-		Cache:       cache,
+		Db:          r.db,
+		Collection:  CollectionOrderView,
+		Cache:       r.cache,
 		CacheExpire: time.Duration(0),
-		Errors: map[string]*billingpb.ResponseErrorMessage{
-			"unknown": dashboardErrorUnknown,
-		},
 	}
 
 	switch period {
@@ -562,7 +532,7 @@ func (m *DashboardRepository) NewDashboardReportProcessor(
 		processor.CacheExpire = now.New(current).EndOfYear().Sub(current)
 		break
 	default:
-		return nil, dashboardErrorIncorrectPeriod
+		return nil, fmt.Errorf("incorrect dashboard period")
 	}
 
 	if processor.CacheExpire > 0 {
