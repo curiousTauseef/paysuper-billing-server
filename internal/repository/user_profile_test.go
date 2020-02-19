@@ -2,14 +2,18 @@ package repository
 
 import (
 	"context"
-	"github.com/golang/protobuf/ptypes/timestamp"
+	"errors"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	mongodbMocks "gopkg.in/paysuper/paysuper-database-mongo.v2/mocks"
 	"testing"
 )
 
@@ -34,7 +38,7 @@ func (suite *UserProfileTestSuite) SetupTest() {
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
 
-	suite.repository = &userProfileRepository{db: suite.db}
+	suite.repository = &userProfileRepository{db: suite.db, mapper: models.NewUserProfileMapper()}
 }
 
 func (suite *UserProfileTestSuite) TearDownTest() {
@@ -67,7 +71,25 @@ func (suite *UserProfileTestSuite) TestUserProfile_Add_Ok() {
 
 func (suite *UserProfileTestSuite) TestUserProfile_Add_ErrorDb() {
 	profile := suite.getUserProfileTemplate()
-	profile.CreatedAt = &timestamp.Timestamp{Seconds: -100000000000000}
+
+	collectionMock := &mongodbMocks.CollectionInterface{}
+	collectionMock.On("InsertOne", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	dbMock := &mongodbMocks.SourceInterface{}
+	dbMock.On("Collection", mock.Anything).Return(collectionMock, nil)
+	suite.repository.db = dbMock
+
+	err := suite.repository.Add(context.TODO(), profile)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *UserProfileTestSuite) TestUserProfile_Add_MapError() {
+	profile := suite.getUserProfileTemplate()
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
 	err := suite.repository.Add(context.TODO(), profile)
 	assert.Error(suite.T(), err)
 }
@@ -89,16 +111,36 @@ func (suite *UserProfileTestSuite) TestUserProfile_Update_Ok() {
 	assert.Equal(suite.T(), profile.Email.Email, profile2.Email.Email)
 }
 
-func (suite *UserProfileTestSuite) TestUserProfile_Update_ErrorDb() {
+func (suite *UserProfileTestSuite) TestUserProfile_Update_ErrorId() {
 	profile := suite.getUserProfileTemplate()
-	profile.CreatedAt = &timestamp.Timestamp{Seconds: -100000000000000}
+	profile.Id = "test"
 	err := suite.repository.Update(context.TODO(), profile)
 	assert.Error(suite.T(), err)
 }
 
-func (suite *UserProfileTestSuite) TestUserProfile_Update_ErrorId() {
+func (suite *UserProfileTestSuite) TestUserProfile_Update_ErrorDb() {
 	profile := suite.getUserProfileTemplate()
-	profile.Id = "test"
+
+	singleResultMock := &mongodbMocks.SingleResultInterface{}
+	singleResultMock.On("Err", mock.Anything).Return(errors.New("single result error"))
+	collectionMock := &mongodbMocks.CollectionInterface{}
+	collectionMock.On("FindOneAndReplace", mock.Anything, mock.Anything, mock.Anything).Return(singleResultMock)
+	dbMock := &mongodbMocks.SourceInterface{}
+	dbMock.On("Collection", mock.Anything).Return(collectionMock, nil)
+	suite.repository.db = dbMock
+
+	err := suite.repository.Update(context.TODO(), profile)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *UserProfileTestSuite) TestUserProfile_Update_MapError() {
+	profile := suite.getUserProfileTemplate()
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
 	err := suite.repository.Update(context.TODO(), profile)
 	assert.Error(suite.T(), err)
 }
@@ -133,16 +175,34 @@ func (suite *UserProfileTestSuite) TestUserProfile_Upsert_Ok_Update() {
 	assert.Equal(suite.T(), profile.Email.Email, profile2.Email.Email)
 }
 
-func (suite *UserProfileTestSuite) TestUserProfile_Upsert_ErrorDb() {
+func (suite *UserProfileTestSuite) TestUserProfile_Upsert_ErrorId() {
 	profile := suite.getUserProfileTemplate()
-	profile.CreatedAt = &timestamp.Timestamp{Seconds: -100000000000000}
+	profile.Id = "test"
 	err := suite.repository.Upsert(context.TODO(), profile)
 	assert.Error(suite.T(), err)
 }
 
-func (suite *UserProfileTestSuite) TestUserProfile_Upsert_ErrorId() {
+func (suite *UserProfileTestSuite) TestUserProfile_Upsert_ErrorDb() {
 	profile := suite.getUserProfileTemplate()
-	profile.Id = "test"
+
+	collectionMock := &mongodbMocks.CollectionInterface{}
+	collectionMock.On("ReplaceOne", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	dbMock := &mongodbMocks.SourceInterface{}
+	dbMock.On("Collection", mock.Anything).Return(collectionMock, nil)
+	suite.repository.db = dbMock
+
+	err := suite.repository.Upsert(context.TODO(), profile)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *UserProfileTestSuite) TestUserProfile_Upsert_MapError() {
+	profile := suite.getUserProfileTemplate()
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
 	err := suite.repository.Upsert(context.TODO(), profile)
 	assert.Error(suite.T(), err)
 }
@@ -171,6 +231,23 @@ func (suite *UserProfileTestSuite) TestUserProfile_GetById_Ok() {
 	assert.Equal(suite.T(), profile.Email.Email, profile2.Email.Email)
 }
 
+func (suite *UserProfileTestSuite) TestUserProfile_GetById_MapError() {
+	profile := suite.getUserProfileTemplate()
+	mgo, err := suite.repository.mapper.MapObjectToMgo(profile)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(mgo, nil)
+	suite.repository.mapper = mapper
+
+	err = suite.repository.Add(context.TODO(), profile)
+	assert.NoError(suite.T(), err)
+
+	_, err = suite.repository.GetById(context.TODO(), profile.Id)
+	assert.Error(suite.T(), err)
+}
+
 func (suite *UserProfileTestSuite) TestUserProfile_GetByUserId_NotFound() {
 	profile := suite.getUserProfileTemplate()
 	_, err := suite.repository.GetByUserId(context.TODO(), profile.UserId)
@@ -188,6 +265,23 @@ func (suite *UserProfileTestSuite) TestUserProfile_GetByUserId_Ok() {
 	assert.Equal(suite.T(), profile.Id, profile2.Id)
 	assert.Equal(suite.T(), profile.UserId, profile2.UserId)
 	assert.Equal(suite.T(), profile.Email.Email, profile2.Email.Email)
+}
+
+func (suite *UserProfileTestSuite) TestUserProfile_GetByUserId_MapError() {
+	profile := suite.getUserProfileTemplate()
+	mgo, err := suite.repository.mapper.MapObjectToMgo(profile)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(mgo, nil)
+	suite.repository.mapper = mapper
+
+	err = suite.repository.Add(context.TODO(), profile)
+	assert.NoError(suite.T(), err)
+
+	_, err = suite.repository.GetByUserId(context.TODO(), profile.UserId)
+	assert.Error(suite.T(), err)
 }
 
 func (suite *UserProfileTestSuite) getUserProfileTemplate() *billingpb.UserProfile {
