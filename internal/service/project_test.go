@@ -200,8 +200,8 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 		UrlRedirectFail:    "http://localhost?fail",
 	}
 
-	products := []interface{}{
-		&billingpb.Product{
+	products := []*billingpb.Product{
+		{
 			Object:          "product",
 			Type:            "simple_product",
 			Sku:             "ru_double_yeti",
@@ -219,7 +219,7 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 			},
 			Prices: []*billingpb.ProductPrice{{Currency: "USD", Amount: 1005.00}},
 		},
-		&billingpb.Product{
+		{
 			Object:          "product1",
 			Type:            "simple_product",
 			Sku:             "ru_double_yeti1",
@@ -237,7 +237,7 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 			},
 			Prices: []*billingpb.ProductPrice{{Currency: "USD", Amount: 1005.00}},
 		},
-		&billingpb.Product{
+		{
 			Object:          "product2",
 			Type:            "simple_product",
 			Sku:             "ru_double_yeti2",
@@ -257,10 +257,13 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 		},
 	}
 
-	_, err = db.Collection(collectionProduct).InsertMany(context.TODO(), products)
-	assert.NoError(suite.T(), err, "Insert product test data failed")
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -298,6 +301,9 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 
 	suite.merchant = merchant
 	suite.project = project
+
+	err = suite.service.productRepository.MultipleInsert(context.TODO(), products)
+	assert.NoError(suite.T(), err, "Insert product test data failed")
 }
 
 func (suite *ProjectCRUDTestSuite) TearDownTest() {
@@ -457,8 +463,8 @@ func (suite *ProjectCRUDTestSuite) TestProjectCRUD_ChangeProject_ExistProject_Ok
 	assert.Equal(suite.T(), req.MerchantId, rsp.Item.MerchantId)
 	assert.Equal(suite.T(), req.Name, rsp.Item.Name)
 	assert.Equal(suite.T(), req.CallbackProtocol, rsp.Item.CallbackProtocol)
-	assert.NotEqual(suite.T(), req.Status, rsp.Item.Status)
-	assert.Equal(suite.T(), billingpb.ProjectStatusDraft, rsp.Item.Status)
+	assert.Equal(suite.T(), req.Status, rsp.Item.Status)
+	assert.Equal(suite.T(), billingpb.ProjectStatusInProduction, rsp.Item.Status)
 
 	project, err := suite.service.project.GetById(context.TODO(), rsp.Item.Id)
 	assert.NoError(suite.T(), err)
@@ -1018,6 +1024,11 @@ func (suite *ProjectTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,

@@ -184,12 +184,16 @@ func (h *merchantRepository) UpdateTariffs(ctx context.Context, merchantId strin
 	}
 
 	query := bson.M{
-		"_id":                                      oid,
-		"tariff.payment.method_name":               tariff.Name,
-		"tariff.payment.payer_region":              tariff.Region,
-		"tariff.payment.mcc_code":                  tariff.MccCode,
-		"tariff.payment.method_fixed_fee_currency": tariff.MethodFixAmountCurrency,
-		"tariff.payment.ps_fixed_fee_currency":     tariff.PsFixedFeeCurrency,
+		"_id": oid,
+		"tariff.payment": bson.M{
+			"$elemMatch": bson.M{
+				"method_name":               primitive.Regex{Pattern: tariff.Name, Options: "i"},
+				"payer_region":              tariff.Region,
+				"mcc_code":                  tariff.MccCode,
+				"method_fixed_fee_currency": tariff.MethodFixAmountCurrency,
+				"ps_fixed_fee_currency":     tariff.PsFixedFeeCurrency,
+			},
+		},
 	}
 
 	set["$set"] = bson.M{
@@ -201,7 +205,9 @@ func (h *merchantRepository) UpdateTariffs(ctx context.Context, merchantId strin
 		"tariff.payment.$.is_active":          tariff.IsActive,
 	}
 
-	if _, err := h.db.Collection(CollectionMerchant).UpdateOne(ctx, query, set); err != nil {
+	_, err = h.db.Collection(CollectionMerchant).UpdateOne(ctx, query, set)
+
+	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
@@ -371,7 +377,7 @@ func (h *merchantRepository) GetCommonById(ctx context.Context, id string) (*bil
 }
 
 func (h *merchantRepository) GetAll(ctx context.Context) ([]*billingpb.Merchant, error) {
-	c := []*billingpb.Merchant{}
+	c := make([]*billingpb.Merchant, 0)
 
 	cursor, err := h.db.Collection(CollectionMerchant).Find(ctx, bson.D{})
 

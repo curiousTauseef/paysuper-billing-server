@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"time"
 )
 
 // PaylinkVisitRepositoryInterface is abstraction layer for working with paylink visit and representation in database.
@@ -13,9 +11,4 @@ type PaylinkVisitRepositoryInterface interface {
 
 	// IncrVisits increment visit by paylink identifier.
 	IncrVisits(ctx context.Context, id string) error
-}
-
-type paylinkVisits struct {
-	PaylinkId primitive.ObjectID `bson:"paylink_id"`
-	Date      time.Time          `bson:"date"`
 }

@@ -118,10 +118,10 @@ func (suite *MerchantBalanceTestSuite) SetupTest() {
 	core, suite.zapRecorder = observer.New(lvl)
 	suite.logObserver = zap.New(core)
 
-	operatingCompany := helperOperatingCompany(suite.Suite, suite.service)
+	operatingCompany := HelperOperatingCompany(suite.Suite, suite.service)
 
-	suite.merchant = helperCreateMerchant(suite.Suite, suite.service, "RUB", "RU", nil, 13000, operatingCompany.Id)
-	suite.merchant2 = helperCreateMerchant(suite.Suite, suite.service, "", "RU", nil, 0, operatingCompany.Id)
+	suite.merchant = HelperCreateMerchant(suite.Suite, suite.service, "RUB", "RU", nil, 13000, operatingCompany.Id)
+	suite.merchant2 = HelperCreateMerchant(suite.Suite, suite.service, "", "RU", nil, 0, operatingCompany.Id)
 }
 
 func (suite *MerchantBalanceTestSuite) TearDownTest() {
@@ -284,7 +284,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 		AcceptExpireAt: ptypes.TimestampNow(),
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err := suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	date, err := ptypes.TimestampProto(time.Now().Add(time.Hour * -480))
@@ -339,8 +339,8 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 		CreatedAt:  ptypes.TimestampNow(),
 	}
 
-	accountingEntries := []interface{}{ae1, ae2}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).InsertMany(ctx, accountingEntries)
+	accountingEntries := []*billingpb.AccountingEntry{ae1, ae2}
+	err = suite.service.accountingRepository.MultipleInsert(ctx, accountingEntries)
 	assert.NoError(suite.T(), err)
 
 	count := suite.mbRecordsCount(suite.merchant.Id, suite.merchant.GetPayoutCurrency())
@@ -411,7 +411,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		AcceptExpireAt: ptypes.TimestampNow(),
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err := suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
@@ -467,7 +467,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
 
-	_, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err := suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	date, err := ptypes.TimestampProto(time.Now().Add(time.Hour * -480))
@@ -630,7 +630,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		AcceptExpireAt: date,
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err = suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	req6 := &billingpb.EmptyRequest{}
@@ -681,7 +681,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		AcceptExpireAt: date,
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err = suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	req7 := &billingpb.ChangeRoyaltyReportRequest{

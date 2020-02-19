@@ -3,6 +3,7 @@ package pkg
 import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"time"
 )
 
 type PaymentChannelCostMerchantSet struct {
@@ -40,4 +41,49 @@ type BinData struct {
 
 type BalanceQueryResItem struct {
 	Amount float64 `bson:"amount"`
+}
+
+type ReserveQueryResItem struct {
+	Type   string  `bson:"_id"`
+	Amount float64 `bson:"amount"`
+}
+
+type VatReportQueryResItem struct {
+	Id                             string  `bson:"_id"`
+	Count                          int32   `bson:"count"`
+	PaymentGrossRevenueLocal       float64 `bson:"payment_gross_revenue_local"`
+	PaymentTaxFeeLocal             float64 `bson:"payment_tax_fee_local"`
+	PaymentRefundGrossRevenueLocal float64 `bson:"payment_refund_gross_revenue_local"`
+	PaymentRefundTaxFeeLocal       float64 `bson:"payment_refund_tax_fee_local"`
+	PaymentFeesTotal               float64 `bson:"fees_total"`
+	PaymentRefundFeesTotal         float64 `bson:"refund_fees_total"`
+}
+
+type TurnoverQueryResItem struct {
+	Id     string  `bson:"_id"`
+	Amount float64 `bson:"amount"`
+}
+
+type RoyaltyReportMerchant struct {
+	Id primitive.ObjectID `bson:"_id"`
+}
+
+type RoyaltySummaryResult struct {
+	Items []*billingpb.RoyaltyReportProductSummaryItem `bson:"top"`
+	Total *billingpb.RoyaltyReportProductSummaryItem   `bson:"total"`
+}
+
+type PaylinkVisits struct {
+	PaylinkId primitive.ObjectID `bson:"paylink_id"`
+	Date      time.Time          `bson:"date"`
+}
+
+type GrossRevenueAndVatReports struct {
+	GrossRevenue *billingpb.DashboardAmountItemWithChart `bson:"gross_revenue"`
+	Vat          *billingpb.DashboardAmountItemWithChart `bson:"vat"`
+}
+
+type TotalTransactionsAndArpuReports struct {
+	TotalTransactions *billingpb.DashboardMainReportTotalTransactions `bson:"total_transactions"`
+	Arpu              *billingpb.DashboardAmountItemWithChart         `bson:"arpu"`
 }

@@ -55,6 +55,8 @@ const (
 
 	taxTypeVat      = "vat"
 	taxTypeSalesTax = "sales_tax"
+
+	defaultPaymentFormOpeningMode = "embed"
 )
 
 var (
@@ -65,7 +67,7 @@ var (
 	orderErrorPaymentMethodNotAllowed                         = newBillingServerErrorMsg("fm000005", "payment Method not available for project")
 	orderErrorPaymentMethodNotFound                           = newBillingServerErrorMsg("fm000006", "payment Method with specified identifier not found")
 	orderErrorPaymentMethodInactive                           = newBillingServerErrorMsg("fm000007", "payment Method with specified identifier is inactive")
-	orderErrorConvertionCurrency                              = newBillingServerErrorMsg("fm000008", "currency convertion error")
+	orderErrorConvertionCurrency                              = newBillingServerErrorMsg("fm000008", "currency conversion error")
 	orderErrorPaymentMethodEmptySettings                      = newBillingServerErrorMsg("fm000009", "payment Method setting for project is empty")
 	orderErrorPaymentSystemInactive                           = newBillingServerErrorMsg("fm000010", "payment system for specified payment Method is inactive")
 	orderErrorPayerRegionUnknown                              = newBillingServerErrorMsg("fm000011", "payer region can't be found")
@@ -103,7 +105,7 @@ var (
 	orderErrorCreatePaymentRequiredFieldEmailNotFound         = newBillingServerErrorMsg("fm000044", "required field \"email\" not found")
 	orderErrorCreatePaymentRequiredFieldUserCountryNotFound   = newBillingServerErrorMsg("fm000045", "user country is required")
 	orderErrorCreatePaymentRequiredFieldUserZipNotFound       = newBillingServerErrorMsg("fm000046", "user zip is required")
-	orderErrorOrderAlreadyComplete                            = newBillingServerErrorMsg("fm000047", "order with specified identifier payed early")
+	orderErrorOrderAlreadyComplete                            = newBillingServerErrorMsg("fm000047", "order with specified identifier paid early")
 	orderErrorSignatureInvalid                                = newBillingServerErrorMsg("fm000048", "request signature is invalid")
 	orderErrorProductsPrice                                   = newBillingServerErrorMsg("fm000051", "can't get product price")
 	orderErrorCheckoutWithoutProducts                         = newBillingServerErrorMsg("fm000052", "order products not specified")
@@ -114,7 +116,6 @@ var (
 	orderErrorDuringFormattingCurrency                        = newBillingServerErrorMsg("fm000058", "error during formatting currency")
 	orderErrorDuringFormattingDate                            = newBillingServerErrorMsg("fm000059", "error during formatting date")
 	orderErrorMerchantForOrderNotFound                        = newBillingServerErrorMsg("fm000060", "merchant for order not found")
-	orderErrorPaymentMethodsNotFound                          = newBillingServerErrorMsg("fm000061", "payment methods for payment with specified currency not found")
 	orderErrorNoPlatforms                                     = newBillingServerErrorMsg("fm000062", "no available platforms")
 	orderCountryPaymentRestricted                             = newBillingServerErrorMsg("fm000063", "payments from your country are not allowed")
 	orderErrorCostsRatesNotFound                              = newBillingServerErrorMsg("fm000064", "settings to calculate commissions for order not found")
@@ -136,6 +137,8 @@ var (
 	virtualCurrencyPayoutCurrencyMissed = newBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
 	paymentSystemPaymentProcessingSuccessStatus = "PAYMENT_SYSTEM_PROCESSING_SUCCESS"
+
+	possiblePaymentFormOpeningModes = map[string]bool{"embed": true, "iframe": true, "standalone": true}
 )
 
 type orderCreateRequestProcessorChecked struct {
@@ -633,8 +636,6 @@ func (s *Service) PaymentFormJsonDataProcess(
 			log.Println(decryptedBrowserCustomer)
 
 			if err == nil {
-				isIdentified = true
-
 				if (time.Now().Unix() - decryptedBrowserCustomer.UpdatedAt.Unix()) <= cookieCounterUpdateTime {
 					decryptedBrowserCustomer.SessionCount++
 				}
@@ -2001,7 +2002,7 @@ func (s *Service) orderNotifyMerchant(ctx context.Context, order *billingpb.Orde
 		zap.S().Debug("[orderNotifyMerchant] notification status update failed", "order_id", order.Id)
 		s.logError(orderErrorUpdateOrderDataFailed, []interface{}{"error", err.Error(), "order", order})
 	} else {
-		zap.S().Debug("[orderNotifyMerchant] notification status updated succesfully", "order_id", order.Id)
+		zap.S().Debug("[orderNotifyMerchant] notification status updated successfully", "order_id", order.Id)
 	}
 }
 
@@ -2218,6 +2219,12 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 				return nil, err
 			}
 		}
+	}
+
+	order.FormMode = defaultPaymentFormOpeningMode
+
+	if _, ok := possiblePaymentFormOpeningModes[v.request.FormMode]; ok {
+		order.FormMode = v.request.FormMode
 	}
 
 	order.ExpireDateToFormInput, _ = ptypes.TimestampProto(time.Now().Add(time.Minute * defaultExpireDateToFormInput))
@@ -3525,7 +3532,7 @@ func (s *Service) ProcessOrderVirtualCurrency(ctx context.Context, order *billin
 
 	project, err := s.project.GetById(ctx, order.GetProjectId())
 
-	if project == nil || project.VirtualCurrency == nil {
+	if err != nil || project == nil || project.VirtualCurrency == nil {
 		return orderErrorVirtualCurrencyNotFilled
 	}
 
@@ -3815,12 +3822,17 @@ func (s *Service) fillPaymentDataCard(order *billingpb.Order) error {
 		first6 = pan[0:6]
 		last4 = pan[len(pan)-4:]
 	}
+
 	cardBrand, ok := order.PaymentRequisites["card_brand"]
+	if !ok {
+		cardBrand = ""
+	}
 
 	month, ok := order.PaymentRequisites["month"]
 	if !ok {
 		month = ""
 	}
+
 	year, ok := order.PaymentRequisites["year"]
 	if !ok {
 		year = ""
@@ -4369,7 +4381,6 @@ func (s *Service) hasPaymentCosts(ctx context.Context, order *billingpb.Order) b
 	)
 
 	if err != nil {
-		zap.L().Info("debug_1", zap.String("method", "paymentChannelCostSystem"))
 		return false
 	}
 

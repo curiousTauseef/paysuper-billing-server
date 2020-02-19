@@ -1,0 +1,69 @@
+[
+  {
+    "insert": "payment_min_limit_system",
+    "documents": [
+      {
+        "currency": "RUB",
+        "amount": 0.01
+      },
+      {
+        "currency": "USD",
+        "amount": 0.01
+      },
+      {
+        "currency": "EUR",
+        "amount": 0.01
+      }
+    ]
+  },
+  {
+    "update": "payment_min_limit_system",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$currentDate": {
+            "created_at": true,
+            "updated_at": true
+          }
+        },
+        "multi": true
+      }
+    ]
+  },
+  {
+    "insert": "operating_companies",
+    "documents": [
+      {
+        "_id": {
+          "$oid": "5dbc50d486616113a1cefe16"
+        },
+        "name": "Legal name",
+        "country": "RU",
+        "registration_number": "some number",
+        "vat_number": "some vat number",
+        "address": "Home, home 0",
+        "vat_address": "Address for VAT purposes",
+        "signatory_name": "Vassiliy Poupkine",
+        "signatory_position": "CEO",
+        "banking_details": "bank details including bank, bank address, account number, swift/ bic, intermediary bank",
+        "payment_countries": []
+      }
+    ]
+  },
+  {
+    "update": "operating_companies",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$currentDate": {
+            "created_at": true,
+            "updated_at": true
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]

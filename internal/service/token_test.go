@@ -346,9 +346,6 @@ func (suite *TokenTestSuite) SetupTest() {
 		Prices: []*billingpb.ProductPrice{{Currency: "RUB", Amount: 1005.00, Region: "RUB"}},
 	}
 
-	_, err = db.Collection(collectionProduct).InsertMany(context.TODO(), []interface{}{product1, product2, product3})
-	assert.NoError(suite.T(), err, "Insert product test data failed")
-
 	redisClient := database.NewRedis(
 		&redis.Options{
 			Addr:     cfg.RedisHost,
@@ -358,6 +355,11 @@ func (suite *TokenTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -419,7 +421,10 @@ func (suite *TokenTestSuite) SetupTest() {
 	suite.product2 = product2
 	suite.product3 = product3
 
-	suite.keyProducts = createKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
+	suite.keyProducts = CreateKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
+
+	err = suite.service.productRepository.MultipleInsert(context.TODO(), []*billingpb.Product{product1, product2, product3})
+	assert.NoError(suite.T(), err, "Insert product test data failed")
 }
 
 func (suite *TokenTestSuite) TearDownTest() {

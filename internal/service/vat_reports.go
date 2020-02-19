@@ -76,17 +76,6 @@ var (
 	}
 )
 
-type vatReportQueryResItem struct {
-	Id                             string  `bson:"_id"`
-	Count                          int32   `bson:"count"`
-	PaymentGrossRevenueLocal       float64 `bson:"payment_gross_revenue_local"`
-	PaymentTaxFeeLocal             float64 `bson:"payment_tax_fee_local"`
-	PaymentRefundGrossRevenueLocal float64 `bson:"payment_refund_gross_revenue_local"`
-	PaymentRefundTaxFeeLocal       float64 `bson:"payment_refund_tax_fee_local"`
-	PaymentFeesTotal               float64 `bson:"fees_total"`
-	PaymentRefundFeesTotal         float64 `bson:"refund_fees_total"`
-}
-
 type vatReportProcessor struct {
 	*Service
 	date               time.Time
@@ -252,8 +241,13 @@ func (s *Service) GetVatReportTransactions(
 		"is_production":        true,
 	}
 
-	n, err := s.orderView.CountTransactions(ctx, match)
-	vts, err := s.orderView.GetTransactionsPrivate(ctx, match, req.Limit, req.Offset)
+	n, err := s.orderViewRepository.CountTransactions(ctx, match)
+
+	if err != nil {
+		return err
+	}
+
+	vts, err := s.orderViewRepository.GetTransactionsPrivate(ctx, match, req.Limit, req.Offset)
 
 	if err != nil {
 		return err
@@ -669,59 +663,9 @@ func (h *vatReportProcessor) processVatReportForPeriod(ctx context.Context, coun
 	isCurrencyRatesPolicyOnDay := country.VatCurrencyRatesPolicy == pkg.VatCurrencyRatesPolicyOnDay
 	report.AmountsApproximate = !(isCurrencyRatesPolicyOnDay || (!isCurrencyRatesPolicyOnDay && isLastDayOfPeriod))
 
-	matchQuery := bson.M{
-		"pm_order_close_date": bson.M{
-			"$gte": now.New(from).BeginningOfDay(),
-			"$lte": now.New(to).EndOfDay(),
-		},
-		"country_code":         country.IsoCodeA2,
-		"is_vat_deduction":     false,
-		"operating_company_id": operatingCompanyId,
-		"is_production":        true,
-	}
-
-	query := []bson.M{
-		{
-			"$match": &matchQuery,
-		},
-		{
-			"$group": bson.M{
-				"_id":                                "$country_code",
-				"count":                              bson.M{"$sum": 1},
-				"payment_gross_revenue_local":        bson.M{"$sum": "$payment_gross_revenue_local.amount"},
-				"payment_tax_fee_local":              bson.M{"$sum": "$payment_tax_fee_local.amount"},
-				"payment_refund_gross_revenue_local": bson.M{"$sum": "$payment_refund_gross_revenue_local.amount"},
-				"payment_refund_tax_fee_local":       bson.M{"$sum": "$payment_refund_tax_fee_local.amount"},
-				"fees_total":                         bson.M{"$sum": "$fees_total_local.amount"},
-				"refund_fees_total":                  bson.M{"$sum": "$refund_fees_total_local.amount"},
-			},
-		},
-	}
-
-	cursor, err := h.Service.db.Collection(collectionOrderView).Aggregate(ctx, query)
+	res, err := h.orderViewRepository.GetVatSummary(h.ctx, operatingCompanyId, country.IsoCodeA2, false, from, to)
 
 	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-		}
-		return err
-	}
-
-	var res []*vatReportQueryResItem
-	err = cursor.All(ctx, &res)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return err
 	}
 
@@ -732,30 +676,9 @@ func (h *vatReportProcessor) processVatReportForPeriod(ctx context.Context, coun
 		report.FeesAmount = res[0].PaymentFeesTotal + res[0].PaymentRefundFeesTotal
 	}
 
-	matchQuery["is_vat_deduction"] = true
-	cursor, err = h.Service.db.Collection(collectionOrderView).Aggregate(ctx, query)
+	res, err = h.orderViewRepository.GetVatSummary(h.ctx, operatingCompanyId, country.IsoCodeA2, true, from, to)
 
 	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-		}
-		return err
-	}
-
-	err = cursor.All(ctx, &res)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return err
 	}
 
@@ -812,43 +735,15 @@ func (h *vatReportProcessor) processAccountingEntriesForPeriod(ctx context.Conte
 		return nil
 	}
 
-	query := bson.M{
-		"created_at": bson.M{
-			"$gte": now.New(from).BeginningOfDay(),
-			"$lte": now.New(to).EndOfDay(),
-		},
-		"country": country.IsoCodeA2,
-		"type":    bson.M{"$in": AccountingEntriesLocalAmountsUpdate},
-	}
+	aes, err := h.accountingRepository.FindByTypeCountryDates(
+		h.ctx,
+		country.IsoCodeA2,
+		AccountingEntriesLocalAmountsUpdate,
+		now.New(from).BeginningOfDay(),
+		now.New(to).EndOfDay(),
+	)
 
-	cursor, err := h.Service.db.Collection(collectionAccountingEntry).Find(ctx, query)
-
-	if err != nil {
-		if err != mongo.ErrNoDocuments {
-			zap.L().Error(
-				pkg.ErrorDatabaseQueryFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-		}
-		return err
-	}
-
-	var aes []*billingpb.AccountingEntry
-	err = cursor.All(ctx, &aes)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return err
-	}
-
-	if len(aes) == 0 {
+	if err != nil || len(aes) == 0 {
 		return nil
 	}
 
@@ -860,7 +755,7 @@ func (h *vatReportProcessor) processAccountingEntriesForPeriod(ctx context.Conte
 		aesRealTaxFee[ae.Source.Id] = ae
 	}
 
-	var operations []mongo.WriteModel
+	var list []*billingpb.AccountingEntry
 
 	for _, ae := range aes {
 		if ae.Type == pkg.AccountingEntryTypeRealTaxFee {
@@ -890,32 +785,18 @@ func (h *vatReportProcessor) processAccountingEntriesForPeriod(ctx context.Conte
 			continue
 		}
 
-		oid, _ := primitive.ObjectIDFromHex(ae.Id)
-		operation := mongo.NewUpdateOneModel().
-			SetFilter(bson.M{"_id": oid}).
-			SetUpdate(ae)
-		operations = append(operations, operation)
+		list = append(list, ae)
 
 		h.orderViewUpdateIds[ae.Source.Id] = true
 	}
 
-	if len(operations) == 0 {
+	if len(list) == 0 {
 		return nil
 	}
 
-	bulkResult, err := h.Service.db.Collection(collectionAccountingEntry).BulkWrite(h.ctx, operations)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
-		)
+	if err = h.accountingRepository.BulkWrite(h.ctx, list); err != nil {
 		return err
 	}
-
-	zap.S().Infow("accounting entries bulk update result",
-		"matched", bulkResult.MatchedCount, "modified", bulkResult.ModifiedCount)
 
 	return nil
 }

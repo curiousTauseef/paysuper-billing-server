@@ -43,6 +43,11 @@ func (suite *UsersTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -1004,6 +1009,8 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_InvalidEmail() {
 	shouldBe := require.New(suite.T())
 
 	token, err := suite.service.createInviteToken(&billingpb.UserRole{Email: "aaa@aaa.aaa"})
+	shouldBe.NoError(err)
+
 	res := &billingpb.AcceptInviteResponse{}
 	err = suite.service.AcceptInvite(context.TODO(), &billingpb.AcceptInviteRequest{Email: "bbb@bbb.bbb", Token: token}, res)
 	shouldBe.NoError(err)
@@ -1016,6 +1023,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_GetByUserId() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1035,6 +1043,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_NoPersonalData() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1054,6 +1063,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_GetAdminUserById() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1079,6 +1089,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_AlreadyAccept() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1104,6 +1115,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_UpdateAdminUser() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1132,6 +1144,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_AddToCasbin() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1164,6 +1177,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_ConfirmEmail() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	profile := &billingpb.UserProfile{
@@ -1203,6 +1217,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_CentrifugoPublish() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	profile := &billingpb.UserProfile{
@@ -1246,6 +1261,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Ok() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	profile := &billingpb.UserProfile{
@@ -1297,6 +1313,8 @@ func (suite *UsersTestSuite) Test_CheckInviteToken_Error_InvalidEmail() {
 	shouldBe := require.New(suite.T())
 
 	token, err := suite.service.createInviteToken(&billingpb.UserRole{Email: "aaa@aaa.aaa"})
+	shouldBe.NoError(err)
+
 	res := &billingpb.CheckInviteTokenResponse{}
 	err = suite.service.CheckInviteToken(context.TODO(), &billingpb.CheckInviteTokenRequest{Email: "bbb@bbb.bbb", Token: token}, res)
 	shouldBe.NoError(err)
@@ -1308,6 +1326,8 @@ func (suite *UsersTestSuite) Test_CheckInviteToken_Ok() {
 	shouldBe := require.New(suite.T())
 
 	token, err := suite.service.createInviteToken(&billingpb.UserRole{Email: "aaa@aaa.aaa"})
+	shouldBe.NoError(err)
+
 	res := &billingpb.CheckInviteTokenResponse{}
 	err = suite.service.CheckInviteToken(context.TODO(), &billingpb.CheckInviteTokenRequest{Email: "aaa@aaa.aaa", Token: token}, res)
 	shouldBe.NoError(err)

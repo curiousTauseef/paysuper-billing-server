@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -1445,6 +1444,11 @@ func (suite *OrderTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -3563,6 +3567,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Ok() {
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
 		},
+		FormMode: "standalone",
 	}
 
 	rsp := &billingpb.OrderCreateProcessResponse{}
@@ -3574,6 +3579,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Ok() {
 	assert.NotNil(suite.T(), rsp.Item.Project)
 	assert.NotNil(suite.T(), rsp.Item.PaymentMethod)
 	assert.Equal(suite.T(), pkg.OrderTypeOrder, rsp.Item.Type)
+	assert.Equal(suite.T(), req.FormMode, rsp.Item.FormMode)
 }
 
 func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_ProjectInactive_Error() {
@@ -4542,6 +4548,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_OrderHasEndedStatu
 
 	rsp.PrivateStatus = recurringpb.OrderStatusProjectComplete
 	err = suite.service.updateOrder(context.TODO(), rsp)
+	assert.NoError(suite.T(), err)
 
 	data := map[string]string{
 		billingpb.PaymentCreateFieldOrderId:         rsp.Uuid,
@@ -4577,13 +4584,13 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_ProjectProcess_Err
 
 	rsp1 := &billingpb.OrderCreateProcessResponse{}
 	err := suite.service.OrderCreateProcess(context.TODO(), req, rsp1)
-
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), rsp1.Status, billingpb.ResponseStatusOk)
 	rsp := rsp1.Item
 
 	rsp.Project.Id = suite.inactiveProject.Id
 	err = suite.service.updateOrder(context.TODO(), rsp)
+	assert.NoError(suite.T(), err)
 
 	data := map[string]string{
 		billingpb.PaymentCreateFieldOrderId:         rsp.Uuid,
@@ -4704,6 +4711,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_AmountLimitProcess
 
 	rsp.OrderAmount = 10
 	err = suite.service.updateOrder(context.TODO(), rsp)
+	assert.NoError(suite.T(), err)
 
 	data := map[string]string{
 		billingpb.PaymentCreateFieldOrderId:         rsp.Uuid,
@@ -5113,6 +5121,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_FormInputTimeExpired
 	assert.NoError(suite.T(), err)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	expireYear := time.Now().AddDate(1, 0, 0)
 
@@ -7446,13 +7455,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_AccountingEntries_
 	assert.IsType(suite.T(), &billingpb.Order{}, order)
 	assert.Equal(suite.T(), int32(recurringpb.OrderStatusPaymentSystemComplete), order.PrivateStatus)
 
-	oid, err := primitive.ObjectIDFromHex(order.Id)
-	filter := bson.M{"source.id": oid, "source.type": repository.CollectionOrder}
-
-	var accountingEntries []*billingpb.AccountingEntry
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &accountingEntries)
+	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), accountingEntries)
 }
@@ -7552,13 +7555,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Error() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), pkg.StatusErrorValidation, callbackResponse.Status)
 
-	oid, err := primitive.ObjectIDFromHex(order.Id)
-	filter := bson.M{"source.id": oid, "source.type": repository.CollectionOrder}
-
-	var accountingEntries []*billingpb.AccountingEntry
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &accountingEntries)
+	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), accountingEntries)
 
@@ -8084,7 +8081,7 @@ func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_Ok() {
 	postmarkBrokerMock := &mocks.BrokerInterface{}
 	postmarkBrokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(postmarkBrokerMockFn, nil)
 	suite.service.postmarkBroker = postmarkBrokerMock
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
 	assert.Nil(suite.T(), order.Cancellation)
@@ -8111,12 +8108,12 @@ func (suite *OrderTestSuite) TestOrder_RefundReceipt_Ok() {
 	postmarkBrokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(postmarkBrokerMockFn, nil)
 	suite.service.postmarkBroker = postmarkBrokerMock
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
 	assert.Nil(suite.T(), order.Cancellation)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	order, err := suite.service.getOrderById(context.TODO(), order.Id)
@@ -8867,7 +8864,7 @@ func (suite *OrderTestSuite) TestOrder_BankCardAccountRegexp() {
 }
 
 func (suite *OrderTestSuite) TestOrder_OrderReceipt_Ok() {
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
 
 	req := &billingpb.OrderReceiptRequest{
 		OrderId:   order.Uuid,

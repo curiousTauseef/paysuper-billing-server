@@ -1,4 +1,4 @@
-package service
+package repository
 
 import (
 	"context"
@@ -27,7 +27,11 @@ type DashboardReportProcessor struct {
 	Errors      map[string]*billingpb.ResponseErrorMessage
 }
 
-func (m *DashboardReportProcessor) ExecuteReport(ctx context.Context, receiver interface{}) (interface{}, error) {
+func (m *DashboardReportProcessor) ExecuteReport(
+	ctx context.Context,
+	receiver interface{},
+	fn func(context.Context, interface{}) (interface{}, error),
+) (interface{}, error) {
 	if m.CacheExpire > 0 {
 		err := m.Cache.Get(m.CacheKey, &receiver)
 
@@ -36,10 +40,11 @@ func (m *DashboardReportProcessor) ExecuteReport(ctx context.Context, receiver i
 		}
 	}
 
+	m.DbQueryFn = fn
 	receiver, err := m.DbQueryFn(ctx, receiver)
 
 	if err != nil {
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	if m.CacheExpire > 0 {
@@ -54,7 +59,7 @@ func (m *DashboardReportProcessor) ExecuteReport(ctx context.Context, receiver i
 				zap.Any(pkg.ErrorDatabaseFieldQuery, receiver),
 			)
 
-			return nil, m.Errors["unknown"]
+			return nil, err
 		}
 	}
 
@@ -134,7 +139,7 @@ func (m *DashboardReportProcessor) ExecuteGrossRevenueAndVatReports(ctx context.
 			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	defer cursor.Close(ctx)
@@ -149,7 +154,7 @@ func (m *DashboardReportProcessor) ExecuteGrossRevenueAndVatReports(ctx context.
 				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 			)
-			return nil, m.Errors["unknown"]
+			return nil, err
 		}
 	}
 
@@ -235,7 +240,7 @@ func (m *DashboardReportProcessor) ExecuteTotalTransactionsAndArpuReports(ctx co
 			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	defer cursor.Close(ctx)
@@ -250,7 +255,7 @@ func (m *DashboardReportProcessor) ExecuteTotalTransactionsAndArpuReports(ctx co
 				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 			)
-			return nil, m.Errors["unknown"]
+			return nil, err
 		}
 	}
 
@@ -292,7 +297,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Conte
 			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	err = cursor.All(ctx, &receiverTyped.Items)
@@ -305,7 +310,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Conte
 			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	return receiverTyped, nil
@@ -426,7 +431,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Con
 			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	defer cursor.Close(ctx)
@@ -441,7 +446,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Con
 				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 			)
-			return nil, m.Errors["unknown"]
+			return nil, err
 		}
 	}
 
@@ -561,7 +566,7 @@ func (m *DashboardReportProcessor) ExecuteSalesTodayReport(ctx context.Context, 
 			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	defer cursor.Close(ctx)
@@ -576,7 +581,7 @@ func (m *DashboardReportProcessor) ExecuteSalesTodayReport(ctx context.Context, 
 				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 			)
-			return nil, m.Errors["unknown"]
+			return nil, err
 		}
 	}
 
@@ -680,7 +685,7 @@ func (m *DashboardReportProcessor) ExecuteSourcesReport(ctx context.Context, rec
 			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return nil, m.Errors["unknown"]
+		return nil, err
 	}
 
 	defer cursor.Close(ctx)
@@ -695,7 +700,7 @@ func (m *DashboardReportProcessor) ExecuteSourcesReport(ctx context.Context, rec
 				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
 				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 			)
-			return nil, m.Errors["unknown"]
+			return nil, err
 		}
 	}
 

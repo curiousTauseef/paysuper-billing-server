@@ -113,7 +113,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 
 	suite.projectWithProducts = &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
@@ -150,7 +150,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		suite.FailNow("Insert project test data failed", "%v", err)
 	}
 
-	products := createProductsForProject(suite.Suite, suite.service, suite.projectWithProducts, 1)
+	products := CreateProductsForProject(suite.Suite, suite.service, suite.projectWithProducts, 1)
 	assert.Len(suite.T(), products, 1)
 
 	paylinkBod, _ := ptypes.TimestampProto(now.BeginningOfDay())
@@ -207,7 +207,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_updateOrderView() {
 
 	count := 0
 	for count < suite.service.cfg.OrderViewUpdateBatchSize+10 {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			amounts[count%2],
@@ -226,7 +226,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_updateOrderView() {
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Ok() {
-	order := helperCreateAndPayOrder(
+	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -237,7 +237,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Ok() {
 	)
 
 	assert.False(suite.T(), suite.projectFixedAmount.IsProduction())
-	orderPublic, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
+	orderPublic, err := suite.service.orderViewRepository.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderPublic)
 	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, orderPublic)
@@ -266,7 +266,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Productio
 		suite.FailNow("Insert project test data failed", "%v", err)
 	}
 
-	order := helperCreateAndPayOrder(
+	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -277,7 +277,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Productio
 	)
 
 	assert.True(suite.T(), productionProject.IsProduction())
-	orderPublic, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
+	orderPublic, err := suite.service.orderViewRepository.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderPublic)
 	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, orderPublic)
@@ -286,7 +286,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Productio
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
-	order := helperCreateAndPayOrder(
+	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -296,7 +296,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
 		suite.paymentMethod,
 	)
 
-	orderPrivate, err := suite.service.orderView.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPrivate))
+	orderPrivate, err := suite.service.orderViewRepository.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPrivate))
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderPrivate)
 	assert.IsType(suite.T(), &billingpb.OrderViewPrivate{}, orderPrivate)
@@ -310,7 +310,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -319,7 +319,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
 		suite.projectFixedAmount,
 		suite.paymentMethod,
 	)
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		200,
@@ -329,21 +329,21 @@ func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
 		suite.paymentMethod,
 	)
 
-	count, err := suite.service.orderView.CountTransactions(context.TODO(), bson.M{})
+	count, err := suite.service.orderViewRepository.CountTransactions(context.TODO(), bson.M{})
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), count, 2)
 
-	count, err = suite.service.orderView.CountTransactions(context.TODO(), bson.M{"country_code": "FI"})
+	count, err = suite.service.orderViewRepository.CountTransactions(context.TODO(), bson.M{"country_code": "FI"})
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), count, 1)
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPublic_Ok() {
-	transactions, err := suite.service.orderView.GetTransactionsPublic(context.TODO(), bson.M{}, 10, 0)
+	transactions, err := suite.service.orderViewRepository.GetTransactionsPublic(context.TODO(), bson.M{}, 10, 0)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 0)
 
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -353,18 +353,18 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPublic_Ok() {
 		suite.paymentMethod,
 	)
 
-	transactions, err = suite.service.orderView.GetTransactionsPublic(context.TODO(), bson.M{}, 10, 0)
+	transactions, err = suite.service.orderViewRepository.GetTransactionsPublic(context.TODO(), bson.M{}, 10, 0)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 1)
 	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, transactions[0])
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPrivate_Ok() {
-	transactions, err := suite.service.orderView.GetTransactionsPrivate(context.TODO(), bson.M{}, 10, 0)
+	transactions, err := suite.service.orderViewRepository.GetTransactionsPrivate(context.TODO(), bson.M{}, 10, 0)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 0)
 
-	_ = helperCreateAndPayOrder(
+	_ = HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -374,7 +374,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPrivate_Ok() {
 		suite.paymentMethod,
 	)
 
-	transactions, err = suite.service.orderView.GetTransactionsPrivate(context.TODO(), bson.M{}, 10, 0)
+	transactions, err = suite.service.orderViewRepository.GetTransactionsPrivate(context.TODO(), bson.M{}, 10, 0)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), transactions, 1)
 	assert.IsType(suite.T(), &billingpb.OrderViewPrivate{}, transactions[0])
@@ -384,7 +384,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_NoTransacti
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, err := suite.service.orderView.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 0)
@@ -418,7 +418,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			10,
@@ -436,7 +436,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, err := suite.service.orderView.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 2)
@@ -500,7 +500,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			10,
@@ -520,14 +520,14 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 	assert.NoError(suite.T(), err)
 
 	for _, order := range orders {
-		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 		assert.NotNil(suite.T(), refund)
 	}
 
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, err := suite.service.orderView.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 2)
@@ -612,7 +612,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 		err = suite.service.IncrPaylinkVisits(context.TODO(), visitsReq, &billingpb.EmptyResponse{})
 		assert.NoError(suite.T(), err)
 
-		order := helperCreateAndPayPaylinkOrder(
+		order := HelperCreateAndPayPaylinkOrder(
 			suite.Suite,
 			suite.service,
 			suite.paylink1.Id,
@@ -632,7 +632,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 
 	count = 0
 	for count < maxRefunds {
-		refund := helperMakeRefund(suite.Suite, suite.service, orders[count], orders[count].ChargeAmount, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, orders[count], orders[count].ChargeAmount, false)
 		assert.NotNil(suite.T(), refund)
 		count++
 	}
@@ -661,7 +661,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 	assert.EqualValues(suite.T(), res.Item.GrossTotalAmount, 132.125763)
 
 	// stat by country
-	stat, err := suite.service.orderView.GetPaylinkStatByCountry(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
+	stat, err := suite.service.orderViewRepository.GetPaylinkStatByCountry(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), stat.Total)
 	assert.Len(suite.T(), stat.Top, len(countries))
@@ -694,7 +694,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 
 	// stat by referrer
 
-	stat, err = suite.service.orderView.GetPaylinkStatByReferrer(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
+	stat, err = suite.service.orderViewRepository.GetPaylinkStatByReferrer(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), stat.Total)
 	assert.Len(suite.T(), stat.Top, len(referrers))
@@ -727,7 +727,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 
 	// stat by date
 
-	stat, err = suite.service.orderView.GetPaylinkStatByDate(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
+	stat, err = suite.service.orderViewRepository.GetPaylinkStatByDate(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), stat.Total)
 	assert.Len(suite.T(), stat.Top, 1)
@@ -750,7 +750,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 	assert.EqualValues(suite.T(), stat.Total.GrossTotalAmount, 132.125763)
 
 	// stat by utm
-	stat, err = suite.service.orderView.GetPaylinkStatByUtm(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
+	stat, err = suite.service.orderViewRepository.GetPaylinkStatByUtm(context.TODO(), suite.paylink1.Id, suite.paylink1.MerchantId, yesterday, tomorrow)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), stat.Total)
 	assert.Len(suite.T(), stat.Top, 2)

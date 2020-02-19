@@ -113,7 +113,7 @@ func (suite *VatReportsTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	_, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	_, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 
 	var core zapcore.Core
 
@@ -239,7 +239,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			amounts[count%2],
@@ -262,7 +262,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 		if i%3 == 0 {
 			continue
 		}
-		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 		assert.NotNil(suite.T(), refund)
 	}
 
@@ -282,16 +282,16 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 
 	report := repRes.Data.Items[0]
 	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), report.Country, "RU")
-	assert.Equal(suite.T(), report.Currency, "RUB")
-	assert.EqualValues(suite.T(), report.TransactionsCount, 25)
-	assert.EqualValues(suite.T(), report.GrossRevenue, 600)
-	assert.EqualValues(suite.T(), report.VatAmount, 100)
-	assert.EqualValues(suite.T(), report.FeesAmount, 144.38)
-	assert.EqualValues(suite.T(), report.DeductionAmount, 0)
-	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 600)
-	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 4393.9)
-	assert.Equal(suite.T(), report.Status, pkg.VatReportStatusThreshold)
+	assert.Equal(suite.T(), "RU", report.Country)
+	assert.Equal(suite.T(), "RUB", report.Currency)
+	assert.EqualValues(suite.T(), 25, report.TransactionsCount)
+	assert.EqualValues(suite.T(), 600, report.GrossRevenue)
+	assert.EqualValues(suite.T(), 100, report.VatAmount)
+	assert.EqualValues(suite.T(), 144.38, report.FeesAmount)
+	assert.EqualValues(suite.T(), 0, report.DeductionAmount)
+	assert.EqualValues(suite.T(), 600, report.CountryAnnualTurnover)
+	assert.EqualValues(suite.T(), 4393.9, report.WorldAnnualTurnover)
+	assert.Equal(suite.T(), pkg.VatReportStatusThreshold, report.Status)
 
 	err = suite.service.GetVatReportsForCountry(context.TODO(), &billingpb.VatReportsRequest{Country: "FI"}, &repRes)
 	assert.NoError(suite.T(), err)
@@ -301,16 +301,16 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 
 	report = repRes.Data.Items[0]
 	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), report.Country, "FI")
-	assert.Equal(suite.T(), report.Currency, "EUR")
-	assert.EqualValues(suite.T(), report.TransactionsCount, 25)
-	assert.EqualValues(suite.T(), report.GrossRevenue, 54.2)
-	assert.EqualValues(suite.T(), report.VatAmount, 9.03)
-	assert.EqualValues(suite.T(), report.FeesAmount, 8.89)
-	assert.EqualValues(suite.T(), report.DeductionAmount, 0)
-	assert.EqualValues(suite.T(), report.CountryAnnualTurnover, 54)
-	assert.EqualValues(suite.T(), report.WorldAnnualTurnover, 62.77)
-	assert.Equal(suite.T(), report.Status, pkg.VatReportStatusThreshold)
+	assert.Equal(suite.T(), "FI", report.Country)
+	assert.Equal(suite.T(), "EUR", report.Currency)
+	assert.EqualValues(suite.T(), 25, report.TransactionsCount)
+	assert.EqualValues(suite.T(), 54.2, report.GrossRevenue)
+	assert.EqualValues(suite.T(), 9.03, report.VatAmount)
+	assert.EqualValues(suite.T(), 8.89, report.FeesAmount)
+	assert.EqualValues(suite.T(), 0, report.DeductionAmount)
+	assert.EqualValues(suite.T(), 54, report.CountryAnnualTurnover)
+	assert.EqualValues(suite.T(), 62.77, report.WorldAnnualTurnover)
+	assert.Equal(suite.T(), pkg.VatReportStatusThreshold, report.Status)
 
 	assert.NoError(suite.T(), err)
 }
@@ -381,7 +381,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports_OnlyTestOrder
 
 	count := 0
 	for count < numberOfOrders {
-		order := helperCreateAndPayOrder(
+		order := HelperCreateAndPayOrder(
 			suite.Suite,
 			suite.service,
 			amounts[count%2],
@@ -401,7 +401,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports_OnlyTestOrder
 	assert.NoError(suite.T(), err)
 
 	for _, order := range orders {
-		refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount*0.5, false)
+		refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount*0.5, false)
 		assert.NotNil(suite.T(), refund)
 	}
 
