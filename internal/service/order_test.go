@@ -3567,6 +3567,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Ok() {
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
 		},
+		FormMode: "standalone",
 	}
 
 	rsp := &billingpb.OrderCreateProcessResponse{}
@@ -3578,6 +3579,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Ok() {
 	assert.NotNil(suite.T(), rsp.Item.Project)
 	assert.NotNil(suite.T(), rsp.Item.PaymentMethod)
 	assert.Equal(suite.T(), pkg.OrderTypeOrder, rsp.Item.Type)
+	assert.Equal(suite.T(), req.FormMode, rsp.Item.FormMode)
 }
 
 func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_ProjectInactive_Error() {

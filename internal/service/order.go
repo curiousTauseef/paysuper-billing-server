@@ -55,6 +55,8 @@ const (
 
 	taxTypeVat      = "vat"
 	taxTypeSalesTax = "sales_tax"
+
+	defaultPaymentFormOpeningMode = "embed"
 )
 
 var (
@@ -114,7 +116,6 @@ var (
 	orderErrorDuringFormattingCurrency                        = newBillingServerErrorMsg("fm000058", "error during formatting currency")
 	orderErrorDuringFormattingDate                            = newBillingServerErrorMsg("fm000059", "error during formatting date")
 	orderErrorMerchantForOrderNotFound                        = newBillingServerErrorMsg("fm000060", "merchant for order not found")
-	orderErrorPaymentMethodsNotFound                          = newBillingServerErrorMsg("fm000061", "payment methods for payment with specified currency not found")
 	orderErrorNoPlatforms                                     = newBillingServerErrorMsg("fm000062", "no available platforms")
 	orderCountryPaymentRestricted                             = newBillingServerErrorMsg("fm000063", "payments from your country are not allowed")
 	orderErrorCostsRatesNotFound                              = newBillingServerErrorMsg("fm000064", "settings to calculate commissions for order not found")
@@ -136,6 +137,8 @@ var (
 	virtualCurrencyPayoutCurrencyMissed = newBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
 	paymentSystemPaymentProcessingSuccessStatus = "PAYMENT_SYSTEM_PROCESSING_SUCCESS"
+
+	possiblePaymentFormOpeningModes = map[string]bool{"embed": true, "iframe": true, "standalone": true}
 )
 
 type orderCreateRequestProcessorChecked struct {
@@ -2216,6 +2219,12 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 				return nil, err
 			}
 		}
+	}
+
+	order.FormMode = defaultPaymentFormOpeningMode
+
+	if _, ok := possiblePaymentFormOpeningModes[v.request.FormMode]; ok {
+		order.FormMode = v.request.FormMode
 	}
 
 	order.ExpireDateToFormInput, _ = ptypes.TimestampProto(time.Now().Add(time.Minute * defaultExpireDateToFormInput))
@@ -4372,7 +4381,6 @@ func (s *Service) hasPaymentCosts(ctx context.Context, order *billingpb.Order) b
 	)
 
 	if err != nil {
-		zap.L().Info("debug_1", zap.String("method", "paymentChannelCostSystem"))
 		return false
 	}
 

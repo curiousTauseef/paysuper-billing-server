@@ -110,6 +110,7 @@ const (
 	ErrorTimeConversionMethod = "conversion method"
 
 	ErrorDatabaseQueryFailed          = "Query to database collection failed"
+	ErrorMapModelFailed               = "Map entity failed"
 	ErrorDatabaseInvalidObjectId      = "String is not a valid ObjectID"
 	ErrorQueryCursorExecutionFailed   = "Execute result from query cursor failed"
 	ErrorQueryCursorCloseFailed       = "Close DB cursor is failed"

@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,7 +41,7 @@ func (suite *ProjectTestSuite) SetupTest() {
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
 
-	suite.repository = &projectRepository{db: suite.db, cache: &mocks.CacheInterface{}}
+	suite.repository = &projectRepository{db: suite.db, cache: &mocks.CacheInterface{}, mapper: models.NewProjectMapper()}
 }
 
 func (suite *ProjectTestSuite) TearDownTest() {
@@ -76,6 +77,25 @@ func (suite *ProjectTestSuite) TestProject_Insert_Ok() {
 	assert.Equal(suite.T(), project.MerchantId, project2.MerchantId)
 	assert.Equal(suite.T(), project.Status, project2.Status)
 	assert.Equal(suite.T(), project.Name, project2.Name)
+}
+
+
+func (suite *ProjectTestSuite) TestProject_Insert_MapError() {
+	project := suite.getProjectTemplate()
+
+	cache := &mocks.CacheInterface{}
+	key := fmt.Sprintf(cacheProjectId, project.Id)
+	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Get", key, mock.Anything).Return(errors.New("error"))
+	suite.repository.cache = cache
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
+	err := suite.repository.Insert(context.TODO(), project)
+	assert.Error(suite.T(), err)
 }
 
 func (suite *ProjectTestSuite) TestProject_Insert_SkipErrorCacheUpdate() {
@@ -169,6 +189,18 @@ func (suite *ProjectTestSuite) TestProject_Update_ErrorDb() {
 	assert.Error(suite.T(), err)
 }
 
+func (suite *ProjectTestSuite) TestProject_Update_MapError() {
+	project := suite.getProjectTemplate()
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
+	err := suite.repository.Update(context.TODO(), project)
+	assert.Error(suite.T(), err)
+}
+
 func (suite *ProjectTestSuite) TestProject_Update_ErrorCacheUpdate() {
 	project := suite.getProjectTemplate()
 
@@ -223,6 +255,27 @@ func (suite *ProjectTestSuite) TestProject_GetById_InvalidId() {
 	suite.repository.cache = cache
 
 	_, err := suite.repository.GetById(context.TODO(), "id")
+	assert.Error(suite.T(), err)
+}
+
+func (suite *ProjectTestSuite) TestProject_GetById_MapError() {
+	project := suite.getProjectTemplate()
+
+	cache := &mocks.CacheInterface{}
+	key := fmt.Sprintf(cacheProjectId, project.Id)
+	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Get", mock.Anything, mock.Anything).Return(errors.New("error"))
+	suite.repository.cache = cache
+
+	err := suite.repository.Insert(context.TODO(), project)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
+	_, err = suite.repository.GetById(context.TODO(), "id")
 	assert.Error(suite.T(), err)
 }
 
@@ -416,6 +469,25 @@ func (suite *ProjectTestSuite) TestProject_Find_ErrorDb() {
 	suite.repository.db = dbMock
 
 	_, err := suite.repository.Find(context.TODO(), "", "", []int32{}, 0, 1, []string{})
+	assert.Error(suite.T(), err)
+}
+
+func (suite *ProjectTestSuite) TestProject_Find_MapError() {
+	project := suite.getProjectTemplate()
+
+	cache := &mocks.CacheInterface{}
+	key := fmt.Sprintf(cacheProjectId, project.Id)
+	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
+	suite.repository.cache = cache
+
+	err := suite.repository.Insert(context.TODO(), project)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
+	_, err = suite.repository.Find(context.TODO(), "", "", []int32{}, 0, 1, []string{})
 	assert.Error(suite.T(), err)
 }
 
