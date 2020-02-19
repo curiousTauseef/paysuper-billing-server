@@ -25,12 +25,12 @@ type zipCodeRepository repository
 // NewZipCodeRepository create and return an object for working with the zip codes repository.
 // The returned object implements the ZipCodeRepositoryInterface interface.
 func NewZipCodeRepository(db mongodb.SourceInterface, cache database.CacheInterface) ZipCodeRepositoryInterface {
-	s := &zipCodeRepository{db: db, cache: cache}
+	s := &zipCodeRepository{db: db, cache: cache, mapper: models.NewZipCodeMapper()}
 	return s
 }
 
 func (h *zipCodeRepository) Insert(ctx context.Context, zipCode *billingpb.ZipCode) error {
-	mgo, err := models.MapZipCodeToMgo(zipCode)
+	mgo, err := h.mapper.MapObjectToMgo(zipCode)
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseMapModelFailed,
@@ -90,27 +90,28 @@ func (h *zipCodeRepository) GetByZipAndCountry(ctx context.Context, zip, country
 		return nil, err
 	}
 
-	obj, err = models.MapMgoToZipCode(&mgo)
+	o, err := h.mapper.MapMgoToObject(&mgo)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseMapModelFailed,
 			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
 		)
+		return nil, err
 	}
 
-	if err = h.cache.Set(key, obj, 0); err != nil {
+	if err = h.cache.Set(key, o, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, o),
 		)
 	}
 
-	return obj, nil
+	return o.(*billingpb.ZipCode), nil
 }
 
 func (h *zipCodeRepository) FindByZipAndCountry(ctx context.Context, zip, country string, offset, limit int64) ([]*billingpb.ZipCode, error) {
@@ -144,7 +145,7 @@ func (h *zipCodeRepository) FindByZipAndCountry(ctx context.Context, zip, countr
 	objs := make([]*billingpb.ZipCode, len(mgoZipCodes))
 
 	for i, obj := range mgoZipCodes {
-		objs[i], err = models.MapMgoToZipCode(obj)
+		v, err := h.mapper.MapMgoToObject(obj)
 		if err != nil {
 			zap.L().Error(
 				pkg.ErrorDatabaseMapModelFailed,
@@ -153,6 +154,7 @@ func (h *zipCodeRepository) FindByZipAndCountry(ctx context.Context, zip, countr
 			)
 			return nil, err
 		}
+		objs[i] = v.(*billingpb.ZipCode)
 	}
 
 	return objs, nil
