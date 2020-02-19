@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,12 +23,23 @@ type vatReportRepository repository
 // NewVatReportRepository create and return an object for working with the vat reports repository.
 // The returned object implements the VatReportRepositoryInterface interface.
 func NewVatReportRepository(db mongodb.SourceInterface) VatReportRepositoryInterface {
-	s := &vatReportRepository{db: db}
+	s := &vatReportRepository{db: db, mapper: models.NewVatReportMapper()}
 	return s
 }
 
 func (r *vatReportRepository) Insert(ctx context.Context, vr *billingpb.VatReport) error {
-	_, err := r.db.Collection(collectionVatReports).InsertOne(ctx, vr)
+	mgo, err := r.mapper.MapObjectToMgo(vr)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, vr),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionVatReports).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -57,8 +69,19 @@ func (r *vatReportRepository) Update(ctx context.Context, vr *billingpb.VatRepor
 	}
 
 	vr.UpdatedAt = ptypes.TimestampNow()
+	mgo, err := r.mapper.MapObjectToMgo(vr)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, vr),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionVatReports).ReplaceOne(ctx, filter, vr)
+	_, err = r.db.Collection(collectionVatReports).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -75,7 +98,6 @@ func (r *vatReportRepository) Update(ctx context.Context, vr *billingpb.VatRepor
 }
 
 func (r *vatReportRepository) GetById(ctx context.Context, id string) (*billingpb.VatReport, error) {
-	var c billingpb.VatReport
 	oid, err := primitive.ObjectIDFromHex(id)
 
 	if err != nil {
@@ -88,8 +110,9 @@ func (r *vatReportRepository) GetById(ctx context.Context, id string) (*billingp
 		return nil, err
 	}
 
+	var mgo = models.MgoVatReport{}
 	query := bson.M{"_id": oid}
-	err = r.db.Collection(collectionVatReports).FindOne(ctx, query).Decode(&c)
+	err = r.db.Collection(collectionVatReports).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -101,7 +124,17 @@ func (r *vatReportRepository) GetById(ctx context.Context, id string) (*billingp
 		return nil, err
 	}
 
-	return &c, nil
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+	}
+
+	return obj.(*billingpb.VatReport), nil
 }
 
 func (r *vatReportRepository) GetByCountry(ctx context.Context, country string, sort []string, offset, limit int64) ([]*billingpb.VatReport, error) {
@@ -127,8 +160,8 @@ func (r *vatReportRepository) GetByCountry(ctx context.Context, country string, 
 		return nil, err
 	}
 
-	var reports []*billingpb.VatReport
-	err = cursor.All(ctx, &reports)
+	var mgoVatReports []*models.MgoVatReport
+	err = cursor.All(ctx, &mgoVatReports)
 
 	if err != nil {
 		zap.L().Error(
@@ -140,7 +173,22 @@ func (r *vatReportRepository) GetByCountry(ctx context.Context, country string, 
 		return nil, err
 	}
 
-	return reports, nil
+	objs := make([]*billingpb.VatReport, len(mgoVatReports))
+
+	for i, obj := range mgoVatReports {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.VatReport)
+	}
+
+	return objs, nil
 }
 
 func (r *vatReportRepository) GetByStatus(ctx context.Context, statuses []string) ([]*billingpb.VatReport, error) {
@@ -162,8 +210,8 @@ func (r *vatReportRepository) GetByStatus(ctx context.Context, statuses []string
 		return nil, err
 	}
 
-	var reports []*billingpb.VatReport
-	err = cursor.All(ctx, &reports)
+	var mgoVatReports []*models.MgoVatReport
+	err = cursor.All(ctx, &mgoVatReports)
 
 	if err != nil {
 		zap.L().Error(
@@ -175,11 +223,26 @@ func (r *vatReportRepository) GetByStatus(ctx context.Context, statuses []string
 		return nil, err
 	}
 
-	return reports, nil
+	objs := make([]*billingpb.VatReport, len(mgoVatReports))
+
+	for i, obj := range mgoVatReports {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.VatReport)
+	}
+
+	return objs, nil
 }
 
 func (r *vatReportRepository) GetByCountryPeriod(ctx context.Context, country string, dateFrom, dateTo time.Time) (*billingpb.VatReport, error) {
-	var c billingpb.VatReport
+	var mgo = models.MgoVatReport{}
 
 	query := bson.M{
 		"country":   country,
@@ -187,7 +250,7 @@ func (r *vatReportRepository) GetByCountryPeriod(ctx context.Context, country st
 		"date_to":   dateTo,
 		"status":    pkg.VatReportStatusThreshold,
 	}
-	err := r.db.Collection(collectionVatReports).FindOne(ctx, query).Decode(&c)
+	err := r.db.Collection(collectionVatReports).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -199,5 +262,15 @@ func (r *vatReportRepository) GetByCountryPeriod(ctx context.Context, country st
 		return nil, err
 	}
 
-	return &c, nil
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+	}
+
+	return obj.(*billingpb.VatReport), nil
 }

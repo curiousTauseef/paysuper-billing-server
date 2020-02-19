@@ -1,55 +1,82 @@
 package models
 
 import (
+	"github.com/bxcodec/faker"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	fuzz "github.com/google/gofuzz"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
-	"regexp"
+	"github.com/stretchr/testify/suite"
 	"testing"
 	"time"
 )
 
-func Test_ZipCode_MapZipCodeToMgo_Ok(t *testing.T) {
-	f := fuzz.New().SkipFieldsWithPattern(regexp.MustCompile("^(.*)At$"))
-	original := &billingpb.ZipCode{}
-	f.Fuzz(original)
-
-	transformed, err := MapZipCodeToMgo(original)
-	assert.NoError(t, err)
-
-	converted, err := MapMgoToZipCode(transformed)
-	assert.NoError(t, err)
-
-	assert.ObjectsAreEqualValues(original, converted)
+type ZipCodeTestSuite struct {
+	suite.Suite
+	mapper zipCodeMapper
 }
 
-func Test_ZipCode_MapZipCodeToMgo_Error_CreatedAt(t *testing.T) {
+func TestZipCodeTestSuite(t *testing.T) {
+	suite.Run(t, new(ZipCodeTestSuite))
+}
+
+func (suite *ZipCodeTestSuite) SetupTest() {
+	InitFakeCustomProviders()
+}
+
+func (suite *ZipCodeTestSuite) Test_UserProfile_NewZipCodeMapper() {
+	mapper := NewZipCodeMapper()
+	assert.IsType(suite.T(), &zipCodeMapper{}, mapper)
+}
+
+func (suite *ZipCodeTestSuite) Test_ZipCode_MapZipCodeToMgo_Ok() {
+	original := &billingpb.ZipCode{}
+	err := faker.FakeData(original)
+	assert.NoError(suite.T(), err)
+
+	mgo, err := suite.mapper.MapObjectToMgo(original)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), mgo)
+
+	obj, err := suite.mapper.MapMgoToObject(mgo)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), obj)
+
+	assert.ObjectsAreEqualValues(original, obj)
+}
+
+func (suite *ZipCodeTestSuite) Test_ZipCode_MapZipCodeToMgo_Ok_EmptyCreatedAt() {
+	original := &billingpb.ZipCode{}
+	_, err := suite.mapper.MapObjectToMgo(original)
+	assert.NoError(suite.T(), err)
+}
+
+func (suite *ZipCodeTestSuite) Test_ZipCode_MapZipCodeToMgo_Error_CreatedAt() {
 	original := &billingpb.ZipCode{
 		CreatedAt: &timestamp.Timestamp{Seconds: -1, Nanos: -1},
 	}
-	_, err := MapZipCodeToMgo(original)
-	assert.Error(t, err)
+	_, err := suite.mapper.MapObjectToMgo(original)
+	assert.Error(suite.T(), err)
 }
 
-func Test_ZipCode_MapMgoToZipCode_Ok(t *testing.T) {
+func (suite *ZipCodeTestSuite) Test_ZipCode_MapMgoToZipCode_Ok() {
 	f := fuzz.New()
 	original := &MgoZipCode{}
 	f.Fuzz(original)
 
-	transformed, err := MapMgoToZipCode(original)
-	assert.NoError(t, err)
+	obj, err := suite.mapper.MapMgoToObject(original)
+	assert.NoError(suite.T(), err)
 
-	converted, err := MapZipCodeToMgo(transformed)
-	assert.NoError(t, err)
+	mgo, err := suite.mapper.MapObjectToMgo(obj)
+	assert.NoError(suite.T(), err)
 
-	assert.ObjectsAreEqualValues(original, converted)
+	assert.ObjectsAreEqualValues(original, mgo)
 }
 
-func Test_ZipCode_MapMgoToZipCode_Error_CreatedAt(t *testing.T) {
+func (suite *ZipCodeTestSuite) Test_ZipCode_MapMgoToZipCode_Error_CreatedAt() {
 	original := &MgoZipCode{
 		CreatedAt: time.Time{}.AddDate(-10000, 0, 0),
 	}
-	_, err := MapMgoToZipCode(original)
-	assert.Error(t, err)
+	_, err := suite.mapper.MapMgoToObject(original)
+	assert.Error(suite.T(), err)
 }

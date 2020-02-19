@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+type zipCodeMapper struct{}
+
+func NewZipCodeMapper() Mapper {
+	return &zipCodeMapper{}
+}
+
 type MgoZipCode struct {
 	Zip       string                  `bson:"zip"`
 	Country   string                  `bson:"country"`
@@ -14,44 +20,47 @@ type MgoZipCode struct {
 	CreatedAt time.Time               `bson:"created_at"`
 }
 
-func MapZipCodeToMgo(m *billingpb.ZipCode) (*MgoZipCode, error) {
-	obj := &MgoZipCode{
-		Zip:     m.Zip,
-		Country: m.Country,
-		City:    m.City,
-		State:   m.State,
+func (m *zipCodeMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
+	in := obj.(*billingpb.ZipCode)
+
+	out := &MgoZipCode{
+		Zip:     in.Zip,
+		Country: in.Country,
+		City:    in.City,
+		State:   in.State,
 	}
 
-	if m.CreatedAt != nil {
-		t, err := ptypes.Timestamp(m.CreatedAt)
+	if in.CreatedAt != nil {
+		t, err := ptypes.Timestamp(in.CreatedAt)
 
 		if err != nil {
 			return nil, err
 		}
 
-		obj.CreatedAt = t
+		out.CreatedAt = t
 	} else {
-		obj.CreatedAt = time.Now()
+		out.CreatedAt = time.Now()
 	}
 
-	return obj, nil
+	return out, nil
 }
 
-func MapMgoToZipCode(decoded *MgoZipCode) (*billingpb.ZipCode, error) {
+func (m *zipCodeMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 	var err error
+	in := obj.(*MgoZipCode)
 
-	obj := &billingpb.ZipCode{
-		Zip:     decoded.Zip,
-		Country: decoded.Country,
-		City:    decoded.City,
-		State:   decoded.State,
+	out := &billingpb.ZipCode{
+		Zip:     in.Zip,
+		Country: in.Country,
+		City:    in.City,
+		State:   in.State,
 	}
 
-	obj.CreatedAt, err = ptypes.TimestampProto(decoded.CreatedAt)
+	out.CreatedAt, err = ptypes.TimestampProto(in.CreatedAt)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return obj, nil
+	return out, nil
 }
