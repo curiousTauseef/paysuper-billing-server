@@ -318,6 +318,8 @@ func (suite *ProjectCRUDTestSuite) TearDownTest() {
 	if err != nil {
 		suite.FailNow("Database close failed", "%v", err)
 	}
+
+	suite.service.cacher.FlushAll()
 }
 
 func (suite *ProjectCRUDTestSuite) TestProjectCRUD_ChangeProject_NewProject_Ok() {
@@ -617,6 +619,8 @@ func (suite *ProjectCRUDTestSuite) TestProjectCRUD_GetProject_Ok() {
 		ProjectId:  suite.project.Id,
 		MerchantId: suite.merchant.Id,
 	}
+
+	suite.cache.FlushAll()
 	rsp := &billingpb.ChangeProjectResponse{}
 	err := suite.service.GetProject(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
