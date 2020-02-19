@@ -6,8 +6,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Checking connection with the Redis server, the Redis cluster and database using the health check request.
 - The new parameter to filter the transactions log by the production or test mode.
-- The new parameter to display the email address on the payment form.
-- The new settings group to redirect user at the end of the payment process.
+- The new parameter to display the customer's email address in the payment receipt.
+- The new project's settings group to redirect user at the end of the payment process.
 - The new settings option to update the text on the redirect button displaying at the end of the payment process when creating the payment token.
 - Added checking to disable the partial refunds.
 
