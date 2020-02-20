@@ -26,6 +26,7 @@ backend:
     protocol: TCP
   env:
     - MICRO_REGISTRY
+    - MICRO_REGISTRY_ADDRESS
     - MICRO_TRANSPORT
     - MICRO_SERVER_VERSION
     - MONGO_DSN
