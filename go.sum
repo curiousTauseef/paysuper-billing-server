@@ -584,6 +584,7 @@ github.com/micro/go-plugins v1.2.0 h1:/p9EzqJUiKkldzhANbu4hgKOaQufSBBwusQyhhvfjv
 github.com/micro/go-plugins v1.2.0/go.mod h1:N2UCiG7ExrTZ1N1dq1PF9bOgtuBOlUVEc86rfNGqxFQ=
 github.com/micro/go-plugins/client/selector/static v0.0.0-20200119172437-4fe21aa238fd h1:630xxJkK385NN7SjxDdXQJlVpQ3T/oOWEeBhNOyjmjY=
 github.com/micro/go-plugins/client/selector/static v0.0.0-20200119172437-4fe21aa238fd/go.mod h1:4eBG31c1vKwTNUNslIuZ+XWxTkYLiCWCO3zjEQXXA7M=
+github.com/micro/go-plugins/registry/etcd v0.0.0-20200119172437-4fe21aa238fd/go.mod h1:Loouc88lHZedX09oWjcsc8caI87BKj/PuunUUW4uqvQ=
 github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd h1:FrlK4kIbFDRyROigjF2Uhn6kN2zIzKNQcRucTrq+Yfg=
 github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd/go.mod h1:v0tFStBVzQ4lWwzGY72o039WxS4exZi1lvxJPyrHEv8=
 github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd h1:lBEu8MJKkbAq5ivTbn/urVB/eYz0QwtDXNBTREVhbBQ=

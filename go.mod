@@ -29,6 +29,7 @@ require (
 	github.com/micro/cli v0.2.0
 	github.com/micro/go-micro v1.18.0
 	github.com/micro/go-plugins/client/selector/static v0.0.0-20200119172437-4fe21aa238fd
+	github.com/micro/go-plugins/registry/etcd v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
