@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.uber.org/zap"
 	"strings"
@@ -116,11 +117,11 @@ func (s *Service) CreateOrUpdatePaymentMethodProductionSettings(
 		Brand:              brands,
 	}
 
-	key := billingpb.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, "")
+	key := helper.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, "")
 	pm.ProductionSettings[key] = settings
 
 	for _, brand := range req.Params.Brand {
-		key := billingpb.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, brand)
+		key := helper.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, brand)
 		pm.ProductionSettings[key] = settings
 	}
 
@@ -151,7 +152,7 @@ func (s *Service) GetPaymentMethodProductionSettings(
 
 	for _, param := range pm.ProductionSettings {
 
-		key := billingpb.GetPaymentMethodKey(param.Currency, param.MccCode, param.OperatingCompanyId, "")
+		key := helper.GetPaymentMethodKey(param.Currency, param.MccCode, param.OperatingCompanyId, "")
 
 		if check[key] == true {
 			continue
@@ -188,7 +189,7 @@ func (s *Service) DeletePaymentMethodProductionSettings(
 
 	deleteKeys := []string{}
 
-	key := billingpb.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, "")
+	key := helper.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, "")
 	deleteKeys = append(deleteKeys, key)
 
 	setting, ok := pm.ProductionSettings[key]
@@ -201,7 +202,7 @@ func (s *Service) DeletePaymentMethodProductionSettings(
 	}
 
 	for _, brand := range setting.Brand {
-		key := billingpb.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, brand)
+		key := helper.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, brand)
 		deleteKeys = append(deleteKeys, key)
 	}
 
@@ -257,11 +258,11 @@ func (s *Service) CreateOrUpdatePaymentMethodTestSettings(
 		Brand:              brands,
 	}
 
-	key := billingpb.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, "")
+	key := helper.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, "")
 	pm.TestSettings[key] = settings
 
 	for _, brand := range req.Params.Brand {
-		key := billingpb.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, brand)
+		key := helper.GetPaymentMethodKey(req.Params.Currency, req.Params.MccCode, req.Params.OperatingCompanyId, brand)
 		pm.TestSettings[key] = settings
 	}
 
@@ -292,7 +293,7 @@ func (s *Service) GetPaymentMethodTestSettings(
 
 	for _, param := range pm.TestSettings {
 
-		key := billingpb.GetPaymentMethodKey(param.Currency, param.MccCode, param.OperatingCompanyId, "")
+		key := helper.GetPaymentMethodKey(param.Currency, param.MccCode, param.OperatingCompanyId, "")
 
 		if check[key] == true {
 			continue
@@ -329,7 +330,7 @@ func (s *Service) DeletePaymentMethodTestSettings(
 
 	deleteKeys := []string{}
 
-	key := billingpb.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, "")
+	key := helper.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, "")
 	deleteKeys = append(deleteKeys, key)
 
 	setting, ok := pm.TestSettings[key]
@@ -342,7 +343,7 @@ func (s *Service) DeletePaymentMethodTestSettings(
 	}
 
 	for _, brand := range setting.Brand {
-		key := billingpb.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, brand)
+		key := helper.GetPaymentMethodKey(req.CurrencyA3, req.MccCode, req.OperatingCompanyId, brand)
 		deleteKeys = append(deleteKeys, key)
 	}
 
@@ -381,7 +382,7 @@ func (s *Service) getPaymentSettings(
 		return nil, orderErrorPaymentMethodEmptySettings
 	}
 
-	key := billingpb.GetPaymentMethodKey(currency, mccCode, operatingCompanyId, paymentMethodBrand)
+	key := helper.GetPaymentMethodKey(currency, mccCode, operatingCompanyId, paymentMethodBrand)
 
 	setting, ok := settings[key]
 

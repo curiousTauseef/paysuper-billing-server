@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -30,12 +31,23 @@ type paymentMethodRepository repository
 // NewPaymentMethodRepository create and return an object for working with the payment method repository.
 // The returned object implements the PaymentMethodRepositoryInterface interface.
 func NewPaymentMethodRepository(db mongodb.SourceInterface, cache database.CacheInterface) PaymentMethodRepositoryInterface {
-	s := &paymentMethodRepository{db: db, cache: cache}
+	s := &paymentMethodRepository{db: db, cache: cache, mapper: models.NewPaymentMethodMapper()}
 	return s
 }
 
 func (r *paymentMethodRepository) Insert(ctx context.Context, pm *billingpb.PaymentMethod) error {
-	_, err := r.db.Collection(collectionPaymentMethod).InsertOne(ctx, pm)
+	mgo, err := r.mapper.MapObjectToMgo(pm)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pm),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionPaymentMethod).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -70,8 +82,20 @@ func (r *paymentMethodRepository) Insert(ctx context.Context, pm *billingpb.Paym
 
 func (r *paymentMethodRepository) MultipleInsert(ctx context.Context, pm []*billingpb.PaymentMethod) error {
 	pms := make([]interface{}, len(pm))
+
 	for i, v := range pm {
-		pms[i] = v
+		mgo, err := r.mapper.MapObjectToMgo(v)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, v),
+			)
+			return err
+		}
+
+		pms[i] = mgo
 	}
 
 	_, err := r.db.Collection(collectionPaymentMethod).InsertMany(ctx, pms)
@@ -113,8 +137,19 @@ func (r *paymentMethodRepository) Update(ctx context.Context, pm *billingpb.Paym
 		return err
 	}
 
+	mgo, err := r.mapper.MapObjectToMgo(pm)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pm),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	err = r.db.Collection(collectionPaymentMethod).FindOneAndReplace(ctx, filter, pm).Err()
+	err = r.db.Collection(collectionPaymentMethod).FindOneAndReplace(ctx, filter, mgo).Err()
 
 	if err != nil {
 		zap.L().Error(
@@ -180,11 +215,11 @@ func (r *paymentMethodRepository) Delete(ctx context.Context, pm *billingpb.Paym
 }
 
 func (r *paymentMethodRepository) GetById(ctx context.Context, id string) (*billingpb.PaymentMethod, error) {
-	var c billingpb.PaymentMethod
+	pm := &billingpb.PaymentMethod{}
 	key := fmt.Sprintf(cachePaymentMethodId, id)
 
-	if err := r.cache.Get(key, c); err == nil {
-		return &c, nil
+	if err := r.cache.Get(key, pm); err == nil {
+		return pm, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -199,30 +234,44 @@ func (r *paymentMethodRepository) GetById(ctx context.Context, id string) (*bill
 		return nil, err
 	}
 
+	mgo := &models.MgoPaymentMethod{}
 	filter := bson.M{"_id": oid}
-	err = r.db.Collection(collectionPaymentMethod).FindOne(ctx, filter).Decode(&c)
+	err = r.db.Collection(collectionPaymentMethod).FindOne(ctx, filter).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentMethod),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, c),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
 		)
 		return nil, err
 	}
 
-	if err := r.cache.Set(key, c, 0); err != nil {
+	obj, err := r.mapper.MapMgoToObject(mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	pm = obj.(*billingpb.PaymentMethod)
+
+	if err := r.cache.Set(key, pm, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, c),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pm),
 		)
 	}
 
-	return &c, nil
+	return pm, nil
 }
 
 func (r *paymentMethodRepository) GetAll(ctx context.Context) ([]*billingpb.PaymentMethod, error) {
@@ -243,7 +292,8 @@ func (r *paymentMethodRepository) GetAll(ctx context.Context) ([]*billingpb.Paym
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &c)
+	var mgoPaymentMethods []*models.MgoPaymentMethod
+	err = cursor.All(ctx, &mgoPaymentMethods)
 
 	if err != nil {
 		zap.L().Error(
@@ -254,7 +304,21 @@ func (r *paymentMethodRepository) GetAll(ctx context.Context) ([]*billingpb.Paym
 		return nil, err
 	}
 
-	if err = r.cache.Set(cachePaymentMethodAll, c, 0); err != nil {
+	pms := make([]*billingpb.PaymentMethod, len(mgoPaymentMethods))
+	for i, pm := range mgoPaymentMethods {
+		obj, err := r.mapper.MapMgoToObject(pm)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, pm),
+			)
+			return nil, err
+		}
+		pms[i] = obj.(*billingpb.PaymentMethod)
+	}
+
+	if err = r.cache.Set(cachePaymentMethodAll, pms, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
@@ -264,7 +328,7 @@ func (r *paymentMethodRepository) GetAll(ctx context.Context) ([]*billingpb.Paym
 		)
 	}
 
-	return c, nil
+	return pms, nil
 }
 
 func (r *paymentMethodRepository) GetByGroupAndCurrency(
@@ -273,12 +337,12 @@ func (r *paymentMethodRepository) GetByGroupAndCurrency(
 	group string,
 	currency string,
 ) (*billingpb.PaymentMethod, error) {
-	var c *billingpb.PaymentMethod
+	pm := &billingpb.PaymentMethod{}
 	key := fmt.Sprintf(cachePaymentMethodGroup, group)
-	err := r.cache.Get(key, &c)
+	err := r.cache.Get(key, pm)
 
 	if err == nil {
-		return c, nil
+		return pm, nil
 	}
 
 	field := fieldTestSettings
@@ -287,6 +351,7 @@ func (r *paymentMethodRepository) GetByGroupAndCurrency(
 		field = fieldProductionSettings
 	}
 
+	mgo := &models.MgoPaymentMethod{}
 	query := bson.M{
 		"group_alias": group,
 		field: bson.M{
@@ -295,7 +360,7 @@ func (r *paymentMethodRepository) GetByGroupAndCurrency(
 			},
 		},
 	}
-	err = r.db.Collection(collectionPaymentMethod).FindOne(ctx, query).Decode(&c)
+	err = r.db.Collection(collectionPaymentMethod).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -307,17 +372,30 @@ func (r *paymentMethodRepository) GetByGroupAndCurrency(
 		return nil, err
 	}
 
-	if err := r.cache.Set(key, c, 0); err != nil {
+	obj, err := r.mapper.MapMgoToObject(mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	pm = obj.(*billingpb.PaymentMethod)
+
+	if err := r.cache.Set(key, pm, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, c),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pm),
 		)
 	}
 
-	return c, nil
+	return pm, nil
 }
 
 func (r *paymentMethodRepository) ListByOrder(
@@ -363,7 +441,8 @@ func (r *paymentMethodRepository) ListByOrder(
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &objs)
+	var pms []*models.MgoPaymentMethod
+	err = cursor.All(ctx, &pms)
 
 	if err != nil {
 		zap.L().Error(
@@ -373,6 +452,20 @@ func (r *paymentMethodRepository) ListByOrder(
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return nil, err
+	}
+
+	objs = make([]*billingpb.PaymentMethod, len(pms))
+	for i, pm := range pms {
+		obj, err := r.mapper.MapMgoToObject(pm)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, pm),
+			)
+			return nil, err
+		}
+		objs[i] = obj.(*billingpb.PaymentMethod)
 	}
 
 	err = r.cache.Set(key, objs, 0)
@@ -479,7 +572,8 @@ func (r *paymentMethodRepository) FindByName(ctx context.Context, name string, s
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &pms)
+	var mgo []*models.MgoPaymentMethod
+	err = cursor.All(ctx, &mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -489,6 +583,20 @@ func (r *paymentMethodRepository) FindByName(ctx context.Context, name string, s
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return nil, err
+	}
+
+	pms = make([]*billingpb.PaymentMethod, len(mgo))
+	for i, pm := range mgo {
+		obj, err := r.mapper.MapMgoToObject(pm)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, pm),
+			)
+			return nil, err
+		}
+		pms[i] = obj.(*billingpb.PaymentMethod)
 	}
 
 	return pms, nil
