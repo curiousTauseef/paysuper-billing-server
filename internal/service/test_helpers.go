@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -51,9 +52,9 @@ func HelperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 
 	operatingCompany := HelperOperatingCompany(suite, service)
 
-	keyRub := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
-	keyUsd := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
-	keyEur := billingpb.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
+	keyRub := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
+	keyUsd := helper.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
+	keyEur := helper.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
 
 	paymentSystem := &billingpb.PaymentSystem{
 		Id:                 primitive.NewObjectID().Hex(),

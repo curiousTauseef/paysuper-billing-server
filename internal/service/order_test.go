@@ -14,6 +14,7 @@ import (
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
@@ -149,21 +150,21 @@ func (suite *OrderTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	keyRubVisa := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
-	keyUsdVisa := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
-	keyUahVisa := billingpb.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
+	keyRubVisa := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
+	keyUsdVisa := helper.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
+	keyUahVisa := helper.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
 
-	keyRubBitcoin := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
-	keyUsdBitcoin := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
-	keyUahBitcoin := billingpb.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
+	keyRubBitcoin := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
+	keyUsdBitcoin := helper.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
+	keyUahBitcoin := helper.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
 
-	keyRubQiwi := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
-	keyUsdQiwi := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
-	keyUahQiwi := billingpb.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
+	keyRubQiwi := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
+	keyUsdQiwi := helper.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
+	keyUahQiwi := helper.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
 
-	keyRubWebmoney := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Webmoney")
-	keyUsdWebmoney := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Webmoney")
-	keyUahWebmoney := billingpb.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Webmoney")
+	keyRubWebmoney := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Webmoney")
+	keyUsdWebmoney := helper.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Webmoney")
+	keyUahWebmoney := helper.GetPaymentMethodKey("UAH", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Webmoney")
 
 	pgRub := &billingpb.PriceGroup{
 		Id:       primitive.NewObjectID().Hex(),

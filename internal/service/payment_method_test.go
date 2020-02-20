@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -67,7 +68,7 @@ func (suite *PaymentMethodTestSuite) SetupTest() {
 		Handler:            "cardpay",
 	}
 
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 
 	suite.pmQiwi = &billingpb.PaymentMethod{
 		Id:               primitive.NewObjectID().Hex(),
@@ -186,7 +187,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_GetPaymentSettings_ErrorN
 }
 
 func (suite *PaymentMethodTestSuite) TestPaymentMethod_GetPaymentSettings_OkTestSettings() {
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "VISA")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "VISA")
 
 	method := &billingpb.PaymentMethod{
 		Id:         primitive.NewObjectID().Hex(),
@@ -235,7 +236,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_GetPaymentSettings_ErrorN
 }
 
 func (suite *PaymentMethodTestSuite) TestPaymentMethod_GetPaymentSettings_Ok() {
-	key := billingpb.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "VISA")
+	key := helper.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "VISA")
 
 	method := &billingpb.PaymentMethod{
 		Id:         primitive.NewObjectID().Hex(),
@@ -471,7 +472,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_GetPaymentMethodProductio
 	rsp := &billingpb.GetPaymentMethodSettingsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		ProductionSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {
@@ -522,7 +523,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_DeletePaymentMethodProduc
 	rsp := &billingpb.ChangePaymentMethodParamsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		ProductionSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {Currency: "RUB", Secret: "unit_test"},
@@ -546,7 +547,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_DeletePaymentMethodProduc
 	rsp := &billingpb.ChangePaymentMethodParamsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		ProductionSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {Currency: "RUB", Secret: "unit_test"},
@@ -571,7 +572,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_DeletePaymentMethodProduc
 	rsp := &billingpb.ChangePaymentMethodParamsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		ProductionSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {Currency: "RUB", Secret: "unit_test"},
@@ -669,7 +670,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_GetPaymentMethodTestSetti
 	rsp := &billingpb.GetPaymentMethodSettingsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		TestSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {
@@ -720,7 +721,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_DeletePaymentMethodTestSe
 	rsp := &billingpb.ChangePaymentMethodParamsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		TestSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {
@@ -750,7 +751,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_DeletePaymentMethodTestSe
 	rsp := &billingpb.ChangePaymentMethodParamsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		TestSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {
@@ -781,7 +782,7 @@ func (suite *PaymentMethodTestSuite) TestPaymentMethod_DeletePaymentMethodTestSe
 	rsp := &billingpb.ChangePaymentMethodParamsResponse{}
 	method := &mocks.PaymentMethodRepositoryInterface{}
 
-	key := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
+	key := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "")
 	method.On("GetById", mock2.Anything, req.PaymentMethodId).Return(&billingpb.PaymentMethod{
 		TestSettings: map[string]*billingpb.PaymentMethodParams{
 			key: {
