@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,12 +26,23 @@ type priceGroupRepository repository
 // NewPriceGroupRepository create and return an object for working with the price group repository.
 // The returned object implements the PriceGroupRepositoryInterface interface.
 func NewPriceGroupRepository(db mongodb.SourceInterface, cache database.CacheInterface) PriceGroupRepositoryInterface {
-	s := &priceGroupRepository{db: db, cache: cache}
+	s := &priceGroupRepository{db: db, cache: cache, mapper: models.NewPriceGroupMapper()}
 	return s
 }
 
 func (r *priceGroupRepository) Insert(ctx context.Context, pg *billingpb.PriceGroup) error {
-	_, err := r.db.Collection(collectionPriceGroup).InsertOne(ctx, pg)
+	mgo, err := r.mapper.MapObjectToMgo(pg)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pg),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionPriceGroup).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -52,8 +64,19 @@ func (r *priceGroupRepository) Insert(ctx context.Context, pg *billingpb.PriceGr
 
 func (r priceGroupRepository) MultipleInsert(ctx context.Context, pg []*billingpb.PriceGroup) error {
 	c := make([]interface{}, len(pg))
+
 	for i, v := range pg {
-		c[i] = v
+		mgo, err := r.mapper.MapObjectToMgo(v)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, pg),
+			)
+		}
+
+		c[i] = mgo
 	}
 
 	_, err := r.db.Collection(collectionPriceGroup).InsertMany(ctx, c)
@@ -85,8 +108,19 @@ func (r priceGroupRepository) Update(ctx context.Context, pg *billingpb.PriceGro
 		return err
 	}
 
+	mgo, err := r.mapper.MapObjectToMgo(pg)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pg),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionPriceGroup).ReplaceOne(ctx, filter, pg)
+	_, err = r.db.Collection(collectionPriceGroup).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -127,8 +161,9 @@ func (r priceGroupRepository) GetById(ctx context.Context, id string) (*billingp
 		return nil, err
 	}
 
+	var mgo = models.MgoPriceGroup{}
 	query := bson.M{"_id": oid, "is_active": true}
-	err = r.db.Collection(collectionPriceGroup).FindOne(ctx, query).Decode(&c)
+	err = r.db.Collection(collectionPriceGroup).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -140,17 +175,28 @@ func (r priceGroupRepository) GetById(ctx context.Context, id string) (*billingp
 		return nil, err
 	}
 
-	if err = r.cache.Set(key, c, 0); err != nil {
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	if err = r.cache.Set(key, obj.(*billingpb.PriceGroup), 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, c),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
 		)
 	}
 
-	return &c, nil
+	return obj.(*billingpb.PriceGroup), nil
 }
 
 func (r priceGroupRepository) GetByRegion(ctx context.Context, region string) (*billingpb.PriceGroup, error) {
@@ -161,8 +207,9 @@ func (r priceGroupRepository) GetByRegion(ctx context.Context, region string) (*
 		return &c, nil
 	}
 
+	var mgo = models.MgoPriceGroup{}
 	query := bson.M{"region": region, "is_active": true}
-	err := r.db.Collection(collectionPriceGroup).FindOne(ctx, query).Decode(&c)
+	err := r.db.Collection(collectionPriceGroup).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -174,7 +221,18 @@ func (r priceGroupRepository) GetByRegion(ctx context.Context, region string) (*
 		return nil, err
 	}
 
-	if err := r.cache.Set(key, c, 0); err != nil {
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	if err := r.cache.Set(key, obj.(*billingpb.PriceGroup), 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
@@ -184,7 +242,7 @@ func (r priceGroupRepository) GetByRegion(ctx context.Context, region string) (*
 		)
 	}
 
-	return &c, nil
+	return obj.(*billingpb.PriceGroup), nil
 }
 
 func (r priceGroupRepository) GetAll(ctx context.Context) ([]*billingpb.PriceGroup, error) {
@@ -207,7 +265,8 @@ func (r priceGroupRepository) GetAll(ctx context.Context) ([]*billingpb.PriceGro
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &c)
+	var mgoPriceGroups []*models.MgoPriceGroup
+	err = cursor.All(ctx, &mgoPriceGroups)
 
 	if err != nil {
 		zap.L().Error(
@@ -219,7 +278,22 @@ func (r priceGroupRepository) GetAll(ctx context.Context) ([]*billingpb.PriceGro
 		return nil, err
 	}
 
-	if err = r.cache.Set(cachePriceGroupAll, c, 0); err != nil {
+	objs := make([]*billingpb.PriceGroup, len(mgoPriceGroups))
+
+	for i, obj := range mgoPriceGroups {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.PriceGroup)
+	}
+
+	if err = r.cache.Set(cachePriceGroupAll, objs, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
@@ -229,7 +303,7 @@ func (r priceGroupRepository) GetAll(ctx context.Context) ([]*billingpb.PriceGro
 		)
 	}
 
-	return c, nil
+	return objs, nil
 }
 
 func (r priceGroupRepository) updateCache(pg *billingpb.PriceGroup) error {
