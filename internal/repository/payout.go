@@ -117,11 +117,11 @@ func (r *payoutRepository) Update(ctx context.Context, pd *billingpb.PayoutDocum
 }
 
 func (r *payoutRepository) GetById(ctx context.Context, id string) (*billingpb.PayoutDocument, error) {
-	var c billingpb.PayoutDocument
+	var c = &billingpb.PayoutDocument{}
 	key := fmt.Sprintf(cacheKeyPayoutDocument, id)
 
-	if err := r.cache.Get(key, &c); err == nil {
-		return &c, nil
+	if err := r.cache.Get(key, c); err == nil {
+		return c, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -161,21 +161,21 @@ func (r *payoutRepository) GetById(ctx context.Context, id string) (*billingpb.P
 		return nil, err
 	}
 
-	c = obj.(billingpb.PayoutDocument)
+	c = obj.(*billingpb.PayoutDocument)
 
-	if err = r.updateCaches(&c); err != nil {
+	if err = r.updateCaches(c); err != nil {
 		return nil, err
 	}
 
-	return &c, nil
+	return c, nil
 }
 
 func (r *payoutRepository) GetByIdMerchantId(ctx context.Context, id, merchantId string) (*billingpb.PayoutDocument, error) {
-	var c billingpb.PayoutDocument
+	var c = &billingpb.PayoutDocument{}
 	key := fmt.Sprintf(cacheKeyPayoutDocumentMerchant, id, merchantId)
 
-	if err := r.cache.Get(key, &c); err == nil {
-		return &c, nil
+	if err := r.cache.Get(key, c); err == nil {
+		return c, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -227,13 +227,13 @@ func (r *payoutRepository) GetByIdMerchantId(ctx context.Context, id, merchantId
 		return nil, err
 	}
 
-	c = obj.(billingpb.PayoutDocument)
+	c = obj.(*billingpb.PayoutDocument)
 
-	if err = r.updateCaches(&c); err != nil {
+	if err = r.updateCaches(c); err != nil {
 		return nil, err
 	}
 
-	return &c, nil
+	return c, nil
 }
 
 func (r *payoutRepository) GetBalanceAmount(ctx context.Context, merchantId, currency string) (float64, error) {
