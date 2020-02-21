@@ -4,17 +4,16 @@ require (
 	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/InVisionApp/go-health v2.1.0+incompatible
 	github.com/ProtocolONE/geoip-service v1.0.3-0.20200203172514-41df5c78bf01
-	github.com/ProtocolONE/go-micro-plugins v0.4.0
 	github.com/PuerkitoBio/purell v1.0.0
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/bxcodec/faker v2.0.1+incompatible
+	github.com/bxcodec/faker/v3 v3.2.0
 	github.com/centrifugal/gocent v2.0.2+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/divan/num2words v0.0.0-20170904212200-57dba452f942
 	github.com/elliotchance/redismock v1.5.1
-	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
 	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/gogo/protobuf v1.3.0
 	github.com/golang-migrate/migrate/v4 v4.6.2
@@ -33,8 +32,7 @@ require (
 	github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
-	github.com/paysuper/paysuper-proto v0.1.71 // indirect
-	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200220095648-8897b743b220
+	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200220175641-f120b1a8b28d
 	github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200203130641-45056764a1d7
