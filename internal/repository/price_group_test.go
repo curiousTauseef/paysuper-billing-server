@@ -334,7 +334,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetById_OkByCache() {
 	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Set", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Delete", cachePriceGroupAll).Return(nil)
-	cache.On("Get", key, billingpb.PriceGroup{}).Return(nil)
+	cache.On("Get", key, &billingpb.PriceGroup{}).Return(nil)
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), group)
@@ -473,7 +473,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetByRegion_OkByCache() {
 	cache.On("Set", fmt.Sprintf(cachePriceGroupId, group.Id), mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Set", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Delete", cachePriceGroupAll).Return(nil)
-	cache.On("Get", fmt.Sprintf(cachePriceGroupRegion, group.Region), billingpb.PriceGroup{}).Return(nil)
+	cache.On("Get", fmt.Sprintf(cachePriceGroupRegion, group.Region), &billingpb.PriceGroup{}).Return(nil)
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), group)
@@ -527,7 +527,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetByRegion_MapError() {
 
 func (suite *PriceGroupTestSuite) TestPriceGroup_GetAll_OkByCache() {
 	cache := &mocks.CacheInterface{}
-	cache.On("Get", cachePriceGroupAll, []*billingpb.PriceGroup{}).Return(nil)
+	cache.On("Get", cachePriceGroupAll, &[]*billingpb.PriceGroup{}).Return(nil)
 	suite.repository.cache = cache
 
 	_, err := suite.repository.GetAll(context.TODO())

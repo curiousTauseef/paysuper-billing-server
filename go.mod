@@ -32,7 +32,7 @@ require (
 	github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
-	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200220175641-f120b1a8b28d
+	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200221112053-6c6d0cd4ef55
 	github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200203130641-45056764a1d7
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200203130641-45056764a1d7
@@ -62,6 +62,7 @@ replace (
 	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.0
 	github.com/gogo/protobuf v0.0.0-20190410021324-65acae22fc9 => github.com/gogo/protobuf v1.2.2-0.20190723190241-65acae22fc9d
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20190927073244-c990c680b611
+	golang.org/x/text => golang.org/x/text v0.3.0
 )
 
 go 1.13
