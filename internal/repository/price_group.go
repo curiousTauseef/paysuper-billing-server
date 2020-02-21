@@ -141,12 +141,12 @@ func (r priceGroupRepository) Update(ctx context.Context, pg *billingpb.PriceGro
 }
 
 func (r priceGroupRepository) GetById(ctx context.Context, id string) (*billingpb.PriceGroup, error) {
-	var c billingpb.PriceGroup
+	var c = &billingpb.PriceGroup{}
 	key := fmt.Sprintf(cachePriceGroupId, id)
 	err := r.cache.Get(key, c)
 
 	if err == nil {
-		return &c, nil
+		return c, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -200,11 +200,11 @@ func (r priceGroupRepository) GetById(ctx context.Context, id string) (*billingp
 }
 
 func (r priceGroupRepository) GetByRegion(ctx context.Context, region string) (*billingpb.PriceGroup, error) {
-	var c billingpb.PriceGroup
+	var c = &billingpb.PriceGroup{}
 	key := fmt.Sprintf(cachePriceGroupRegion, region)
 
 	if err := r.cache.Get(key, c); err == nil {
-		return &c, nil
+		return c, nil
 	}
 
 	var mgo = models.MgoPriceGroup{}
@@ -248,7 +248,7 @@ func (r priceGroupRepository) GetByRegion(ctx context.Context, region string) (*
 func (r priceGroupRepository) GetAll(ctx context.Context) ([]*billingpb.PriceGroup, error) {
 	c := []*billingpb.PriceGroup{}
 
-	if err := r.cache.Get(cachePriceGroupAll, c); err == nil {
+	if err := r.cache.Get(cachePriceGroupAll, &c); err == nil {
 		return c, nil
 	}
 

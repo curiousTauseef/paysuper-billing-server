@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -23,12 +24,23 @@ type paymentSystemRepository repository
 // NewPaymentSystemRepository create and return an object for working with the payment system repository.
 // The returned object implements the PaymentSystemRepositoryInterface interface.
 func NewPaymentSystemRepository(db mongodb.SourceInterface, cache database.CacheInterface) PaymentSystemRepositoryInterface {
-	s := &paymentSystemRepository{db: db, cache: cache}
+	s := &paymentSystemRepository{db: db, cache: cache, mapper: models.NewPaymentSystemMapper()}
 	return s
 }
 
 func (r *paymentSystemRepository) Insert(ctx context.Context, ps *billingpb.PaymentSystem) error {
-	_, err := r.db.Collection(collectionPaymentSystem).InsertOne(ctx, ps)
+	mgo, err := r.mapper.MapObjectToMgo(ps)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, ps),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionPaymentSystem).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -60,8 +72,20 @@ func (r *paymentSystemRepository) Insert(ctx context.Context, ps *billingpb.Paym
 
 func (r *paymentSystemRepository) MultipleInsert(ctx context.Context, list []*billingpb.PaymentSystem) error {
 	objs := make([]interface{}, len(list))
+
 	for i, v := range list {
-		objs[i] = v
+		mgo, err := r.mapper.MapObjectToMgo(v)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, v),
+			)
+			return err
+		}
+
+		objs[i] = mgo
 	}
 
 	_, err := r.db.Collection(collectionPaymentSystem).InsertMany(ctx, objs)
@@ -93,8 +117,19 @@ func (r *paymentSystemRepository) Update(ctx context.Context, ps *billingpb.Paym
 		return err
 	}
 
+	mgo, err := r.mapper.MapObjectToMgo(ps)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, ps),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionPaymentSystem).ReplaceOne(ctx, filter, ps)
+	_, err = r.db.Collection(collectionPaymentSystem).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -124,11 +159,11 @@ func (r *paymentSystemRepository) Update(ctx context.Context, ps *billingpb.Paym
 }
 
 func (r *paymentSystemRepository) GetById(ctx context.Context, id string) (*billingpb.PaymentSystem, error) {
-	var c billingpb.PaymentSystem
+	var c = &billingpb.PaymentSystem{}
 	key := fmt.Sprintf(cachePaymentSystem, id)
 
 	if err := r.cache.Get(key, c); err == nil {
-		return &c, nil
+		return c, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -143,8 +178,9 @@ func (r *paymentSystemRepository) GetById(ctx context.Context, id string) (*bill
 		return nil, err
 	}
 
+	mgo := &models.MgoPaymentSystem{}
 	query := bson.M{"_id": oid, "is_active": true}
-	err = r.db.Collection(collectionPaymentSystem).FindOne(ctx, query).Decode(&c)
+	err = r.db.Collection(collectionPaymentSystem).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -156,6 +192,19 @@ func (r *paymentSystemRepository) GetById(ctx context.Context, id string) (*bill
 		return nil, err
 	}
 
+	obj, err := r.mapper.MapMgoToObject(mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	c = obj.(*billingpb.PaymentSystem)
+
 	if err := r.cache.Set(key, c, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
@@ -166,5 +215,5 @@ func (r *paymentSystemRepository) GetById(ctx context.Context, id string) (*bill
 		)
 	}
 
-	return &c, nil
+	return c, nil
 }

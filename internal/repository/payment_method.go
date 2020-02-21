@@ -277,7 +277,7 @@ func (r *paymentMethodRepository) GetById(ctx context.Context, id string) (*bill
 func (r *paymentMethodRepository) GetAll(ctx context.Context) ([]*billingpb.PaymentMethod, error) {
 	c := []*billingpb.PaymentMethod{}
 
-	if err := r.cache.Get(cachePaymentMethodAll, c); err == nil {
+	if err := r.cache.Get(cachePaymentMethodAll, &c); err == nil {
 		return c, nil
 	}
 

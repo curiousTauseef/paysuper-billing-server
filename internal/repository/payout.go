@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -33,12 +34,23 @@ type payoutRepository repository
 // NewPayoutRepository create and return an object for working with the payout repository.
 // The returned object implements the PayoutRepositoryInterface interface.
 func NewPayoutRepository(db mongodb.SourceInterface, cache database.CacheInterface) PayoutRepositoryInterface {
-	s := &payoutRepository{db: db, cache: cache}
+	s := &payoutRepository{db: db, cache: cache, mapper: models.NewPayoutMapper()}
 	return s
 }
 
 func (r *payoutRepository) Insert(ctx context.Context, pd *billingpb.PayoutDocument, ip, source string) error {
-	_, err := r.db.Collection(collectionPayoutDocuments).InsertOne(ctx, pd)
+	mgo, err := r.mapper.MapObjectToMgo(pd)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pd),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionPayoutDocuments).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -71,8 +83,19 @@ func (r *payoutRepository) Update(ctx context.Context, pd *billingpb.PayoutDocum
 		return err
 	}
 
+	mgo, err := r.mapper.MapObjectToMgo(pd)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, pd),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionPayoutDocuments).ReplaceOne(ctx, filter, pd)
+	_, err = r.db.Collection(collectionPayoutDocuments).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -113,8 +136,9 @@ func (r *payoutRepository) GetById(ctx context.Context, id string) (*billingpb.P
 		return nil, err
 	}
 
+	var mgo = models.MgoPayoutDocument{}
 	filter := bson.M{"_id": oid}
-	err = r.db.Collection(collectionPayoutDocuments).FindOne(ctx, filter).Decode(&c)
+	err = r.db.Collection(collectionPayoutDocuments).FindOne(ctx, filter).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -125,6 +149,19 @@ func (r *payoutRepository) GetById(ctx context.Context, id string) (*billingpb.P
 		)
 		return nil, err
 	}
+
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	c = obj.(billingpb.PayoutDocument)
 
 	if err = r.updateCaches(&c); err != nil {
 		return nil, err
@@ -165,8 +202,9 @@ func (r *payoutRepository) GetByIdMerchantId(ctx context.Context, id, merchantId
 		return nil, err
 	}
 
+	var mgo = models.MgoPayoutDocument{}
 	query := bson.M{"_id": oid, "merchant_id": merchantOid}
-	err = r.db.Collection(collectionPayoutDocuments).FindOne(ctx, query).Decode(&c)
+	err = r.db.Collection(collectionPayoutDocuments).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -177,6 +215,19 @@ func (r *payoutRepository) GetByIdMerchantId(ctx context.Context, id, merchantId
 		)
 		return nil, err
 	}
+
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	c = obj.(billingpb.PayoutDocument)
 
 	if err = r.updateCaches(&c); err != nil {
 		return nil, err
@@ -282,10 +333,10 @@ func (r *payoutRepository) GetLast(ctx context.Context, merchantId, currency str
 		"status":      bson.M{"$in": payoutDocumentStatusActive},
 	}
 
-	var pd *billingpb.PayoutDocument
+	var mgo = models.MgoPayoutDocument{}
 	sorts := bson.M{"created_at": -1}
 	opts := options.FindOne().SetSort(sorts)
-	err = r.db.Collection(collectionPayoutDocuments).FindOne(ctx, query, opts).Decode(&pd)
+	err = r.db.Collection(collectionPayoutDocuments).FindOne(ctx, query, opts).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -298,7 +349,18 @@ func (r *payoutRepository) GetLast(ctx context.Context, merchantId, currency str
 		return nil, err
 	}
 
-	return pd, nil
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.PayoutDocument), nil
 }
 
 func (r *payoutRepository) FindCount(ctx context.Context, merchantId string, status []string, dateFrom, dateTo int64) (int64, error) {
@@ -400,8 +462,8 @@ func (r *payoutRepository) Find(
 		return nil, err
 	}
 
-	var pds []*billingpb.PayoutDocument
-	err = cursor.All(ctx, &pds)
+	var mgoPayoutDocuments []*models.MgoPayoutDocument
+	err = cursor.All(ctx, &mgoPayoutDocuments)
 
 	if err != nil {
 		zap.L().Error(
@@ -415,7 +477,22 @@ func (r *payoutRepository) Find(
 		return nil, err
 	}
 
-	return pds, nil
+	objs := make([]*billingpb.PayoutDocument, len(mgoPayoutDocuments))
+
+	for i, obj := range mgoPayoutDocuments {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.PayoutDocument)
+	}
+
+	return objs, nil
 }
 
 func (r *payoutRepository) updateCaches(pd *billingpb.PayoutDocument) (err error) {
@@ -475,7 +552,18 @@ func (r *payoutRepository) onPayoutDocumentChange(
 	hash.Write(b)
 	change.Hash = hex.EncodeToString(hash.Sum(nil))
 
-	_, err = r.db.Collection(collectionPayoutDocumentChanges).InsertOne(ctx, change)
+	mgo, err := models.NewPayoutChangesMapper().MapObjectToMgo(change)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, change),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionPayoutDocumentChanges).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -483,7 +571,7 @@ func (r *payoutRepository) onPayoutDocumentChange(
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocumentChanges),
 			zap.String(pkg.ErrorDatabaseFieldOperation, pkg.ErrorDatabaseFieldOperationInsert),
-			zap.Any(pkg.ErrorDatabaseFieldDocument, change),
+			zap.Any(pkg.ErrorDatabaseFieldDocument, mgo),
 		)
 		return err
 	}
