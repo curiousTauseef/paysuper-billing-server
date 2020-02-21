@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -41,7 +42,7 @@ func (suite *MerchantTestSuite) SetupTest() {
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
 
-	suite.repository = &merchantRepository{db: suite.db, cache: &mocks.CacheInterface{}}
+	suite.repository = &merchantRepository{db: suite.db, cache: &mocks.CacheInterface{}, mapper: models.NewMerchantMapper()}
 }
 
 func (suite *MerchantTestSuite) TearDownTest() {
@@ -522,7 +523,7 @@ func (suite *MerchantTestSuite) TestMerchant_GetById_OkByCache() {
 	cache := &mocks.CacheInterface{}
 	key := fmt.Sprintf(cacheMerchantId, merchant.Id)
 	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
-	cache.On("Get", key, billingpb.Merchant{}).Return(nil)
+	cache.On("Get", key, mock.Anything).Return(nil)
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), merchant)
@@ -726,7 +727,7 @@ func (suite *MerchantTestSuite) TestMerchant_GetCommonById_OkByCache() {
 	key := fmt.Sprintf(cacheMerchantId, merchant.Id)
 	key2 := fmt.Sprintf(cacheMerchantCommonId, merchant.Id)
 	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
-	cache.On("Get", key2, billingpb.MerchantCommon{}).Return(nil)
+	cache.On("Get", key2, &billingpb.MerchantCommon{}).Return(nil)
 	cache.On("Set", key2, mock.Anything, time.Duration(0)).Return(nil)
 	suite.repository.cache = cache
 
