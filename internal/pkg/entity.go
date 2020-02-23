@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
@@ -13,7 +14,7 @@ type PaymentChannelCostMerchantSet struct {
 
 type PaymentChannelCostSystemSet struct {
 	Id  string                                `bson:"_id"`
-	Set []*billingpb.PaymentChannelCostSystem `bson:"set"`
+	Set []*models.MgoPaymentChannelCostSystem `bson:"set"`
 }
 
 type MoneyBackCostMerchantSet struct {

@@ -212,11 +212,11 @@ func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Grp
 	res2 := billingpb.PaymentChannelCostSystemResponse{}
 	err = suite.service.SetPaymentChannelCostSystem(context.TODO(), req2, &res2)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
-	assert.Equal(suite.T(), res2.Item.Country, "")
-	assert.Equal(suite.T(), res2.Item.Region, billingpb.TariffRegionWorldwide)
-	assert.Equal(suite.T(), res2.Item.FixAmount, float64(1))
-	assert.NotEqual(suite.T(), res2.Item.Id, suite.paymentChannelCostSystemId)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, res.Status)
+	assert.Equal(suite.T(), "", res2.Item.Country)
+	assert.Equal(suite.T(), billingpb.TariffRegionWorldwide, res2.Item.Region)
+	assert.Equal(suite.T(), float64(1), res2.Item.FixAmount)
+	assert.NotEqual(suite.T(), suite.paymentChannelCostSystemId, res2.Item.Id)
 }
 
 func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Delete_Ok() {
@@ -227,7 +227,7 @@ func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Del
 	res := &billingpb.ResponseError{}
 	err := suite.service.DeletePaymentChannelCostSystem(context.TODO(), req, res)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, res.Status)
 
 	_, err = suite.service.paymentChannelCostSystemRepository.GetById(context.TODO(), suite.paymentChannelCostSystemId)
 	assert.Error(suite.T(), err)
@@ -238,6 +238,6 @@ func (suite *PaymentChannelCostSystemTestSuite) TestPaymentChannelCostSystem_Get
 	err := suite.service.GetAllPaymentChannelCostSystem(context.TODO(), &billingpb.EmptyRequest{}, res)
 
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, res.Status)
 	assert.Equal(suite.T(), len(res.Item.Items), 2)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	internalPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	tools "github.com/paysuper/paysuper-tools/number"
@@ -30,7 +31,7 @@ type paymentChannelCostSystemRepository repository
 // NewPaymentChannelCostSystemRepository create and return an object for working with the price group repository.
 // The returned object implements the PaymentChannelCostSystemRepositoryInterface interface.
 func NewPaymentChannelCostSystemRepository(db mongodb.SourceInterface, cache database.CacheInterface) PaymentChannelCostSystemRepositoryInterface {
-	s := &paymentChannelCostSystemRepository{db: db, cache: cache}
+	s := &paymentChannelCostSystemRepository{db: db, cache: cache, mapper: models.NewPaymentChannelCostSystemMapper()}
 	return s
 }
 
@@ -41,7 +42,18 @@ func (r *paymentChannelCostSystemRepository) Insert(ctx context.Context, obj *bi
 	obj.UpdatedAt = ptypes.TimestampNow()
 	obj.IsActive = true
 
-	_, err := r.db.Collection(collectionPaymentChannelCostSystem).InsertOne(ctx, obj)
+	mgo, err := r.mapper.MapObjectToMgo(obj)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionPaymentChannelCostSystem).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -60,15 +72,23 @@ func (r *paymentChannelCostSystemRepository) Insert(ctx context.Context, obj *bi
 func (r *paymentChannelCostSystemRepository) MultipleInsert(ctx context.Context, obj []*billingpb.PaymentChannelCostSystem) error {
 	c := make([]interface{}, len(obj))
 	for i, v := range obj {
-		if v.Id == "" {
-			v.Id = primitive.NewObjectID().Hex()
-		}
 		v.FixAmount = tools.FormatAmount(v.FixAmount)
 		v.Percent = tools.ToPrecise(v.Percent)
 		v.CreatedAt = ptypes.TimestampNow()
 		v.UpdatedAt = ptypes.TimestampNow()
 		v.IsActive = true
-		c[i] = v
+
+		mgo, err := r.mapper.MapObjectToMgo(v)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, v),
+			)
+		}
+
+		c[i] = mgo
 	}
 
 	_, err := r.db.Collection(collectionPaymentChannelCostSystem).InsertMany(ctx, c)
@@ -108,10 +128,22 @@ func (r *paymentChannelCostSystemRepository) Update(ctx context.Context, obj *bi
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentChannelCostSystem),
 			zap.String(pkg.ErrorDatabaseFieldQuery, obj.Id),
 		)
+		return err
+	}
+
+	mgo, err := r.mapper.MapObjectToMgo(obj)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+		return err
 	}
 
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionPaymentChannelCostSystem).ReplaceOne(ctx, filter, obj)
+	_, err = r.db.Collection(collectionPaymentChannelCostSystem).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -128,11 +160,11 @@ func (r *paymentChannelCostSystemRepository) Update(ctx context.Context, obj *bi
 }
 
 func (r *paymentChannelCostSystemRepository) GetById(ctx context.Context, id string) (*billingpb.PaymentChannelCostSystem, error) {
-	var c billingpb.PaymentChannelCostSystem
+	var c = &billingpb.PaymentChannelCostSystem{}
 	key := fmt.Sprintf(cachePaymentChannelCostSystemKeyId, id)
 
 	if err := r.cache.Get(key, c); err == nil {
-		return &c, nil
+		return c, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -146,8 +178,9 @@ func (r *paymentChannelCostSystemRepository) GetById(ctx context.Context, id str
 		)
 	}
 
+	var mgo = models.MgoPaymentChannelCostSystem{}
 	filter := bson.M{"_id": oid, "is_active": true}
-	err = r.db.Collection(collectionPaymentChannelCostSystem).FindOne(ctx, filter).Decode(&c)
+	err = r.db.Collection(collectionPaymentChannelCostSystem).FindOne(ctx, filter).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -159,15 +192,28 @@ func (r *paymentChannelCostSystemRepository) GetById(ctx context.Context, id str
 		return nil, err
 	}
 
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	c = obj.(*billingpb.PaymentChannelCostSystem)
+
 	_ = r.cache.Set(key, c, 0)
 
-	return &c, nil
+	return c, nil
 }
 
 func (r *paymentChannelCostSystemRepository) Find(
 	ctx context.Context, name, region, country, mccCode, operatingCompanyId string,
 ) (*billingpb.PaymentChannelCostSystem, error) {
-	var c *billingpb.PaymentChannelCostSystem
+	var c = &billingpb.PaymentChannelCostSystem{}
 	key := fmt.Sprintf(cachePaymentChannelCostSystemKey, name, region, country, mccCode, operatingCompanyId)
 
 	if err := r.cache.Get(key, c); err == nil {
@@ -212,7 +258,6 @@ func (r *paymentChannelCostSystemRepository) Find(
 		},
 	}
 
-	set := &internalPkg.PaymentChannelCostSystemSet{}
 	cursor, err := r.db.Collection(collectionPaymentChannelCostSystem).Aggregate(ctx, query)
 
 	if err != nil {
@@ -226,6 +271,8 @@ func (r *paymentChannelCostSystemRepository) Find(
 	}
 
 	defer cursor.Close(ctx)
+
+	set := &internalPkg.PaymentChannelCostSystemSet{}
 
 	if cursor.Next(ctx) {
 		err = cursor.Decode(&set)
@@ -244,7 +291,18 @@ func (r *paymentChannelCostSystemRepository) Find(
 		return nil, mongo.ErrNoDocuments
 	}
 
-	c = set.Set[0]
+	obj, err := r.mapper.MapMgoToObject(set.Set[0])
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, set.Set[0]),
+		)
+		return nil, err
+	}
+
+	c = obj.(*billingpb.PaymentChannelCostSystem)
 
 	if err = r.cache.Set(key, c, 0); err != nil {
 		zap.L().Error(
@@ -272,10 +330,22 @@ func (r *paymentChannelCostSystemRepository) Delete(ctx context.Context, obj *bi
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentChannelCostSystem),
 			zap.String(pkg.ErrorDatabaseFieldQuery, obj.Id),
 		)
+		return err
+	}
+
+	mgo, err := r.mapper.MapObjectToMgo(obj)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+		return err
 	}
 
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionPaymentChannelCostSystem).ReplaceOne(ctx, filter, obj)
+	_, err = r.db.Collection(collectionPaymentChannelCostSystem).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -314,7 +384,8 @@ func (r *paymentChannelCostSystemRepository) GetAll(ctx context.Context) ([]*bil
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &c)
+	var list []*models.MgoPaymentChannelCostSystem
+	err = cursor.All(ctx, &list)
 
 	if err != nil {
 		zap.L().Error(
@@ -326,7 +397,22 @@ func (r *paymentChannelCostSystemRepository) GetAll(ctx context.Context) ([]*bil
 		return nil, err
 	}
 
-	err = r.cache.Set(key, c, 0)
+	objs := make([]*billingpb.PaymentChannelCostSystem, len(list))
+
+	for i, obj := range list {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.PaymentChannelCostSystem)
+	}
+
+	err = r.cache.Set(key, objs, 0)
 
 	if err != nil {
 		zap.L().Error(
@@ -338,7 +424,7 @@ func (r *paymentChannelCostSystemRepository) GetAll(ctx context.Context) ([]*bil
 		)
 	}
 
-	return c, nil
+	return objs, nil
 }
 
 func (r *paymentChannelCostSystemRepository) updateCaches(obj *billingpb.PaymentChannelCostSystem) (err error) {
