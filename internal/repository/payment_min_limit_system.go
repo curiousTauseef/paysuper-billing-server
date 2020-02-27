@@ -27,7 +27,7 @@ type paymentMinLimitSystemRepository repository
 // NewPaymentMinLimitSystemRepository create and return an object for working with the payment min limit repository.
 // The returned object implements the PaymentMinLimitSystemRepositoryInterface interface.
 func NewPaymentMinLimitSystemRepository(db mongodb.SourceInterface, cache database.CacheInterface) PaymentMinLimitSystemRepositoryInterface {
-	s := &paymentMinLimitSystemRepository{db: db, cache: cache}
+	s := &paymentMinLimitSystemRepository{db: db, cache: cache, mapper: models.NewPaymentMinLimitSystemMapper()}
 	return s
 }
 
@@ -145,7 +145,7 @@ func (r *paymentMinLimitSystemRepository) GetByCurrency(
 		return pmls, nil
 	}
 
-	var mgo = models.MgoPriceGroup{}
+	var mgo = models.MgoPaymentMinLimitSystem{}
 	query := bson.M{"currency": currency}
 	err := r.db.Collection(collectionPaymentMinLimitSystem).FindOne(ctx, query).Decode(&mgo)
 
