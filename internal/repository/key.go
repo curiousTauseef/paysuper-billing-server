@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -19,12 +20,22 @@ type keyRepository repository
 // NewKeyRepository create and return an object for working with the key repository.
 // The returned object implements the KeyRepositoryInterface interface.
 func NewKeyRepository(db mongodb.SourceInterface) KeyRepositoryInterface {
-	s := &keyRepository{db: db}
+	s := &keyRepository{db: db, mapper: models.NewKeyMapper()}
 	return s
 }
 
 func (r *keyRepository) Insert(ctx context.Context, key *billingpb.Key) error {
-	_, err := r.db.Collection(collectionKey).InsertOne(ctx, key)
+	mgo, err := r.mapper.MapObjectToMgo(key)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, key),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionKey).InsertOne(ctx, mgo)
 
 	if err != nil {
 		return err
@@ -46,21 +57,31 @@ func (r *keyRepository) GetById(ctx context.Context, id string) (*billingpb.Key,
 		return nil, err
 	}
 
-	key := &billingpb.Key{}
+	mgo := &models.MgoKey{}
 	filter := bson.M{"_id": oid}
-	err = r.db.Collection(collectionKey).FindOne(ctx, filter).Decode(key)
+	err = r.db.Collection(collectionKey).FindOne(ctx, filter).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionKey),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, key),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
 		)
 		return nil, err
 	}
 
-	return key, nil
+	obj, err := r.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Key), nil
 }
 
 func (r *keyRepository) ReserveKey(ctx context.Context, keyProductId, platformId, orderId string, ttl int32) (*billingpb.Key, error) {
@@ -88,7 +109,7 @@ func (r *keyRepository) ReserveKey(ctx context.Context, keyProductId, platformId
 		return nil, err
 	}
 
-	var key *billingpb.Key
+	mgo := &models.MgoKey{}
 	duration := time.Second * time.Duration(ttl)
 
 	query := bson.M{
@@ -104,7 +125,7 @@ func (r *keyRepository) ReserveKey(ctx context.Context, keyProductId, platformId
 	}
 
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err = r.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(&key)
+	err = r.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -116,7 +137,18 @@ func (r *keyRepository) ReserveKey(ctx context.Context, keyProductId, platformId
 		)
 		return nil, err
 	}
-	return key, nil
+
+	obj, err := r.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Key), nil
 }
 
 func (r *keyRepository) CancelById(ctx context.Context, id string) (*billingpb.Key, error) {
@@ -132,7 +164,6 @@ func (r *keyRepository) CancelById(ctx context.Context, id string) (*billingpb.K
 		return nil, err
 	}
 
-	var key *billingpb.Key
 	query := bson.M{"_id": oid}
 	update := bson.M{
 		"$set": bson.M{
@@ -140,9 +171,10 @@ func (r *keyRepository) CancelById(ctx context.Context, id string) (*billingpb.K
 			"order_id":    nil,
 		},
 	}
+	mgo := &models.MgoKey{}
 
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err = r.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(&key)
+	err = r.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -154,7 +186,17 @@ func (r *keyRepository) CancelById(ctx context.Context, id string) (*billingpb.K
 		return nil, err
 	}
 
-	return key, nil
+	obj, err := r.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Key), nil
 }
 
 func (r *keyRepository) FinishRedeemById(ctx context.Context, id string) (*billingpb.Key, error) {
@@ -170,7 +212,6 @@ func (r *keyRepository) FinishRedeemById(ctx context.Context, id string) (*billi
 		return nil, err
 	}
 
-	var key *billingpb.Key
 	query := bson.M{"_id": oid}
 	update := bson.M{
 		"$set": bson.M{
@@ -178,9 +219,9 @@ func (r *keyRepository) FinishRedeemById(ctx context.Context, id string) (*billi
 			"redeemed_at": time.Now().UTC(),
 		},
 	}
-
+	mgo := &models.MgoKey{}
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err = r.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(&key)
+	err = r.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -192,7 +233,17 @@ func (r *keyRepository) FinishRedeemById(ctx context.Context, id string) (*billi
 		return nil, err
 	}
 
-	return key, nil
+	obj, err := r.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Key), nil
 }
 
 func (r *keyRepository) CountKeysByProductPlatform(ctx context.Context, keyProductId string, platformId string) (int64, error) {
@@ -230,7 +281,7 @@ func (r *keyRepository) CountKeysByProductPlatform(ctx context.Context, keyProdu
 }
 
 func (r *keyRepository) FindUnfinished(ctx context.Context) ([]*billingpb.Key, error) {
-	var keys []*billingpb.Key
+	var keys []*models.MgoKey
 
 	query := bson.M{
 		"reserved_to": bson.M{
@@ -263,5 +314,20 @@ func (r *keyRepository) FindUnfinished(ctx context.Context) ([]*billingpb.Key, e
 		return nil, err
 	}
 
-	return keys, nil
+	result := make([]*billingpb.Key, len(keys))
+	for i, key := range keys {
+		obj, err := r.mapper.MapMgoToObject(key)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, key),
+			)
+			return nil, err
+		}
+
+		result[i] = obj.(*billingpb.Key)
+	}
+
+	return result, nil
 }

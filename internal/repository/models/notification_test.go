@@ -22,7 +22,7 @@ func (suite *NotificationTestSuite) SetupTest() {
 	InitFakeCustomProviders()
 }
 
-func (suite *NotificationTestSuite) Test_UserProfile_NewZipCodeMapper() {
+func (suite *NotificationTestSuite) Test_NotificationMapper() {
 	mapper := NewNotificationMapper()
 	assert.IsType(suite.T(), &notificationMapper{}, mapper)
 }

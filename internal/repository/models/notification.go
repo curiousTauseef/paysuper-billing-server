@@ -9,9 +9,9 @@ import (
 )
 
 type MgoNotification struct {
-	Id         primitive.ObjectID                    `bson:"_id"`
+	Id         primitive.ObjectID                    `bson:"_id" faker:"objectId"`
 	Message    string                                `bson:"message"`
-	MerchantId primitive.ObjectID                    `bson:"merchant_id"`
+	MerchantId primitive.ObjectID                    `bson:"merchant_id" faker:"objectId"`
 	UserId     string                                `bson:"user_id"`
 	IsSystem   bool                                  `bson:"is_system"`
 	IsRead     bool                                  `bson:"is_read"`
@@ -21,7 +21,6 @@ type MgoNotification struct {
 }
 
 type notificationMapper struct {
-
 }
 
 func (n *notificationMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {

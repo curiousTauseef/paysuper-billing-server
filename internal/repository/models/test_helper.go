@@ -10,6 +10,14 @@ import (
 func InitFakeCustomProviders() {
 	faker.AddProvider("objectId", FakeProviderObjectId)
 	faker.AddProvider("objectIdString", FakeProviderObjectIdString)
+	faker.AddProvider("objectIdPointer", FakeProviderObjectIdPointer)
+}
+
+
+// FakeProviderObjectIdPointer returned value as mongo ObjectID
+func FakeProviderObjectIdPointer(_ reflect.Value) (interface{}, error) {
+	pointer := primitive.NewObjectID()
+	return &pointer, nil
 }
 
 // FakeProviderObjectId returned value as mongo ObjectID
