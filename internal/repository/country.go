@@ -202,7 +202,7 @@ func (h *countryRepository) GetByIsoCodeA2(ctx context.Context, code string) (*b
 		zap.L().Error(
 			pkg.ErrorDatabaseMapModelFailed,
 			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
 		)
 		return nil, err
 	}

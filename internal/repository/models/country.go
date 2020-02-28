@@ -31,7 +31,6 @@ type MgoCountry struct {
 	HighRiskChangeAllowed   bool                           `bson:"high_risk_change_allowed"`
 }
 
-
 type countryMapper struct{}
 
 func (c *countryMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
