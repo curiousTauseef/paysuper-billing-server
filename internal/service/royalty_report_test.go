@@ -14,7 +14,6 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
-	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -1188,7 +1187,25 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_GetRoyaltyReport_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
 	assert.Empty(suite.T(), rsp1.Message)
 	assert.NotEmpty(suite.T(), rsp1.Item)
-	assert.Equal(suite.T(), rsp1.Item, reports[0])
+	assert.EqualValues(suite.T(), rsp1.Item.Id, reports[0].Id)
+	assert.EqualValues(suite.T(), rsp1.Item.MerchantId, reports[0].MerchantId)
+	assert.EqualValues(suite.T(), rsp1.Item.Status, reports[0].Status)
+	assert.EqualValues(suite.T(), rsp1.Item.OperatingCompanyId, reports[0].OperatingCompanyId)
+	assert.EqualValues(suite.T(), rsp1.Item.Currency, reports[0].Currency)
+	assert.EqualValues(suite.T(), rsp1.Item.DisputeReason, reports[0].DisputeReason)
+	assert.EqualValues(suite.T(), rsp1.Item.IsAutoAccepted, reports[0].IsAutoAccepted)
+	assert.EqualValues(suite.T(), rsp1.Item.PayoutDocumentId, reports[0].PayoutDocumentId)
+	assert.EqualValues(suite.T(), rsp1.Item.Totals, reports[0].Totals)
+	assert.EqualValues(suite.T(), rsp1.Item.Summary, reports[0].Summary)
+	assert.EqualValues(suite.T(), rsp1.Item.CreatedAt.Seconds, reports[0].CreatedAt.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.UpdatedAt.Seconds, reports[0].UpdatedAt.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.AcceptExpireAt.Seconds, reports[0].AcceptExpireAt.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.PeriodFrom.Seconds, reports[0].PeriodFrom.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.PeriodTo.Seconds, reports[0].PeriodTo.Seconds)
+	assert.Empty(suite.T(), rsp1.Item.AcceptedAt)
+	assert.Empty(suite.T(), rsp1.Item.DisputeClosedAt)
+	assert.Empty(suite.T(), rsp1.Item.DisputeStartedAt)
+	assert.Empty(suite.T(), rsp1.Item.PayoutDate)
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_OnlyTestOrders_Ok() {
@@ -1224,14 +1241,14 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(repository.CollectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
-	assert.EqualValues(suite.T(), -62135596800, report.AcceptedAt.Seconds)
-	assert.Len(suite.T(), report.Summary.Corrections, 0)
-	assert.Equal(suite.T(), report.Totals.CorrectionAmount, float64(0))
+	assert.NotNil(suite.T(), report[0])
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, report[0].AcceptedAt.Seconds)
+	assert.Len(suite.T(), report[0].Summary.Corrections, 0)
+	assert.Equal(suite.T(), report[0].Totals.CorrectionAmount, float64(0))
 
 	merchantRepositoryMock := &mocks.MerchantRepositoryInterface{}
 	merchantRepositoryMock.On("GetById", mock.Anything, mock.Anything).
@@ -1239,7 +1256,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	suite.service.merchantRepository = merchantRepositoryMock
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
-		ReportId:      report.Id,
+		ReportId:      report[0].Id,
 		IsAccepted:    false,
 		DisputeReason: "unit-test",
 		Ip:            "127.0.0.1",
@@ -1262,14 +1279,14 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(repository.CollectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
-	assert.EqualValues(suite.T(), -62135596800, report.AcceptedAt.Seconds)
-	assert.Len(suite.T(), report.Summary.Corrections, 0)
-	assert.Equal(suite.T(), report.Totals.CorrectionAmount, float64(0))
+	assert.NotNil(suite.T(), report[0])
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, report[0].AcceptedAt.Seconds)
+	assert.Len(suite.T(), report[0].Summary.Corrections, 0)
+	assert.Equal(suite.T(), report[0].Totals.CorrectionAmount, float64(0))
 
 	brokerMock := &mocks.BrokerInterface{}
 	brokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).
@@ -1277,7 +1294,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	suite.service.postmarkBroker = brokerMock
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
-		ReportId:      report.Id,
+		ReportId:      report[0].Id,
 		IsAccepted:    false,
 		DisputeReason: "unit-test",
 		Ip:            "127.0.0.1",
