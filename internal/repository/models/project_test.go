@@ -70,7 +70,7 @@ func (suite *ProjectestSuite) Test_NoError_EmptyId() {
 	original.Id = ""
 	obj, err := suite.mapper.MapObjectToMgo(original)
 	assert.NoError(suite.T(), err)
-	ref := obj.(*MgoRefund)
+	ref := obj.(*MgoProject)
 	assert.False(suite.T(), ref.Id.IsZero())
 }
 
