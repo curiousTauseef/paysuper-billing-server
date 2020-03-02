@@ -237,12 +237,10 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Ok() {
 	)
 
 	assert.False(suite.T(), suite.projectFixedAmount.IsProduction())
-	orderPublic, err := suite.service.orderViewRepository.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
+	orderPublic, err := suite.service.orderViewRepository.GetPublicOrderBy(context.TODO(), order.Id, "", "")
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderPublic)
-	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, orderPublic)
-	op := orderPublic.(*billingpb.OrderViewPublic)
-	assert.False(suite.T(), op.IsProduction)
+	assert.False(suite.T(), orderPublic.IsProduction)
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_ProductionProject_Ok() {
@@ -277,12 +275,10 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Productio
 	)
 
 	assert.True(suite.T(), productionProject.IsProduction())
-	orderPublic, err := suite.service.orderViewRepository.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPublic))
+	orderPublic, err := suite.service.orderViewRepository.GetPublicOrderBy(context.TODO(), order.Id, "", "")
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderPublic)
-	assert.IsType(suite.T(), &billingpb.OrderViewPublic{}, orderPublic)
-	op := orderPublic.(*billingpb.OrderViewPublic)
-	assert.True(suite.T(), op.IsProduction)
+	assert.True(suite.T(), orderPublic.IsProduction)
 }
 
 func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
@@ -296,11 +292,9 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
 		suite.paymentMethod,
 	)
 
-	orderPrivate, err := suite.service.orderViewRepository.GetOrderBy(context.TODO(), order.Id, "", "", new(billingpb.OrderViewPrivate))
+	op, err := suite.service.orderViewRepository.GetPrivateOrderBy(context.TODO(), order.Id, "", "")
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), orderPrivate)
-	assert.IsType(suite.T(), &billingpb.OrderViewPrivate{}, orderPrivate)
-	op := orderPrivate.(*billingpb.OrderViewPrivate)
+	assert.NotNil(suite.T(), op)
 	assert.False(suite.T(), op.IsProduction)
 	assert.NotNil(suite.T(), op.MerchantInfo)
 	assert.NotEmpty(suite.T(), op.MerchantInfo.CompanyName)

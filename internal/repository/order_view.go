@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jinzhu/now"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -23,14 +24,21 @@ const (
 	CollectionOrderView = "order_view"
 )
 
-type orderViewRepository repository
+type orderViewRepository struct {
+	repository
+	publicOrderMapper models.Mapper
+}
 
 type conformPaylinkStatItemFn func(item *billingpb.StatCommon)
 
 // NewOrderViewRepository create and return an object for working with the order view repository.
 // The returned object implements the OrderViewRepositoryInterface interface.
 func NewOrderViewRepository(db mongodb.SourceInterface) OrderViewRepositoryInterface {
-	s := &orderViewRepository{db: db}
+	s := &orderViewRepository{}
+	s.db = db
+	s.mapper = models.NewOrderViewPrivateMapper()
+	s.publicOrderMapper = models.NewOrderViewPublicMapper()
+
 	return s
 }
 
@@ -72,8 +80,8 @@ func (r *orderViewRepository) GetTransactionsPublic(
 		return nil, err
 	}
 
-	var result []*billingpb.OrderViewPublic
-	err = cursor.All(ctx, &result)
+	var mgoResult []*models.MgoOrderViewPublic
+	err = cursor.All(ctx, &mgoResult)
 
 	if err != nil {
 		zap.L().Error(
@@ -85,6 +93,20 @@ func (r *orderViewRepository) GetTransactionsPublic(
 			zap.Any(pkg.ErrorDatabaseFieldOffset, offset),
 		)
 		return nil, err
+	}
+
+	result := make([]*billingpb.OrderViewPublic, len(mgoResult))
+	for i, mgo := range mgoResult {
+		obj, err := r.publicOrderMapper.MapMgoToObject(mgo)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+			)
+			return nil, err
+		}
+		result[i] = obj.(*billingpb.OrderViewPublic)
 	}
 
 	return result, nil
@@ -114,8 +136,8 @@ func (r *orderViewRepository) GetTransactionsPrivate(
 		return nil, err
 	}
 
-	var result []*billingpb.OrderViewPrivate
-	err = cursor.All(ctx, &result)
+	var mgoResult []*models.MgoOrderViewPrivate
+	err = cursor.All(ctx, &mgoResult)
 
 	if err != nil {
 		zap.L().Error(
@@ -127,6 +149,20 @@ func (r *orderViewRepository) GetTransactionsPrivate(
 			zap.Any(pkg.ErrorDatabaseFieldOffset, offset),
 		)
 		return nil, err
+	}
+
+	result := make([]*billingpb.OrderViewPrivate, len(mgoResult))
+	for i, mgo := range mgoResult {
+		obj, err := r.mapper.MapMgoToObject(mgo)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+			)
+			return nil, err
+		}
+		result[i] = obj.(*billingpb.OrderViewPrivate)
 	}
 
 	return result, nil
@@ -362,11 +398,11 @@ func (r *orderViewRepository) royaltySummaryItemPrecise(item *billingpb.RoyaltyR
 	item.PayoutAmount = tools.ToPrecise(item.PayoutAmount)
 }
 
-func (r *orderViewRepository) GetOrderBy(
+
+func (r *orderViewRepository) GetPrivateOrderBy(
 	ctx context.Context,
 	id, uuid, merchantId string,
-	receiver interface{},
-) (interface{}, error) {
+) (*billingpb.OrderViewPrivate, error) {
 	query := bson.M{}
 
 	if id != "" {
@@ -381,7 +417,9 @@ func (r *orderViewRepository) GetOrderBy(
 		query["project.merchant_id"], _ = primitive.ObjectIDFromHex(merchantId)
 	}
 
-	err := r.db.Collection(CollectionOrderView).FindOne(ctx, query).Decode(receiver)
+	mgo := &models.MgoOrderViewPrivate{}
+
+	err := r.db.Collection(CollectionOrderView).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -393,7 +431,61 @@ func (r *orderViewRepository) GetOrderBy(
 		return nil, err
 	}
 
-	return receiver, nil
+	obj, err := r.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.OrderViewPrivate), nil
+}
+
+func (r *orderViewRepository) GetPublicOrderBy(
+	ctx context.Context,
+	id, uuid, merchantId string,
+) (*billingpb.OrderViewPublic, error) {
+	query := bson.M{}
+
+	if id != "" {
+		query["_id"], _ = primitive.ObjectIDFromHex(id)
+	}
+
+	if uuid != "" {
+		query["uuid"] = uuid
+	}
+
+	if merchantId != "" {
+		query["project.merchant_id"], _ = primitive.ObjectIDFromHex(merchantId)
+	}
+
+	mgo := &models.MgoOrderViewPublic{}
+	err := r.db.Collection(CollectionOrderView).FindOne(ctx, query).Decode(mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	obj, err := r.publicOrderMapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.OrderViewPublic), nil
 }
 
 func (r *orderViewRepository) GetPaylinkStatMatchQuery(paylinkId, merchantId string, from, to int64) []bson.M {
@@ -644,14 +736,24 @@ func (r *orderViewRepository) paylinkStatItemPrecise(item *billingpb.StatCommon)
 }
 
 func (r *orderViewRepository) GetPublicByOrderId(ctx context.Context, orderId string) (*billingpb.OrderViewPublic, error) {
-	order := &billingpb.OrderViewPublic{}
-	err := r.db.Collection(CollectionOrderView).FindOne(ctx, bson.M{"uuid": orderId}).Decode(order)
+	mgo := &models.MgoOrderViewPublic{}
+	err := r.db.Collection(CollectionOrderView).FindOne(ctx, bson.M{"uuid": orderId}).Decode(mgo)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return order, nil
+	obj, err := r.publicOrderMapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.OrderViewPublic), nil
 }
 
 func (r *orderViewRepository) GetVatSummary(
@@ -845,8 +947,6 @@ func (r *orderViewRepository) GetRoyaltyForMerchants(
 }
 
 func (r *orderViewRepository) GetById(ctx context.Context, id string) (*billingpb.OrderViewPublic, error) {
-	var c billingpb.OrderViewPublic
-
 	oid, err := primitive.ObjectIDFromHex(id)
 
 	if err != nil {
@@ -860,7 +960,8 @@ func (r *orderViewRepository) GetById(ctx context.Context, id string) (*billingp
 	}
 
 	filter := bson.M{"_id": oid}
-	err = r.db.Collection(CollectionOrderView).FindOne(ctx, filter).Decode(&c)
+	mgo := &models.MgoOrderViewPublic{}
+	err = r.db.Collection(CollectionOrderView).FindOne(ctx, filter).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -872,5 +973,15 @@ func (r *orderViewRepository) GetById(ctx context.Context, id string) (*billingp
 		return nil, err
 	}
 
-	return &c, nil
+	obj, err := r.publicOrderMapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.OrderViewPublic), nil
 }

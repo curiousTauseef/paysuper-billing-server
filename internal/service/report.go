@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -20,6 +21,8 @@ const (
 
 var (
 	reportErrorUnknown = newBillingServerErrorMsg("rp000001", "request processing failed. try request later")
+	privateOrderMapper = models.NewOrderViewPrivateMapper()
+	publicOrderMapper  = models.NewOrderViewPublicMapper()
 )
 
 func (s *Service) FindAllOrdersPublic(
@@ -105,7 +108,7 @@ func (s *Service) GetOrderPublic(
 	req *billingpb.GetOrderRequest,
 	rsp *billingpb.GetOrderPublicResponse,
 ) error {
-	order, err := s.orderViewRepository.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPublic))
+	order, err := s.orderViewRepository.GetPublicOrderBy(ctx, "", req.OrderId, req.MerchantId)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusNotFound
@@ -114,7 +117,7 @@ func (s *Service) GetOrderPublic(
 		return nil
 	}
 
-	rsp.Item = order.(*billingpb.OrderViewPublic)
+	rsp.Item = order
 
 	if rsp.Item.MerchantId != req.MerchantId {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -133,7 +136,7 @@ func (s *Service) GetOrderPrivate(
 	req *billingpb.GetOrderRequest,
 	rsp *billingpb.GetOrderPrivateResponse,
 ) error {
-	order, err := s.orderViewRepository.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPrivate))
+	order, err := s.orderViewRepository.GetPrivateOrderBy(ctx, "", req.OrderId, req.MerchantId)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusNotFound
@@ -143,7 +146,7 @@ func (s *Service) GetOrderPrivate(
 	}
 
 	rsp.Status = billingpb.ResponseStatusOk
-	rsp.Item = order.(*billingpb.OrderViewPrivate)
+	rsp.Item = order
 
 	return nil
 }
@@ -291,12 +294,24 @@ func (s *Service) getOrdersList(
 		return 0, nil, err
 	}
 
-	if res, ok := receiver.([]*billingpb.OrderViewPublic); ok {
+	if _, ok := receiver.([]*billingpb.OrderViewPublic); ok {
+		var res []*models.MgoOrderViewPublic
 		err = cursor.All(ctx, &res)
-		receiver = res
-	} else if res, ok := receiver.([]*billingpb.OrderViewPrivate); ok {
+		temp := make([]*billingpb.OrderViewPublic, len(res))
+		for i, mgo := range res {
+			obj, _ := publicOrderMapper.MapMgoToObject(mgo)
+			temp[i] = obj.(*billingpb.OrderViewPublic)
+		}
+		receiver = temp
+	} else if _, ok := receiver.([]*billingpb.OrderViewPrivate); ok {
+		var res []*models.MgoOrderViewPrivate
 		err = cursor.All(ctx, &res)
-		receiver = res
+		temp := make([]*billingpb.OrderViewPrivate, len(res))
+		for i, mgo := range res {
+			obj, _ := privateOrderMapper.MapMgoToObject(mgo)
+			temp[i] = obj.(*billingpb.OrderViewPrivate)
+		}
+		receiver = temp
 	} else if res, ok := receiver.([]*billingpb.Order); ok {
 		err = cursor.All(ctx, &res)
 		receiver = res

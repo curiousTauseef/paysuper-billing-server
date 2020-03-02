@@ -25,8 +25,11 @@ type OrderViewRepositoryInterface interface {
 	// GetRoyaltySummary returns orders for summary royal report by merchant id, currency and dates.
 	GetRoyaltySummary(ctx context.Context, merchantId, currency string, from, to time.Time) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, err error)
 
-	// GetOrderBy returns orders for order identity, order public identity, merchant id with binding to custom interface.
-	GetOrderBy(ctx context.Context, id, uuid, merchantId string, receiver interface{}) (interface{}, error)
+	// GetPublicOrderBy returns orders for order identity, order public identity, merchant id.
+	GetPublicOrderBy(ctx context.Context, id, uuid, merchantId string) (*billingpb.OrderViewPublic, error)
+
+	// GetPrivateOrderBy returns orders for order identity, order private identity, merchant id.
+	GetPrivateOrderBy(ctx context.Context, id, uuid, merchantId string) (*billingpb.OrderViewPrivate, error)
 
 	// GetPaylinkStat returns orders for common paylink report by paylink id, merchant id and dates.
 	GetPaylinkStat(ctx context.Context, paylinkId, merchantId string, from, to int64) (*billingpb.StatCommon, error)
