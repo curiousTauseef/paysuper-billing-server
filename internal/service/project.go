@@ -160,7 +160,7 @@ func (s *Service) ChangeProject(
 	} else {
 		if project == nil {
 			req.RedirectSettings = &billingpb.ProjectRedirectSettings{
-				Mode:  pkg.ProjectRedirectModeAny,
+				Mode:  pkg.ProjectRedirectModeDisable,
 				Usage: pkg.ProjectRedirectUsageAny,
 			}
 		}
