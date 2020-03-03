@@ -58,10 +58,10 @@ type MgoMerchantPaymentMethodIdentification struct {
 }
 
 type MgoMerchantPaymentMethod struct {
-	PaymentMethod *MgoMerchantPaymentMethodIdentification `bson:"payment_method"`
-	Commission    *billingpb.MerchantPaymentMethodCommissions       `bson:"commission"`
-	Integration   *billingpb.MerchantPaymentMethodIntegration       `bson:"integration"`
-	IsActive      bool                                    `bson:"is_active"`
+	PaymentMethod *MgoMerchantPaymentMethodIdentification     `bson:"payment_method"`
+	Commission    *billingpb.MerchantPaymentMethodCommissions `bson:"commission"`
+	Integration   *billingpb.MerchantPaymentMethodIntegration `bson:"integration"`
+	IsActive      bool                                        `bson:"is_active"`
 }
 
 type MgoMerchantAgreementSignatureDataSignUrl struct {
@@ -94,12 +94,11 @@ type MgoMerchantLastPayout struct {
 }
 
 type MgoMerchantCommon struct {
-	Id      primitive.ObjectID   `bson:"_id"`
+	Id      primitive.ObjectID             `bson:"_id"`
 	Company *billingpb.MerchantCompanyInfo `bson:"company"`
 	Banking *billingpb.MerchantBanking     `bson:"banking"`
-	Status  int32                `bson:"status"`
+	Status  int32                          `bson:"status"`
 }
-
 
 type MgoMerchantPaymentMethodHistory struct {
 	Id            primitive.ObjectID        `bson:"_id"`
@@ -113,7 +112,6 @@ type merchantMapper struct {
 }
 
 type merchantCommonMapper struct {
-
 }
 
 func (*merchantMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {

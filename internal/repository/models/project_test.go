@@ -1,9 +1,12 @@
 package models
 
 import (
+	"bytes"
 	"github.com/bxcodec/faker"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"testing"
@@ -31,6 +34,9 @@ func (suite *ProjectestSuite) Test_MapToMgo_Ok() {
 	original := &billingpb.Project{}
 	err := faker.FakeData(original)
 	assert.NoError(suite.T(), err)
+	original.Reserved_4 = ""
+	original.ProductsCount = 0
+	original.MinPaymentAmount = tools.FormatAmount(original.MinPaymentAmount)
 
 	mgo, err := suite.mapper.MapObjectToMgo(original)
 	assert.NoError(suite.T(), err)
@@ -40,7 +46,13 @@ func (suite *ProjectestSuite) Test_MapToMgo_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), obj)
 
-	assert.ObjectsAreEqualValues(original, obj)
+	buf1 := &bytes.Buffer{}
+	buf2 := &bytes.Buffer{}
+	marshaler := &jsonpb.Marshaler{}
+
+	assert.NoError(suite.T(), marshaler.Marshal(buf1, original))
+	assert.NoError(suite.T(), marshaler.Marshal(buf2, obj.(*billingpb.Project)))
+	assert.JSONEq(suite.T(), string(buf1.Bytes()), string(buf2.Bytes()))
 }
 
 func (suite *ProjectestSuite) Test_Error_CreatedAt() {

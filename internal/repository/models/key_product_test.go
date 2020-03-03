@@ -1,9 +1,12 @@
 package models
 
 import (
+	"bytes"
 	"github.com/bxcodec/faker"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -32,6 +35,11 @@ func (suite *KeyProductTestSuite) Test_KeyProduct_NewKeyProductMapper() {
 func (suite *KeyProductTestSuite) Test_KeyProduct_MapObjectToMgo_Ok() {
 	original := &billingpb.KeyProduct{}
 	err := faker.FakeData(original)
+	for _, platform := range original.Platforms {
+		for _, price := range platform.Prices {
+			price.Amount = tools.FormatAmount(price.Amount)
+		}
+	}
 	assert.NoError(suite.T(), err)
 
 	mgo, err := suite.mapper.MapObjectToMgo(original)
@@ -42,7 +50,13 @@ func (suite *KeyProductTestSuite) Test_KeyProduct_MapObjectToMgo_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), obj)
 
-	assert.ObjectsAreEqualValues(original, obj)
+	buf1 := &bytes.Buffer{}
+	buf2 := &bytes.Buffer{}
+	marshaler := &jsonpb.Marshaler{}
+
+	assert.NoError(suite.T(), marshaler.Marshal(buf1, original))
+	assert.NoError(suite.T(), marshaler.Marshal(buf2, obj.(*billingpb.KeyProduct)))
+	assert.JSONEq(suite.T(), string(buf1.Bytes()), string(buf2.Bytes()))
 }
 
 func (suite *KeyProductTestSuite) Test_KeyProduct_MapObjectToMgo_Error_Id() {

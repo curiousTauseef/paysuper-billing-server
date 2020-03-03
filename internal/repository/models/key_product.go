@@ -42,6 +42,7 @@ type MgoPlatformPrice struct {
 	Name          string                    `bson:"name" json:"name"`
 	EulaUrl       string                    `bson:"eula_url" json:"eula_url"`
 	ActivationUrl string                    `bson:"activation_url" json:"activation_url"`
+	Count         int32                     `bson:"count" json:"count"`
 }
 
 func (m *keyProductMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
@@ -149,6 +150,7 @@ func (m *keyProductMapper) MapObjectToMgo(obj interface{}) (interface{}, error) 
 			Name:          pl.Name,
 			EulaUrl:       pl.EulaUrl,
 			ActivationUrl: pl.ActivationUrl,
+			Count:         pl.Count,
 		}
 	}
 
@@ -203,6 +205,7 @@ func (m *keyProductMapper) MapMgoToObject(obj interface{}) (interface{}, error) 
 			EulaUrl:       pl.EulaUrl,
 			Name:          pl.Name,
 			ActivationUrl: pl.ActivationUrl,
+			Count:         pl.Count,
 		}
 	}
 

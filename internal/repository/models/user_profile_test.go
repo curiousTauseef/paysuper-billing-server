@@ -1,7 +1,10 @@
 package models
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/bxcodec/faker"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
@@ -33,6 +36,9 @@ func (suite *UserProfileTestSuite) Test_UserProfile_MapUserProfileToMgo_Ok() {
 	err := faker.FakeData(original)
 	assert.NoError(suite.T(), err)
 
+	original.CentrifugoToken = ""
+	original.Email.ConfirmationUrl = ""
+
 	mgo, err := suite.mapper.MapObjectToMgo(original)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), mgo)
@@ -41,7 +47,18 @@ func (suite *UserProfileTestSuite) Test_UserProfile_MapUserProfileToMgo_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), obj)
 
-	assert.ObjectsAreEqualValues(original, obj)
+	buf1 := &bytes.Buffer{}
+	buf2 := &bytes.Buffer{}
+	marshaler := &jsonpb.Marshaler{}
+
+	assert.NoError(suite.T(), marshaler.Marshal(buf1, original))
+	assert.NoError(suite.T(), marshaler.Marshal(buf2, obj.(*billingpb.UserProfile)))
+
+	fmt.Println(string(buf1.Bytes()))
+	fmt.Println()
+	fmt.Println(string(buf2.Bytes()))
+
+	assert.JSONEq(suite.T(), string(buf1.Bytes()), string(buf2.Bytes()))
 }
 
 func (suite *UserProfileTestSuite) Test_UserProfile_MapUserProfileToMgo_Error_Id() {

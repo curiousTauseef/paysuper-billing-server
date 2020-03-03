@@ -1,7 +1,9 @@
 package models
 
 import (
+	"bytes"
 	"github.com/bxcodec/faker"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +43,13 @@ func (suite *ZipCodeTestSuite) Test_ZipCode_MapZipCodeToMgo_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), obj)
 
-	assert.ObjectsAreEqualValues(original, obj)
+	buf1 := &bytes.Buffer{}
+	buf2 := &bytes.Buffer{}
+	marshaler := &jsonpb.Marshaler{}
+
+	assert.NoError(suite.T(), marshaler.Marshal(buf1, original))
+	assert.NoError(suite.T(), marshaler.Marshal(buf2, obj.(*billingpb.ZipCode)))
+	assert.JSONEq(suite.T(), string(buf1.Bytes()), string(buf2.Bytes()))
 }
 
 func (suite *ZipCodeTestSuite) Test_ZipCode_MapZipCodeToMgo_Ok_EmptyCreatedAt() {

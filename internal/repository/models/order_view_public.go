@@ -52,7 +52,7 @@ type MgoOrderViewPublic struct {
 	Items                                   []*MgoOrderItem                          `bson:"items"`
 	MerchantPayoutCurrency                  string                                   `bson:"merchant_payout_currency"`
 	ParentOrder                             *billingpb.ParentOrder                   `bson:"parent_order"`
-	Refund                                  *billingpb.MgoOrderNotificationRefund    `bson:"refund"`
+	Refund                                  *MgoOrderNotificationRefund              `bson:"refund"`
 	Cancellation                            *billingpb.OrderNotificationCancellation `bson:"cancellation"`
 	OperatingCompanyId                      string                                   `bson:"operating_company_id"`
 	RefundAllowed                           bool                                     `bson:"refund_allowed"`

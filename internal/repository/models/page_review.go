@@ -81,6 +81,7 @@ func (m *pageReviewMapper) MapMgoToObject(obj interface{}) (interface{}, error) 
 		UserId: in.UserId,
 		Review: in.Review,
 		Url:    in.Url,
+		IsRead: in.IsRead,
 	}
 
 	out.CreatedAt, err = ptypes.TimestampProto(in.CreatedAt)

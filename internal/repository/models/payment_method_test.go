@@ -40,8 +40,6 @@ func (suite *PaymentMethodTestSuite) Test_PaymentMethod_MapPaymentMethodToMgo_Ok
 	obj, err := suite.mapper.MapMgoToObject(mgo)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), obj)
-
-	assert.ObjectsAreEqualValues(original, obj)
 }
 
 func (suite *PaymentMethodTestSuite) Test_PaymentMethod_MapPaymentMethodToMgo_Error_Id() {

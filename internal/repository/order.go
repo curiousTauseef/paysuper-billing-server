@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,12 +23,22 @@ type orderRepository repository
 // NewOrderRepository create and return an object for working with the order repository.
 // The returned object implements the OrderRepositoryInterface interface.
 func NewOrderRepository(db mongodb.SourceInterface) OrderRepositoryInterface {
-	s := &orderRepository{db: db}
+	s := &orderRepository{db: db, mapper: models.NewOrderMapper()}
 	return s
 }
 
 func (h *orderRepository) Insert(ctx context.Context, order *billingpb.Order) error {
-	_, err := h.db.Collection(CollectionOrder).InsertOne(ctx, order)
+	mgo, err := h.mapper.MapObjectToMgo(order)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, order),
+		)
+		return err
+	}
+
+	_, err = h.db.Collection(CollectionOrder).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -56,7 +67,17 @@ func (h *orderRepository) Update(ctx context.Context, order *billingpb.Order) er
 		return err
 	}
 
-	_, err = h.db.Collection(CollectionOrder).ReplaceOne(ctx, bson.M{"_id": oid}, order)
+	mgo, err := h.mapper.MapObjectToMgo(order)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, order),
+		)
+		return err
+	}
+
+	_, err = h.db.Collection(CollectionOrder).ReplaceOne(ctx, bson.M{"_id": oid}, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -73,9 +94,10 @@ func (h *orderRepository) Update(ctx context.Context, order *billingpb.Order) er
 }
 
 func (h *orderRepository) GetByUuid(ctx context.Context, uuid string) (*billingpb.Order, error) {
-	order := &billingpb.Order{}
 	query := bson.M{"uuid": uuid}
-	err := h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(order)
+
+	mgo := &models.MgoOrder{}
+	err := h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -87,11 +109,20 @@ func (h *orderRepository) GetByUuid(ctx context.Context, uuid string) (*billingp
 		return nil, err
 	}
 
-	return order, nil
+	obj, err := h.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Order), nil
 }
 
 func (h *orderRepository) GetById(ctx context.Context, id string) (*billingpb.Order, error) {
-	order := &billingpb.Order{}
 	oid, err := primitive.ObjectIDFromHex(id)
 
 	if err != nil {
@@ -105,7 +136,8 @@ func (h *orderRepository) GetById(ctx context.Context, id string) (*billingpb.Or
 	}
 
 	query := bson.M{"_id": oid}
-	err = h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(&order)
+	mgo := &models.MgoOrder{}
+	err = h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -117,13 +149,24 @@ func (h *orderRepository) GetById(ctx context.Context, id string) (*billingpb.Or
 		return nil, err
 	}
 
-	return order, nil
+	obj, err := h.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Order), nil
 }
 
 func (h *orderRepository) GetByRefundReceiptNumber(ctx context.Context, id string) (*billingpb.Order, error) {
-	order := &billingpb.Order{}
 	query := bson.M{"refund.receipt_number": id}
-	err := h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(&order)
+	mgo := &models.MgoOrder{}
+
+	err := h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -135,11 +178,20 @@ func (h *orderRepository) GetByRefundReceiptNumber(ctx context.Context, id strin
 		return nil, err
 	}
 
-	return order, nil
+	obj, err := h.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Order), nil
 }
 
 func (h *orderRepository) GetByProjectOrderId(ctx context.Context, projectId, projectOrderId string) (*billingpb.Order, error) {
-	order := &billingpb.Order{}
 	id, err := primitive.ObjectIDFromHex(projectId)
 
 	if err != nil {
@@ -147,13 +199,15 @@ func (h *orderRepository) GetByProjectOrderId(ctx context.Context, projectId, pr
 			pkg.ErrorDatabaseInvalidObjectId,
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
-			zap.String(pkg.ErrorDatabaseFieldQuery, order.Id),
+			zap.String(pkg.ErrorDatabaseFieldQuery, projectId),
 		)
 		return nil, err
 	}
 
+	mgo := &models.MgoOrder{}
+
 	query := bson.M{"project._id": id, "project_order_id": projectOrderId}
-	err = h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(&order)
+	err = h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -165,7 +219,17 @@ func (h *orderRepository) GetByProjectOrderId(ctx context.Context, projectId, pr
 		return nil, err
 	}
 
-	return order, nil
+	obj, err := h.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Order), nil
 }
 
 func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) error {

@@ -46,6 +46,7 @@ func (c *countryMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		VatCurrency:             m.VatCurrency,
 		VatThreshold:            m.VatThreshold,
 		VatPeriodMonth:          m.VatPeriodMonth,
+		VatDeadlineDays:         m.VatDeadlineDays,
 		VatStoreYears:           m.VatStoreYears,
 		VatCurrencyRatesPolicy:  m.VatCurrencyRatesPolicy,
 		VatCurrencyRatesSource:  m.VatCurrencyRatesSource,
