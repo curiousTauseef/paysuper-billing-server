@@ -461,10 +461,14 @@ github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:sdQKpEC56et7ND0Otfqwf2HZAMsIm+5NkznUaC4HSqk=
 github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200302133127-ba8bd156664b h1:PbY1wiCwP1R7n8noFgarqKbc2Y95erRZphIuLIx3+II=
 github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:vuTC1qUqoQSldVBV+KIhSWs5TiLCq/46kJikoyHcItA=
+github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200303091345-2cee0f7f84c1 h1:siF07NAo6pO+L63lx2QHBiS3PRPVxB2x/4ocHKsjFR4=
+github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200303091345-2cee0f7f84c1/go.mod h1:vuTC1qUqoQSldVBV+KIhSWs5TiLCq/46kJikoyHcItA=
 github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200302133127-ba8bd156664b h1:r3RufNnHSozWZ9Eo+MWXDUg0USo1xOxgc+phZD++rMI=
 github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:fep+wG7O2UfNwdDQ1LwsCPgFlVKjuEv4ZOtRgCo5rZk=
 github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200302133127-ba8bd156664b h1:KsapFDq0bKJkoO3e7VEmWHjSeXqKAfYmwJVPxgAubEs=
 github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:6gCoUEx91Sux73W44vdVu2UhnZsgJQS8kssjIwLIgf8=
+github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200303091345-2cee0f7f84c1 h1:VLueHHXvwkC9kMlg9+IlK9ybOfeWDzh2fq7oJQOtvZA=
+github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200303091345-2cee0f7f84c1/go.mod h1:6gCoUEx91Sux73W44vdVu2UhnZsgJQS8kssjIwLIgf8=
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200302133127-ba8bd156664b h1:iHx707nj9+PDfFBudpvEm9UIGoVspTzkUNm6BRg7UFM=
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:yVmBUkR8sxQhUgU4mvO10u4x6bwlIGPoY9M++Wlnv9Q=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200302121221-60194355f1cc/go.mod h1:u48GCpSgBmO9VhSSRiAzv3dReqvB7pKjFmFHkvpB8wM=
