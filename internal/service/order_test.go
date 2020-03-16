@@ -1436,6 +1436,16 @@ func (suite *OrderTestSuite) SetupTest() {
 		BankCountryName:    "UKRAINE",
 		BankCountryIsoCode: "UA",
 	}
+	bin3 := &intPkg.BinData{
+		Id:                 primitive.NewObjectID(),
+		CardBin:            555555,
+		CardBrand:          "VISA",
+		CardType:           "DEBIT",
+		CardCategory:       "WORLD",
+		BankName:           "ALFA BANK",
+		BankCountryName:    "USA",
+		BankCountryIsoCode: "US",
+	}
 
 	suite.log, err = zap.NewProduction()
 
@@ -1584,11 +1594,6 @@ func (suite *OrderTestSuite) SetupTest() {
 				Currency: "RUB",
 				Region:   "RUB",
 				Amount:   100,
-			},
-			{
-				Currency: "USD",
-				Region:   "USD",
-				Amount:   10,
 			},
 		},
 	}
@@ -1835,10 +1840,22 @@ func (suite *OrderTestSuite) SetupTest() {
 		MccCode:            billingpb.MccCodeLowRisk,
 		OperatingCompanyId: suite.operatingCompany.Id,
 	}
+
 	sysCost3 := &billingpb.PaymentChannelCostSystem{
 		Name:               "Bitcoin",
 		Region:             billingpb.TariffRegionRussiaAndCis,
 		Country:            "RU",
+		Percent:            2.2,
+		FixAmount:          0,
+		FixAmountCurrency:  "USD",
+		IsActive:           true,
+		MccCode:            billingpb.MccCodeLowRisk,
+		OperatingCompanyId: suite.operatingCompany.Id,
+	}
+	sysCost4 := &billingpb.PaymentChannelCostSystem{
+		Name:               "VISA",
+		Region:             billingpb.TariffRegionWorldwide,
+		Country:            "US",
 		Percent:            2.2,
 		FixAmount:          0,
 		FixAmountCurrency:  "USD",
@@ -1854,6 +1871,7 @@ func (suite *OrderTestSuite) SetupTest() {
 			sysCost1,
 			sysCost2,
 			sysCost3,
+			sysCost4,
 		},
 	)
 
@@ -2027,6 +2045,22 @@ func (suite *OrderTestSuite) SetupTest() {
 		IsActive:                true,
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
+	merCost10 := &billingpb.PaymentChannelCostMerchant{
+		MerchantId:              project.GetMerchantId(),
+		Name:                    "VISA",
+		PayoutCurrency:          "USD",
+		MinAmount:               0,
+		Region:                  billingpb.TariffRegionWorldwide,
+		Country:                 "US",
+		MethodPercent:           2.5,
+		MethodFixAmount:         2,
+		PsPercent:               5,
+		PsFixedFee:              0.05,
+		PsFixedFeeCurrency:      "EUR",
+		MethodFixAmountCurrency: "USD",
+		IsActive:                true,
+		MccCode:                 billingpb.MccCodeLowRisk,
+	}
 
 	err = suite.service.paymentChannelCostMerchantRepository.
 		MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{
@@ -2040,6 +2074,7 @@ func (suite *OrderTestSuite) SetupTest() {
 			merCost7,
 			merCost8,
 			merCost9,
+			merCost10,
 		})
 
 	if err != nil {
@@ -2278,7 +2313,7 @@ func (suite *OrderTestSuite) SetupTest() {
 		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
 	}
 
-	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), []*intPkg.BinData{bin, bin2})
+	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), []*intPkg.BinData{bin, bin2, bin3})
 
 	if err != nil {
 		suite.FailNow("Insert BIN test data failed", "%v", err)
@@ -4843,7 +4878,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_GetBinData_Error()
 		billingpb.PaymentCreateFieldOrderId:         rsp.Uuid,
 		billingpb.PaymentCreateFieldPaymentMethodId: suite.paymentMethod.Id,
 		billingpb.PaymentCreateFieldEmail:           "test@unit.unit",
-		billingpb.PaymentCreateFieldPan:             "5555555555554444",
+		billingpb.PaymentCreateFieldPan:             "4111111111111111",
 		billingpb.PaymentCreateFieldCvv:             "123",
 		billingpb.PaymentCreateFieldMonth:           "02",
 		billingpb.PaymentCreateFieldYear:            "2100",
@@ -5839,7 +5874,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_BinDataN
 	req1 := &billingpb.PaymentFormUserChangePaymentAccountRequest{
 		OrderId:  rsp.Uuid,
 		MethodId: suite.paymentMethod.Id,
-		Account:  "5555555555554444",
+		Account:  "6555555555554444",
 	}
 	rsp1 := &billingpb.PaymentFormDataChangeResponse{}
 	err = suite.service.PaymentFormPaymentAccountChanged(context.TODO(), req1, rsp1)
@@ -9100,7 +9135,7 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		Products:    []string{suite.productWithProcessingDefaultCurrency.Id},
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
-			Ip:    "127.0.0.4",
+			Ip:    "127.0.0.2",
 		},
 		Type: pkg.OrderType_product,
 	}
@@ -9112,21 +9147,33 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 	assert.Equal(suite.T(), rsp.Item.Currency, suite.productWithProcessingDefaultCurrency.DefaultCurrency)
 	assert.Equal(suite.T(), rsp.Item.OrderAmount, suite.productWithProcessingDefaultCurrency.Prices[0].Amount)
 	assert.Equal(suite.T(), rsp.Item.Currency, rsp.Item.ChargeCurrency)
-	assert.Equal(suite.T(), rsp.Item.OrderAmount, rsp.Item.ChargeAmount)
+	assert.Equal(suite.T(), rsp.Item.TotalPaymentAmount, rsp.Item.ChargeAmount)
+
+	req0 := &billingpb.PaymentFormUserChangePaymentAccountRequest{
+		OrderId:  rsp.Item.Uuid,
+		MethodId: suite.paymentMethod.Id,
+		Account:  "5555555555554444",
+		Ip:       "127.0.0.2",
+	}
+	rsp0 := &billingpb.PaymentFormDataChangeResponse{}
+	err = suite.service.PaymentFormPaymentAccountChanged(context.TODO(), req0, rsp0)
+	assert.Nil(suite.T(), err)
+	assert.EqualValues(suite.T(), billingpb.ResponseStatusOk, rsp0.Status)
+	assert.Empty(suite.T(), rsp0.Message)
 
 	req1 := &billingpb.PaymentCreateRequest{
 		Data: map[string]string{
 			billingpb.PaymentCreateFieldOrderId:         rsp.Item.Uuid,
 			billingpb.PaymentCreateFieldPaymentMethodId: suite.paymentMethod.Id,
 			billingpb.PaymentCreateFieldEmail:           "test@unit.unit",
-			billingpb.PaymentCreateFieldPan:             "4000000000000002",
+			billingpb.PaymentCreateFieldPan:             "5555555555554444",
 			billingpb.PaymentCreateFieldCvv:             "123",
 			billingpb.PaymentCreateFieldMonth:           "02",
 			billingpb.PaymentCreateFieldYear:            time.Now().AddDate(1, 0, 0).Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
-			billingpb.PaymentCreateFieldUserCountry:     "DE",
+			billingpb.PaymentCreateFieldUserCountry:     "US",
 		},
-		Ip: "127.0.0.4",
+		Ip: "127.0.0.2",
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -9168,8 +9215,8 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
 			Id:          primitive.NewObjectID().Hex(),
-			Amount:      order.TotalPaymentAmount,
-			Currency:    order.Currency,
+			Amount:      order.ChargeAmount,
+			Currency:    order.ChargeCurrency,
 			Description: order.Description,
 			Is_3D:       true,
 			Rrn:         primitive.NewObjectID().Hex(),
@@ -9203,4 +9250,32 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), accountingEntries)
+
+	expectEntries := map[string]struct {
+		Amount   float64
+		Currency string
+	}{
+		"real_gross_revenue":                        {Amount: 1.83, Currency: "USD"},
+		"real_tax_fee":                              {Amount: 0.292185, Currency: "USD"},
+		"central_bank_tax_fee":                      {Amount: 0, Currency: "USD"},
+		"ps_gross_revenue_fx":                       {Amount: 0, Currency: "USD"},
+		"ps_gross_revenue_fx_tax_fee":               {Amount: 0, Currency: "USD"},
+		"merchant_tax_fee_cost_value":               {Amount: 0.292185, Currency: "USD"},
+		"merchant_tax_fee_central_bank_fx":          {Amount: 0, Currency: "USD"},
+		"ps_method_fee":                             {Amount: 9.15, Currency: "USD"},
+		"merchant_method_fee":                       {Amount: 4.575, Currency: "USD"},
+		"merchant_method_fee_cost_value":            {Amount: 4.026, Currency: "USD"},
+		"merchant_method_fixed_fee":                 {Amount: 2.0, Currency: "USD"},
+		"real_merchant_method_fixed_fee":            {Amount: 2.0, Currency: "USD"},
+		"real_merchant_method_fixed_fee_cost_value": {Amount: 0, Currency: "USD"},
+		"merchant_ps_fixed_fee":                     {Amount: 0.056492, Currency: "USD"},
+		"real_merchant_ps_fixed_fee":                {Amount: 0.055385, Currency: "USD"},
+	}
+
+	for _, v := range accountingEntries {
+		entry, ok := expectEntries[v.Type]
+		assert.True(suite.T(), ok)
+		assert.EqualValues(suite.T(), entry.Amount, v.Amount)
+		assert.Equal(suite.T(), entry.Currency, v.Currency)
+	}
 }
