@@ -236,6 +236,14 @@ func (s *Service) NotifyWebhookTestResults(
 		return nil
 	}
 
+	err = s.project.Update(ctx, project)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = projectErrorUnknown
+		return nil
+	}
+
 	return nil
 }
 
