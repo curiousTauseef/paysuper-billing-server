@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -66,7 +68,7 @@ func (m *DashboardReportProcessor) ExecuteReport(
 	return receiver, nil
 }
 
-func (m *DashboardReportProcessor) ExecuteGrossRevenueAndVatReports(ctx context.Context, receiver interface{}) (interface{}, error) {
+func (m *DashboardReportProcessor) ExecuteGrossRevenueAndVatReports(ctx context.Context, _ interface{}) (interface{}, error) {
 	query := []bson.M{
 		{"$match": m.Match},
 		{
@@ -144,8 +146,11 @@ func (m *DashboardReportProcessor) ExecuteGrossRevenueAndVatReports(ctx context.
 
 	defer cursor.Close(ctx)
 
+	receiverObj := &pkg2.GrossRevenueAndVatReports{}
+
 	if cursor.Next(ctx) {
-		err = cursor.Decode(receiver)
+		mgo := &models.MgoGrossRevenueAndVatReports{}
+		err = cursor.Decode(mgo)
 
 		if err != nil {
 			zap.L().Error(
@@ -156,12 +161,42 @@ func (m *DashboardReportProcessor) ExecuteGrossRevenueAndVatReports(ctx context.
 			)
 			return nil, err
 		}
+
+		if mgo.GrossRevenue != nil {
+			obj, err := models.NewDashboardAmountItemWithChartMapper().MapMgoToObject(mgo.GrossRevenue)
+
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorDatabaseMapModelFailed,
+					zap.Error(err),
+					zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+				)
+				return nil, err
+			}
+
+			receiverObj.GrossRevenue = obj.(*billingpb.DashboardAmountItemWithChart)
+		}
+
+		if mgo.Vat != nil {
+			obj, err := models.NewDashboardAmountItemWithChartMapper().MapMgoToObject(mgo.Vat)
+
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorDatabaseMapModelFailed,
+					zap.Error(err),
+					zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+				)
+				return nil, err
+			}
+
+			receiverObj.Vat = obj.(*billingpb.DashboardAmountItemWithChart)
+		}
 	}
 
-	return receiver, nil
+	return receiverObj, nil
 }
 
-func (m *DashboardReportProcessor) ExecuteTotalTransactionsAndArpuReports(ctx context.Context, receiver interface{}) (interface{}, error) {
+func (m *DashboardReportProcessor) ExecuteTotalTransactionsAndArpuReports(ctx context.Context, _ interface{}) (interface{}, error) {
 	query := []bson.M{
 		{"$match": m.Match},
 		{
@@ -245,8 +280,11 @@ func (m *DashboardReportProcessor) ExecuteTotalTransactionsAndArpuReports(ctx co
 
 	defer cursor.Close(ctx)
 
+	receiverObj := &pkg2.TotalTransactionsAndArpuReports{}
+
 	if cursor.Next(ctx) {
-		err = cursor.Decode(receiver)
+		mgo := &models.MgoTotalTransactionsAndArpuReports{}
+		err = cursor.Decode(mgo)
 
 		if err != nil {
 			zap.L().Error(
@@ -257,9 +295,28 @@ func (m *DashboardReportProcessor) ExecuteTotalTransactionsAndArpuReports(ctx co
 			)
 			return nil, err
 		}
+
+		if mgo.Arpu != nil {
+			obj, err := models.NewDashboardAmountItemWithChartMapper().MapMgoToObject(mgo.Arpu)
+
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorDatabaseMapModelFailed,
+					zap.Error(err),
+					zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+				)
+				return nil, err
+			}
+
+			receiverObj.Arpu = obj.(*billingpb.DashboardAmountItemWithChart)
+		}
+
+		if mgo.TotalTransactions != nil {
+			receiverObj.TotalTransactions = mgo.TotalTransactions
+		}
 	}
 
-	return receiver, nil
+	return receiverObj, nil
 }
 
 func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Context, receiver interface{}) (interface{}, error) {
@@ -287,7 +344,6 @@ func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Conte
 		{"$sort": bson.M{"_id": 1}},
 	}
 
-	receiverTyped := receiver.(*billingpb.DashboardRevenueDynamicReport)
 	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
 
 	if err != nil {
@@ -300,6 +356,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Conte
 		return nil, err
 	}
 
+	receiverTyped := receiver.(*models.MgoDashboardRevenueDynamicReport)
 	err = cursor.All(ctx, &receiverTyped.Items)
 	cursor.Close(ctx)
 
@@ -313,7 +370,26 @@ func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Conte
 		return nil, err
 	}
 
-	return receiverTyped, nil
+	result := &billingpb.DashboardRevenueDynamicReport{}
+
+	if len(receiverTyped.Items) > 0 {
+		for _, item := range receiverTyped.Items {
+			obj, err := models.NewDashboardRevenueDynamicReportItemMapper().MapMgoToObject(item)
+
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorDatabaseMapModelFailed,
+					zap.Error(err),
+					zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+				)
+				return nil, err
+			}
+
+			result.Items = append(result.Items, obj.(*billingpb.DashboardRevenueDynamicReportItem))
+		}
+	}
+
+	return result, nil
 }
 
 func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Context, receiver interface{}) (interface{}, error) {
@@ -436,8 +512,11 @@ func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Con
 
 	defer cursor.Close(ctx)
 
+	receiverObj := &billingpb.DashboardRevenueByCountryReport{}
+
 	if cursor.Next(ctx) {
-		err = cursor.Decode(receiver)
+		mgo := &models.MgoDashboardRevenueByCountryReport{}
+		err = cursor.Decode(mgo)
 
 		if err != nil {
 			zap.L().Error(
@@ -448,9 +527,22 @@ func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Con
 			)
 			return nil, err
 		}
+
+		obj, err := models.NewDashboardRevenueByCountryReportMapper().MapMgoToObject(mgo)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+
+		receiverObj = obj.(*billingpb.DashboardRevenueByCountryReport)
 	}
 
-	return receiver, nil
+	return receiverObj, nil
 }
 
 func (m *DashboardReportProcessor) ExecuteSalesTodayReport(ctx context.Context, receiver interface{}) (interface{}, error) {
