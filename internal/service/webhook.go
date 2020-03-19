@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
+	"log"
 )
 
 var (
@@ -38,18 +40,6 @@ func (s *Service) SendWebhookToMerchant(
 			return nil
 		}
 		return err
-	}
-
-	if req.Signature != "" || processor.checked.project.SignatureRequired == true {
-		if err := processor.processSignature(); err != nil {
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				res.Status = billingpb.ResponseStatusBadData
-				res.Message = e
-				return nil
-			}
-			return err
-		}
 	}
 
 	switch req.Type {
@@ -160,6 +150,7 @@ func (s *Service) SendWebhookToMerchant(
 	processor.processPrivateMetadata()
 
 	order, err := processor.prepareOrder()
+
 	if err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -172,15 +163,19 @@ func (s *Service) SendWebhookToMerchant(
 
 	order.PrivateStatus = constant.OrderStatusPaymentSystemComplete
 
-	zap.S().Debug("[orderNotifyMerchant] send notify merchant to rmq failed", "order_id", order.Id)
+	if req.TestingCase == billingpb.TestCaseNonExistingUser {
+		order.User.ExternalId = "paysuper_test_" + uuid.New().String()
+	}
+
 	err = s.broker.Publish(constant.PayOneTopicNotifyPaymentName, order, amqp.Table{"x-retry-count": int32(0)})
+
 	if err != nil {
-		zap.S().Debug("[orderNotifyMerchant] send notify merchant to rmq failed", "order_id", order.Id)
-		s.logError(orderErrorPublishNotificationFailed, []interface{}{
-			"err", err.Error(), "order", order, "topic", constant.PayOneTopicNotifyPaymentName,
-		})
-	} else {
-		zap.S().Debug("[orderNotifyMerchant] send notify merchant to rmq failed", "order_id", order.Id)
+		zap.L().Error(
+			orderErrorPublishNotificationFailed,
+			zap.Error(err),
+			zap.String("topic", constant.PayOneTopicNotifyPaymentName),
+			zap.Any("order", order),
+		)
 	}
 
 	res.OrderId = order.GetUuid()
@@ -215,6 +210,7 @@ func (s *Service) NotifyWebhookTestResults(
 
 	switch req.Type {
 	case pkg.OrderType_product:
+		log.Println(req)
 		s.processTestingProducts(project, req)
 		break
 	case pkg.OrderType_key:
