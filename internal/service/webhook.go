@@ -8,7 +8,6 @@ import (
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
-	"log"
 )
 
 var (
@@ -210,7 +209,6 @@ func (s *Service) NotifyWebhookTestResults(
 
 	switch req.Type {
 	case pkg.OrderType_product:
-		log.Println(req)
 		s.processTestingProducts(project, req)
 		break
 	case pkg.OrderType_key:
