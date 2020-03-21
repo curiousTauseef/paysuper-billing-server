@@ -8,7 +8,6 @@ import (
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
-	"log"
 )
 
 var (
