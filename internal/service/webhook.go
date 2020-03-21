@@ -207,8 +207,6 @@ func (s *Service) NotifyWebhookTestResults(
 		project.WebhookTesting = &billingpb.WebHookTesting{}
 	}
 
-	zap.L().Info("webhook_debug", zap.Any("req", req))
-
 	switch req.Type {
 	case pkg.OrderType_product:
 		s.processTestingProducts(project, req)
@@ -232,7 +230,9 @@ func (s *Service) NotifyWebhookTestResults(
 		return nil
 	}
 
+	s.mx.Lock()
 	err = s.project.Update(ctx, project)
+	s.mx.Unlock()
 
 	if err != nil {
 		res.Status = billingpb.ResponseStatusSystemError
