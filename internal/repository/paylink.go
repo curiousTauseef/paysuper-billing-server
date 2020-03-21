@@ -366,7 +366,7 @@ func (r *paylinkRepository) getBy(ctx context.Context, key string, dbQuery bson.
 		return pl, nil
 	}
 
-	var mgo = models.MgoPayoutDocument{}
+	var mgo = models.MgoPaylink{}
 	err = r.db.Collection(collectionPaylinks).FindOne(ctx, dbQuery).Decode(&mgo)
 	if err != nil {
 		zap.L().Error(
