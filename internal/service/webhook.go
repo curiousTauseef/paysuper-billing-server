@@ -189,6 +189,9 @@ func (s *Service) NotifyWebhookTestResults(
 ) error {
 	res.Status = billingpb.ResponseStatusOk
 
+	s.mx.Lock()
+	defer s.mx.Unlock()
+
 	project, err := s.project.GetById(ctx, req.ProjectId)
 
 	if err != nil {
@@ -230,9 +233,7 @@ func (s *Service) NotifyWebhookTestResults(
 		return nil
 	}
 
-	s.mx.Lock()
 	err = s.project.Update(ctx, project)
-	s.mx.Unlock()
 
 	if err != nil {
 		res.Status = billingpb.ResponseStatusSystemError
@@ -247,6 +248,7 @@ func (s *Service) processTestingVirtualCurrency(project *billingpb.Project, req 
 	if project.WebhookTesting.VirtualCurrency == nil {
 		project.WebhookTesting.VirtualCurrency = &billingpb.VirtualCurrencyTesting{}
 	}
+
 	switch req.TestCase {
 	case pkg.TestCaseNonExistingUser:
 		project.WebhookTesting.VirtualCurrency.NonExistingUser = req.IsPassed
