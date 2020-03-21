@@ -8,6 +8,7 @@ import (
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
+	"log"
 )
 
 var (
@@ -206,6 +207,8 @@ func (s *Service) NotifyWebhookTestResults(
 	if project.WebhookTesting == nil {
 		project.WebhookTesting = &billingpb.WebHookTesting{}
 	}
+
+	zap.L().Info("webhook_debug", zap.Any("req", req))
 
 	switch req.Type {
 	case pkg.OrderType_product:
