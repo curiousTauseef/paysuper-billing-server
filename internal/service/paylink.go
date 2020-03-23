@@ -562,5 +562,7 @@ func (s *Service) getPaylinkUrl(
 		}
 	}
 
+	u.RawQuery = query.Encode()
+
 	return u.String(), nil
 }
