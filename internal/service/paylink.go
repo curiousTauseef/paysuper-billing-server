@@ -3,9 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	u "github.com/PuerkitoBio/purell"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/google/go-querystring/query"
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -14,16 +12,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
+	"net/url"
 	"time"
 )
 
 type orderViewPaylinkStatFunc func(repository.OrderViewRepositoryInterface, context.Context, string, string, int64, int64) (*billingpb.GroupStatCommon, error)
-
-type utmQueryParams struct {
-	UtmSource   string `url:"utm_source,omitempty"`
-	UtmMedium   string `url:"utm_medium,omitempty"`
-	UtmCampaign string `url:"utm_campaign,omitempty"`
-}
 
 var (
 	errorPaylinkExpired                      = newBillingServerErrorMsg("pl000001", "payment link expired")
@@ -34,7 +27,6 @@ var (
 	errorPaylinkProductsTypeInvalid          = newBillingServerErrorMsg("pl000006", "paylink products type invalid")
 	errorPaylinkProductNotBelongToMerchant   = newBillingServerErrorMsg("pl000007", "at least one of paylink products is not belongs to merchant")
 	errorPaylinkProductNotBelongToProject    = newBillingServerErrorMsg("pl000008", "at least one of paylink products is not belongs to project")
-	errorPaylinkStatDataInconsistent         = newBillingServerErrorMsg("pl000009", "paylink stat data inconsistent")
 	errorPaylinkProductNotFoundOrInvalidType = newBillingServerErrorMsg("pl000010", "at least one of paylink products is not found or have type differ from given products_type value")
 
 	orderViewPaylinkStatFuncMap = map[string]orderViewPaylinkStatFunc{
@@ -157,7 +149,7 @@ func (s *Service) GetPaylinkTransactions(
 func (s *Service) IncrPaylinkVisits(
 	ctx context.Context,
 	req *billingpb.PaylinkRequestById,
-	res *billingpb.EmptyResponse,
+	_ *billingpb.EmptyResponse,
 ) error {
 	err := s.paylinkVisitsRepository.IncrVisits(ctx, req.Id)
 	if err != nil {
@@ -172,8 +164,8 @@ func (s *Service) GetPaylinkURL(
 	req *billingpb.GetPaylinkURLRequest,
 	res *billingpb.GetPaylinkUrlResponse,
 ) (err error) {
-
 	res.Url, err = s.getPaylinkUrl(ctx, req.Id, req.MerchantId, req.UrlMask, req.UtmMedium, req.UtmMedium, req.UtmCampaign)
+
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			res.Status = billingpb.ResponseStatusNotFound
@@ -533,11 +525,16 @@ func (s *Service) getPaylinkStatGroup(
 	return nil
 }
 
-func (s *Service) getPaylinkUrl(ctx context.Context, id, merchantId, urlMask, utmSource, utmMedium, utmCampaign string) (string, error) {
+func (s *Service) getPaylinkUrl(
+	ctx context.Context,
+	id, merchantId, urlMask, utmSource, utmMedium, utmCampaign string,
+) (string, error) {
 	pl, err := s.paylinkRepository.GetByIdAndMerchant(ctx, id, merchantId)
+
 	if err != nil {
 		return "", err
 	}
+
 	if pl.GetIsExpired() {
 		return "", errorPaylinkExpired
 	}
@@ -546,26 +543,24 @@ func (s *Service) getPaylinkUrl(ctx context.Context, id, merchantId, urlMask, ut
 		urlMask = pkg.PaylinkUrlDefaultMask
 	}
 
-	urlString := fmt.Sprintf(urlMask, id)
+	u, err := url.Parse(fmt.Sprintf(urlMask, id))
 
-	utmQuery := &utmQueryParams{
-		UtmSource:   utmSource,
-		UtmMedium:   utmMedium,
-		UtmCampaign: utmCampaign,
-	}
-
-	q, err := query.Values(utmQuery)
 	if err != nil {
 		zap.L().Error(
-			"Failed to serialize utm query params",
+			"Failed to parse payment link url",
 			zap.Error(err),
 		)
 		return "", err
 	}
-	encodedQuery := q.Encode()
-	if encodedQuery != "" {
-		urlString += "?" + encodedQuery
+
+	query := u.Query()
+	utm := map[string]string{"utm_source": utmSource, "utm_medium": utmMedium, "utm_campaign": utmCampaign}
+
+	for key, val := range utm {
+		if val != "" {
+			query.Set(key, val)
+		}
 	}
 
-	return u.NormalizeURLString(urlString, u.FlagsUsuallySafeGreedy|u.FlagRemoveDuplicateSlashes)
+	return u.String(), nil
 }
