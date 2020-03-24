@@ -1668,18 +1668,32 @@ func (s *Service) saveRecurringCard(ctx context.Context, order *billingpb.Order,
 	_, err := s.rep.InsertSavedCard(ctx, req)
 
 	if err != nil {
-		s.logError(
-			"Call repository service to save recurring card failed",
-			[]interface{}{
-				"err", err.Error(),
-				"request", req,
-			},
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+			zap.String(errorFieldMethod, "InsertSavedCard"),
 		)
 	} else {
+		order, err := s.orderRepository.GetById(ctx, order.Id)
+
+		if err != nil {
+			zap.L().Error(
+				"Failed to refresh order data",
+				zap.Error(err),
+				zap.String("uuid", order.Uuid),
+			)
+			return
+		}
+
 		order.PaymentRequisites["saved"] = "1"
 		err = s.updateOrder(ctx, order)
+
 		if err != nil {
-			zap.S().Errorf("Failed to update order after save recurruing card", "err", err.Error())
+			zap.L().Error(
+				"Failed to update order after save recurruing card",
+				zap.Error(err),
+			)
 		}
 	}
 }
