@@ -1277,6 +1277,8 @@ func (s *Service) SetMerchantTariffRates(
 		Payment:    tariffs.Payment,
 		Payout:     payoutTariff,
 		HomeRegion: req.HomeRegion,
+		Chargeback: tariffs.Chargeback,
+		Refund:     tariffs.Refund,
 	}
 
 	merchant.MinimalPayoutLimit = minimalPayoutLimit

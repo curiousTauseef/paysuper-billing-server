@@ -2033,12 +2033,12 @@ func (suite *OnboardingTestSuite) TestOnboarding_MarkNotificationAsRead_Ok() {
 	}
 	rsp2 := &billingpb.Notification{}
 	err = suite.service.MarkNotificationAsRead(context.TODO(), req2, rsp2)
-
 	assert.Nil(suite.T(), err)
 	assert.True(suite.T(), rsp2.IsRead)
 	assert.Equal(suite.T(), rsp1.Item.Id, rsp2.Id)
 
 	notification, err := suite.service.notificationRepository.GetById(context.TODO(), rsp1.Item.Id)
+	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), notification)
 	assert.True(suite.T(), notification.IsRead)
 }
@@ -2959,6 +2959,10 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Ok() {
 	assert.NotZero(suite.T(), merchant.Tariff.Payout.MethodFixedFee)
 	assert.NotZero(suite.T(), merchant.Tariff.Payout.MethodFixedFeeCurrency)
 	assert.Equal(suite.T(), req.HomeRegion, merchant.Tariff.HomeRegion)
+	assert.NotNil(suite.T(), merchant.Tariff.Chargeback)
+	assert.NotNil(suite.T(), merchant.Tariff.Refund)
+	assert.Equal(suite.T(), merchant.Tariff.Chargeback, rsp.Items.Chargeback)
+	assert.Equal(suite.T(), merchant.Tariff.Refund, rsp.Items.Refund)
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_MerchantNotFound_Error() {
