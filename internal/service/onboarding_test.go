@@ -2961,8 +2961,10 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Ok() {
 	assert.Equal(suite.T(), req.HomeRegion, merchant.Tariff.HomeRegion)
 	assert.NotNil(suite.T(), merchant.Tariff.Chargeback)
 	assert.NotNil(suite.T(), merchant.Tariff.Refund)
+	assert.NotNil(suite.T(), merchant.Tariff.MinimalPayout)
 	assert.Equal(suite.T(), merchant.Tariff.Chargeback, rsp.Items.Chargeback)
 	assert.Equal(suite.T(), merchant.Tariff.Refund, rsp.Items.Refund)
+	assert.Equal(suite.T(), merchant.Tariff.MinimalPayout, rsp.Items.MinimalPayout)
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_MerchantNotFound_Error() {

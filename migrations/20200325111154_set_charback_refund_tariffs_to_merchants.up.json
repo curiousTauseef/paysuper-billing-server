@@ -37,7 +37,13 @@
                 "method_fixed_fee_currency" : "EUR",
                 "is_paid_by_merchant" : false
               }
-            ]
+            ],
+            "tariff.minimal_payout": {
+              "USD" : 100.0,
+              "EUR" : 100.0,
+              "RUB" : 10000.0,
+              "GBP" : 100.0
+            }
           }
         },
         "multi": true
@@ -77,7 +83,13 @@
                 "method_fixed_fee_currency" : "EUR",
                 "is_paid_by_merchant" : false
               }
-            ]
+            ],
+            "tariff.minimal_payout": {
+              "USD" : 100.0,
+              "EUR" : 100.0,
+              "RUB" : 10000.0,
+              "GBP" : 100.0
+            }
           }
         },
         "multi": true

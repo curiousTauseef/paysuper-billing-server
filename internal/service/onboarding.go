@@ -1274,11 +1274,12 @@ func (s *Service) SetMerchantTariffRates(
 
 	merchant.MerchantOperationsType = req.MerchantOperationsType
 	merchant.Tariff = &billingpb.MerchantTariff{
-		Payment:    tariffs.Payment,
-		Payout:     payoutTariff,
-		HomeRegion: req.HomeRegion,
-		Chargeback: tariffs.Chargeback,
-		Refund:     tariffs.Refund,
+		Payment:       tariffs.Payment,
+		Payout:        payoutTariff,
+		HomeRegion:    req.HomeRegion,
+		Chargeback:    tariffs.Chargeback,
+		Refund:        tariffs.Refund,
+		MinimalPayout: tariffs.MinimalPayout,
 	}
 
 	merchant.MinimalPayoutLimit = minimalPayoutLimit
