@@ -2394,7 +2394,6 @@ func (v *OrderCreateRequestProcessor) processPayerIp(ctx context.Context) error 
 }
 
 func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
-
 	amount, priceGroup, items, _, err := v.processKeyProducts(
 		v.ctx,
 		v.checked.project.Id,
@@ -2409,14 +2408,6 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 	}
 
 	v.checked.priceGroup = priceGroup
-
-	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
-		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
-			!(v.checked.project.WebhookTesting.Keys.IsPassed)) {
-			return orderErrorMerchantWebHookTestingNotPassed
-		}
-	}
-
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
@@ -2440,17 +2431,7 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts(_ context.Context) 
 		return err
 	}
 
-	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
-		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
-			!(v.checked.project.WebhookTesting.Products.IncorrectPayment &&
-				v.checked.project.WebhookTesting.Products.CorrectPayment &&
-				v.checked.project.WebhookTesting.Products.ExistingUser &&
-				v.checked.project.WebhookTesting.Products.NonExistingUser)) {
-			return orderErrorMerchantWebHookTestingNotPassed
-		}
-	}
 	v.checked.priceGroup = priceGroup
-
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
@@ -4447,17 +4428,6 @@ func (v *OrderCreateRequestProcessor) processVirtualCurrency(_ context.Context) 
 	}
 
 	v.checked.virtualAmount = amount
-
-	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
-		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
-			!(v.checked.project.WebhookTesting.VirtualCurrency.IncorrectPayment &&
-				v.checked.project.WebhookTesting.VirtualCurrency.CorrectPayment &&
-				v.checked.project.WebhookTesting.VirtualCurrency.ExistingUser &&
-				v.checked.project.WebhookTesting.VirtualCurrency.NonExistingUser)) {
-			return orderErrorMerchantWebHookTestingNotPassed
-		}
-	}
-
 	return nil
 }
 
