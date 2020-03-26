@@ -2387,7 +2387,7 @@ func (v *OrderCreateRequestProcessor) processPayerIp(ctx context.Context) error 
 		return err
 	}
 
-	// fully replace address, to avoid inconsistence
+	// fully replace address, to avoid inconsistency
 	v.checked.user.Address = address
 
 	return nil
@@ -3215,7 +3215,8 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 
 	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault &&
 		v.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
-		checkReq := &notifierpb.CheckUserRequest{Url: v.checked.project.UrlCheckAccount,
+		checkReq := &notifierpb.CheckUserRequest{
+			Url:       v.checked.project.UrlProcessPayment,
 			SecretKey: v.checked.project.GetSecretKey(),
 			User: &notifierpb.User{
 				ProjectAccount: order.ProjectAccount,
