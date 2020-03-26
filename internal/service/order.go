@@ -125,7 +125,6 @@ var (
 	orderErrorCheckoutWithProducts                            = newBillingServerErrorMsg("fm000069", "request to processing simple payment can't contain products list")
 	orderErrorMerchantDoNotHaveCompanyInfo                    = newBillingServerErrorMsg("fm000070", "merchant don't have completed company info")
 	orderErrorMerchantDoNotHaveBanking                        = newBillingServerErrorMsg("fm000071", "merchant don't have completed banking info")
-	orderErrorMerchantWebHookTestingNotPassed                 = newBillingServerErrorMsg("fm000072", "merchant don't passed webhook api testing")
 	orderErrorMerchantUserAccountNotChecked                   = newBillingServerErrorMsg("fm000073", "failed to check user account")
 	orderErrorAmountLowerThanMinLimitSystem                   = newBillingServerErrorMsg("fm000074", "order amount is lower than min system limit")
 	orderErrorAlreadyProcessed                                = newBillingServerErrorMsg("fm000075", "order is already processed")
