@@ -1,0 +1,22 @@
+[
+  {
+    "update": "merchants_payment_tariffs",
+    "updates": [
+      {
+        "q": {"min_amount": 1, "max_amount": 4.99},
+        "u": {"$set":  {"min_amount": 0}},
+        "multi": true
+      }
+    ]
+  },
+  {
+    "update": "payment_channel_cost_merchant",
+    "updates": [
+      {
+        "q": {"min_amount": 1},
+        "u": {"$set": {"min_amount": 0}},
+        "multi": true
+      }
+    ]
+  }
+]
