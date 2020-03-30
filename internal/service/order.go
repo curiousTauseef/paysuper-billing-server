@@ -20,7 +20,6 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
-	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-proto/go/taxpb"
@@ -3195,36 +3194,10 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 
 	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault &&
 		v.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
-		checkReq := &notifierpb.CheckUserRequest{
-			Url:       v.checked.project.UrlProcessPayment,
-			SecretKey: v.checked.project.GetSecretKey(),
-			User: &notifierpb.User{
-				ProjectAccount: order.ProjectAccount,
-				Email:          order.User.Email,
-				Name:           order.User.Name,
-				Metadata:       order.User.Metadata,
-				Phone:          order.User.Phone,
-			},
-		}
+		err = v.service.webhookCheckUser(order.Project, order.User)
 
-		resp, err := v.service.notifier.CheckUser(context.TODO(), checkReq)
 		if err != nil {
-			zap.L().Error(
-				pkg.ErrorGrpcServiceCallFailed,
-				zap.Error(err),
-				zap.String(errorFieldService, "Notifier"),
-				zap.String(errorFieldMethod, "CheckUser"),
-			)
-			return orderErrorMerchantUserAccountNotChecked
-		}
-
-		if resp.Status != billingpb.ResponseStatusOk {
-			zap.L().Error(
-				pkg.ErrorUserCheckFailed,
-				zap.String(errorFieldStatus, string(resp.Status)),
-				zap.String(errorFieldMessage, resp.Message),
-			)
-			return orderErrorMerchantUserAccountNotChecked
+			return err
 		}
 	}
 

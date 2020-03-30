@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
@@ -162,23 +163,24 @@ func (s *Service) SendWebhookToMerchant(
 
 	order.PrivateStatus = constant.OrderStatusPaymentSystemComplete
 
-	if req.TestingCase == billingpb.TestCaseNonExistingUser {
-		order.User.ExternalId = "paysuper_test_" + uuid.New().String()
+	if req.TestingCase == billingpb.TestCaseNonExistingUser || req.TestingCase == billingpb.TestCaseExistingUser {
+		if req.TestingCase == billingpb.TestCaseNonExistingUser {
+			order.User.ExternalId = "paysuper_test_" + uuid.New().String()
+		}
+	} else {
+		err = s.broker.Publish(constant.PayOneTopicNotifyPaymentName, order, amqp.Table{"x-retry-count": int32(0)})
+
+		if err != nil {
+			zap.L().Error(
+				orderErrorPublishNotificationFailed,
+				zap.Error(err),
+				zap.String("topic", constant.PayOneTopicNotifyPaymentName),
+				zap.Any("order", order),
+			)
+		}
 	}
 
-	err = s.broker.Publish(constant.PayOneTopicNotifyPaymentName, order, amqp.Table{"x-retry-count": int32(0)})
-
-	if err != nil {
-		zap.L().Error(
-			orderErrorPublishNotificationFailed,
-			zap.Error(err),
-			zap.String("topic", constant.PayOneTopicNotifyPaymentName),
-			zap.Any("order", order),
-		)
-	}
-
-	res.OrderId = order.GetUuid()
-
+	res.OrderId = order.Uuid
 	return nil
 }
 
@@ -290,4 +292,59 @@ func (s *Service) processTestingProducts(project *billingpb.Project, req *billin
 		project.WebhookTesting.Products.IncorrectPayment = req.IsPassed
 		break
 	}
+}
+
+func (s *Service) webhookCheckUser(project *billingpb.ProjectOrder, user *billingpb.OrderUser) error {
+	req := &notifierpb.CheckUserRequest{
+		Url:           project.UrlProcessPayment,
+		SecretKey:     project.GetSecretKey(),
+		IsLiveProject: project.Status == billingpb.ProjectStatusInProduction,
+		User: &notifierpb.User{
+			Id:                   user.Id,
+			Object:               user.Object,
+			ExternalId:           user.ExternalId,
+			Name:                 user.Name,
+			Email:                user.Email,
+			EmailVerified:        user.EmailVerified,
+			Phone:                user.Phone,
+			PhoneVerified:        user.PhoneVerified,
+			Ip:                   user.Ip,
+			Locale:               user.Locale,
+			Metadata:             user.Metadata,
+			NotifyNewRegion:      user.NotifyNewRegion,
+			NotifyNewRegionEmail: user.NotifyNewRegionEmail,
+		},
+	}
+
+	if user.Address != nil {
+		req.User.Address = &notifierpb.BillingAddress{
+			Country:    user.Address.Country,
+			City:       user.Address.City,
+			PostalCode: user.Address.PostalCode,
+			State:      user.Address.State,
+		}
+	}
+
+	rsp, err := s.notifier.CheckUser(context.TODO(), req)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, notifierpb.ServiceName),
+			zap.String(errorFieldMethod, "CheckUser"),
+		)
+		return orderErrorMerchantUserAccountNotChecked
+	}
+
+	if rsp.Status != billingpb.ResponseStatusOk {
+		zap.L().Error(
+			pkg.ErrorUserCheckFailed,
+			zap.Int32(errorFieldStatus, rsp.Status),
+			zap.String(errorFieldMessage, rsp.Message),
+		)
+		return orderErrorMerchantUserAccountNotChecked
+	}
+
+	return nil
 }
