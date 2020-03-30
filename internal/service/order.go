@@ -41,6 +41,8 @@ import (
 	"time"
 )
 
+///////
+
 const (
 	paymentRequestIncorrect             = "payment request has incorrect format"
 	callbackRequestIncorrect            = "callback request has incorrect format"
