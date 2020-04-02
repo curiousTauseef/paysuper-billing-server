@@ -32,35 +32,39 @@ func (s *Service) SendWebhookToMerchant(
 		Service: s,
 		request: req,
 		checked: &orderCreateRequestProcessorChecked{},
+		ctx:     ctx,
 	}
 
-	if err := processor.processProject(); err != nil {
-		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-			res.Status = billingpb.ResponseStatusBadData
-			res.Message = e
-			return nil
-		}
-		return err
+	err := processor.processProject()
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusBadData
+		res.Message = err.(*billingpb.ResponseErrorMessage)
+		return nil
 	}
 
 	switch req.Type {
 	case pkg.OrderType_key:
-		if err := processor.processPaylinkKeyProducts(); err != nil {
+		err = processor.processPaylinkKeyProducts()
+
+		if err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+
 			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
 				return nil
 			}
+
 			return err
 		}
 		break
 	case pkg.OrderType_product:
-		if err := processor.processPaylinkProducts(ctx); err != nil {
+		err = processor.processPaylinkProducts(ctx)
+
+		if err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
@@ -76,17 +80,14 @@ func (s *Service) SendWebhookToMerchant(
 				res.Message = e
 				return nil
 			}
+
 			return err
 		}
 		break
 	case pkg.OrderTypeVirtualCurrency:
-		err := processor.processVirtualCurrency(ctx)
-		if err != nil {
-			zap.L().Error(
-				pkg.MethodFinishedWithError,
-				zap.Error(err),
-			)
+		err = processor.processVirtualCurrency(ctx)
 
+		if err != nil {
 			res.Status = billingpb.ResponseStatusBadData
 			res.Message = err.(*billingpb.ResponseErrorMessage)
 			return nil
@@ -106,28 +107,21 @@ func (s *Service) SendWebhookToMerchant(
 	}
 
 	if req.User != nil {
-		err := processor.processUserData()
+		err = processor.processUserData()
 
 		if err != nil {
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				res.Status = billingpb.ResponseStatusBadData
-				res.Message = e
-				return nil
-			}
-			return err
+			res.Status = billingpb.ResponseStatusBadData
+			res.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
 		}
 	}
 
-	err := processor.processCurrency(req.Type)
+	err = processor.processCurrency(req.Type)
+
 	if err != nil {
-		zap.L().Error("process currency failed", zap.Error(err))
-		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-			res.Status = billingpb.ResponseStatusBadData
-			res.Message = e
-			return nil
-		}
-		return err
+		res.Status = billingpb.ResponseStatusBadData
+		res.Message = err.(*billingpb.ResponseErrorMessage)
+		return nil
 	}
 
 	if processor.checked.currency == "" {
@@ -137,24 +131,20 @@ func (s *Service) SendWebhookToMerchant(
 	}
 
 	if req.OrderId != "" {
-		if err := processor.processProjectOrderId(); err != nil {
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				res.Status = billingpb.ResponseStatusBadData
-				res.Message = e
-				return nil
-			}
-			return err
+		err = processor.processProjectOrderId()
+
+		if err != nil {
+			res.Status = billingpb.ResponseStatusBadData
+			res.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
 		}
 	}
 
 	processor.processMetadata()
 	processor.processPrivateMetadata()
-
 	order, err := processor.prepareOrder()
 
 	if err != nil {
-		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 			res.Status = billingpb.ResponseStatusBadData
 			res.Message = e

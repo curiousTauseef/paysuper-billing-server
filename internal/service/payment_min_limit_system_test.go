@@ -70,6 +70,7 @@ func (suite *PaymentMinLimitSystemTestSuite) SetupTest() {
 		mocks.NewBrokerMockOk(),
 		casbin,
 		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {

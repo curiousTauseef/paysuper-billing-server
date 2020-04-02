@@ -3704,7 +3704,7 @@ func (s *Service) notifyPaylinkError(ctx context.Context, paylinkId string, err 
 		"event":     "error",
 		"paylinkId": paylinkId,
 		"message":   "Invalid paylink",
-		"error":     err,
+		"error":     err.Error(),
 		"request":   req,
 		"order":     order,
 	}

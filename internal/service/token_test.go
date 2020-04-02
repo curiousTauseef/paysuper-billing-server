@@ -378,6 +378,7 @@ func (suite *TokenTestSuite) SetupTest() {
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
 		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	err = suite.service.Init()
