@@ -46,6 +46,7 @@ const (
 	callbackHandlerIncorrect            = "unknown callback type"
 	orderErrorPublishNotificationFailed = "publish order notification failed"
 	orderErrorUpdateOrderDataFailed     = "update order data failed"
+	brokerPublicationFailed             = "message publication to broker failed"
 
 	orderDefaultDescription = "Payment by order # %s"
 
@@ -3194,7 +3195,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 
 	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault &&
 		v.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
-		err = v.service.webhookCheckUser(order.Project, order.User)
+		err = v.service.webhookCheckUser(order)
 
 		if err != nil {
 			return err

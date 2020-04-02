@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -9,6 +10,7 @@ import (
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
+	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 )
 
 var (
@@ -163,21 +165,35 @@ func (s *Service) SendWebhookToMerchant(
 
 	order.PrivateStatus = constant.OrderStatusPaymentSystemComplete
 
+	var (
+		topic   string
+		payload proto.Message
+		broker  rabbitmq.BrokerInterface
+	)
+
 	if req.TestingCase == billingpb.TestCaseNonExistingUser || req.TestingCase == billingpb.TestCaseExistingUser {
 		if req.TestingCase == billingpb.TestCaseNonExistingUser {
 			order.User.ExternalId = "paysuper_test_" + uuid.New().String()
 		}
-	} else {
-		err = s.broker.Publish(constant.PayOneTopicNotifyPaymentName, order, amqp.Table{"x-retry-count": int32(0)})
 
-		if err != nil {
-			zap.L().Error(
-				orderErrorPublishNotificationFailed,
-				zap.Error(err),
-				zap.String("topic", constant.PayOneTopicNotifyPaymentName),
-				zap.Any("order", order),
-			)
-		}
+		topic = notifierpb.PayOneTopicNameValidateUser
+		payload = s.getCheckUserRequestByOrder(order)
+		broker = s.validateUserBroker
+	} else {
+		topic = constant.PayOneTopicNotifyPaymentName
+		payload = order
+		broker = s.broker
+	}
+
+	err = broker.Publish(topic, payload, amqp.Table{"x-retry-count": int32(0)})
+
+	if err != nil {
+		zap.L().Error(
+			brokerPublicationFailed,
+			zap.Error(err),
+			zap.String("topic", topic),
+			zap.Any("payload", payload),
+		)
 	}
 
 	res.OrderId = order.Uuid
@@ -294,37 +310,44 @@ func (s *Service) processTestingProducts(project *billingpb.Project, req *billin
 	}
 }
 
-func (s *Service) webhookCheckUser(project *billingpb.ProjectOrder, user *billingpb.OrderUser) error {
+func (s *Service) getCheckUserRequestByOrder(order *billingpb.Order) *notifierpb.CheckUserRequest {
 	req := &notifierpb.CheckUserRequest{
-		Url:           project.UrlProcessPayment,
-		SecretKey:     project.GetSecretKey(),
-		IsLiveProject: project.Status == billingpb.ProjectStatusInProduction,
+		Url:           order.Project.UrlProcessPayment,
+		SecretKey:     order.Project.GetSecretKey(),
+		IsLiveProject: order.Project.Status == billingpb.ProjectStatusInProduction,
 		User: &notifierpb.User{
-			Id:                   user.Id,
-			Object:               user.Object,
-			ExternalId:           user.ExternalId,
-			Name:                 user.Name,
-			Email:                user.Email,
-			EmailVerified:        user.EmailVerified,
-			Phone:                user.Phone,
-			PhoneVerified:        user.PhoneVerified,
-			Ip:                   user.Ip,
-			Locale:               user.Locale,
-			Metadata:             user.Metadata,
-			NotifyNewRegion:      user.NotifyNewRegion,
-			NotifyNewRegionEmail: user.NotifyNewRegionEmail,
+			Id:                   order.User.Id,
+			Object:               order.User.Object,
+			ExternalId:           order.User.ExternalId,
+			Name:                 order.User.Name,
+			Email:                order.User.Email,
+			EmailVerified:        order.User.EmailVerified,
+			Phone:                order.User.Phone,
+			PhoneVerified:        order.User.PhoneVerified,
+			Ip:                   order.User.Ip,
+			Locale:               order.User.Locale,
+			Metadata:             order.User.Metadata,
+			NotifyNewRegion:      order.User.NotifyNewRegion,
+			NotifyNewRegionEmail: order.User.NotifyNewRegionEmail,
 		},
+		OrderUuid:  order.Uuid,
+		MerchantId: order.Project.MerchantId,
 	}
 
-	if user.Address != nil {
+	if order.User.Address != nil {
 		req.User.Address = &notifierpb.BillingAddress{
-			Country:    user.Address.Country,
-			City:       user.Address.City,
-			PostalCode: user.Address.PostalCode,
-			State:      user.Address.State,
+			Country:    order.User.Address.Country,
+			City:       order.User.Address.City,
+			PostalCode: order.User.Address.PostalCode,
+			State:      order.User.Address.State,
 		}
 	}
 
+	return req
+}
+
+func (s *Service) webhookCheckUser(order *billingpb.Order) error {
+	req := s.getCheckUserRequestByOrder(order)
 	rsp, err := s.notifier.CheckUser(context.TODO(), req)
 
 	if err != nil {

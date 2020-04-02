@@ -123,6 +123,14 @@ func (app *Application) Init() {
 
 	postmarkBroker.SetExchangeName(postmarkpb.PostmarkSenderTopicName)
 
+	validateUserBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
+
+	if err != nil {
+		app.logger.Fatal("Creating validate user broker failed", zap.Error(err))
+	}
+
+	validateUserBroker.SetExchangeName(notifierpb.PayOneTopicNameValidateUser)
+
 	options := []micro.Option{
 		micro.Name(billingpb.ServiceName),
 		micro.WrapHandler(metrics.NewHandlerWrapper()),
@@ -220,6 +228,7 @@ func (app *Application) Init() {
 		postmarkBroker,
 		casbin,
 		webHookNotifier,
+		validateUserBroker,
 	)
 
 	if err := app.svc.Init(); err != nil {
