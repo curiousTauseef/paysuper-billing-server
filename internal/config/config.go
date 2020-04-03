@@ -64,7 +64,6 @@ type Centrifugo struct {
 type Config struct {
 	MongoDsn         string `envconfig:"MONGO_DSN" required:"true"`
 	MongoDialTimeout string `envconfig:"MONGO_DIAL_TIMEOUT" required:"false" default:"10"`
-	MetricsPort      string `envconfig:"METRICS_PORT" required:"false" default:"8086"`
 	Environment      string `envconfig:"ENVIRONMENT" default:"dev"`
 	RedisHost        string `envconfig:"REDIS_HOST" default:"127.0.0.1:6379"`
 	RedisPassword    string `envconfig:"REDIS_PASSWORD" default:""`
@@ -121,6 +120,10 @@ type Config struct {
 
 	DashboardUrl string `envconfig:"DASHBOARD_URL" default:"https://paysupermgmt.tst.protocol.one"`
 	CheckoutUrl  string `envconfig:"CHECKOUT_URL" default:"https://checkout.tst.pay.super.com"`
+
+	MetricsPort              string `envconfig:"METRICS_PORT" default:"8086"`
+	MetricsReadTimeout       int    `envconfig:"METRICS_READ_TIMEOUT" default:"10"`
+	MetricsReadHeaderTimeout int    `envconfig:"METRICS_READ_HEADER_TIMEOUT" default:"10"`
 }
 
 func NewConfig() (*Config, error) {
