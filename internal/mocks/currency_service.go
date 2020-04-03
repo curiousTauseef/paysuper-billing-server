@@ -14,12 +14,15 @@ const (
 	eurPriceinRub         = float64(72)
 	eurPriceInRubCb       = float64(72.5)
 	eurPriceInRubCbOnDate = float64(70)
-	eurPriceInRubStock    = float64(71)
+	eurPriceInRubStock    = float64(70.5)
 
 	usdPriceInRub         = float64(65)
 	usdPriceInRubCb       = float64(65.5)
 	usdPriceInRubCbOnDate = float64(63)
 	usdPriceInRubStock    = float64(64)
+
+	merchantMarkupValuePercent = float64(2)
+	commonMarkupValuePercent   = float64(0)
 )
 
 var (
@@ -150,136 +153,32 @@ func (s *CurrencyServiceMockOk) ExchangeCurrencyCurrentCommon(
 	in *currenciespb.ExchangeCurrencyCurrentCommonRequest,
 	opts ...client.CallOption,
 ) (*currenciespb.ExchangeCurrencyResponse, error) {
-	if in.From == "EUR" && in.To == "RUB" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * eurPriceinRub),
-			ExchangeRate:    eurPriceinRub,
-			Correction:      0,
-			OriginalRate:    eurPriceinRub,
-		}, nil
-	}
-	if in.From == "RUB" && in.To == "EUR" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount / eurPriceinRub),
-			ExchangeRate:    tools.ToPrecise(1 / eurPriceinRub),
-			Correction:      0,
-			OriginalRate:    tools.ToPrecise(1 / eurPriceinRub),
-		}, nil
+
+	divider := float64(1)
+
+	if in.RateType == currenciespb.RateTypePaysuper || in.RateType == currenciespb.RateTypeStock {
+
+		switch in.ExchangeDirection {
+
+		case currenciespb.ExchangeDirectionSell:
+			divider = 1 - (commonMarkupValuePercent / 100)
+
+		case currenciespb.ExchangeDirectionBuy:
+			divider = 1 + (commonMarkupValuePercent / 100)
+		}
 	}
 
-	if in.From == "USD" && in.To == "EUR" {
-		if in.RateType == currenciespb.RateTypeStock {
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount * (usdPriceInRubStock / eurPriceInRubStock)),
-				ExchangeRate:    tools.ToPrecise(usdPriceInRubStock / eurPriceInRubStock),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(usdPriceInRubStock / eurPriceInRubStock),
-			}, nil
-		}
-
-		if in.RateType == currenciespb.RateTypeCentralbanks {
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount * (usdPriceInRubCb / eurPriceInRubCb)),
-				ExchangeRate:    tools.ToPrecise(usdPriceInRubCb / eurPriceInRubCb),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(usdPriceInRubCb / eurPriceInRubCb),
-			}, nil
-		}
-
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * (usdPriceInRub / eurPriceinRub)),
-			ExchangeRate:    tools.ToPrecise(usdPriceInRub / eurPriceinRub),
-			Correction:      0,
-			OriginalRate:    tools.ToPrecise(usdPriceInRub / eurPriceinRub),
-		}, nil
-	}
-	if in.From == "EUR" && in.To == "USD" {
-
-		if in.RateType == currenciespb.RateTypeStock {
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount * (eurPriceInRubStock / usdPriceInRubStock)),
-				ExchangeRate:    tools.ToPrecise(eurPriceInRubStock / usdPriceInRubStock),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(eurPriceInRubStock / usdPriceInRubStock),
-			}, nil
-		}
-
-		if in.RateType == currenciespb.RateTypeCentralbanks {
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount * (eurPriceInRubCb / usdPriceInRubCb)),
-				ExchangeRate:    tools.ToPrecise(eurPriceInRubCb / usdPriceInRubCb),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(eurPriceInRubCb / usdPriceInRubCb),
-			}, nil
-		}
-
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * (eurPriceinRub / usdPriceInRub)),
-			ExchangeRate:    tools.ToPrecise(eurPriceinRub / usdPriceInRub),
-			Correction:      0,
-			OriginalRate:    tools.ToPrecise(eurPriceinRub / usdPriceInRub),
-		}, nil
-	}
-	if in.From == "USD" && in.To == "RUB" {
-		if in.RateType == currenciespb.RateTypeStock {
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount * usdPriceInRubStock),
-				ExchangeRate:    tools.ToPrecise(usdPriceInRubStock),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(usdPriceInRubStock),
-			}, nil
-		}
-
-		if in.RateType == currenciespb.RateTypeCentralbanks {
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount * usdPriceInRubCb),
-				ExchangeRate:    tools.ToPrecise(usdPriceInRubCb),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(usdPriceInRubCb),
-			}, nil
-		}
-
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * usdPriceInRub),
-			ExchangeRate:    usdPriceInRub,
-			Correction:      0,
-			OriginalRate:    usdPriceInRub,
-		}, nil
-	}
-	if in.From == "RUB" && in.To == "USD" {
-		if in.RateType == currenciespb.RateTypeStock {
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount / usdPriceInRubStock),
-				ExchangeRate:    tools.ToPrecise(1 / usdPriceInRubStock),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(1 / usdPriceInRubStock),
-			}, nil
-		}
-
-		if in.RateType == currenciespb.RateTypeCentralbanks {
-			a := in.Amount / usdPriceInRubCb
-			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(a),
-				ExchangeRate:    tools.ToPrecise(1 / usdPriceInRubCb),
-				Correction:      0,
-				OriginalRate:    tools.ToPrecise(1 / usdPriceInRubCb),
-			}, nil
-		}
-
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount / usdPriceInRub),
-			ExchangeRate:    tools.ToPrecise(1 / usdPriceInRub),
-			Correction:      0,
-			OriginalRate:    tools.ToPrecise(1 / usdPriceInRub),
-		}, nil
+	newIn := &currenciespb.ExchangeCurrencyCurrentForMerchantRequest{
+		From:              in.From,
+		To:                in.To,
+		RateType:          in.RateType,
+		Source:            in.Source,
+		Amount:            in.Amount,
+		MerchantId:        "",
+		ExchangeDirection: in.ExchangeDirection,
 	}
 
-	return &currenciespb.ExchangeCurrencyResponse{
-		ExchangedAmount: 10,
-		ExchangeRate:    0.25,
-		Correction:      2,
-		OriginalRate:    0.5,
-	}, nil
+	return s.exchangeCurrency(divider, newIn)
 }
 
 func (s *CurrencyServiceMockOk) ExchangeCurrencyCurrentForMerchant(
@@ -287,72 +186,185 @@ func (s *CurrencyServiceMockOk) ExchangeCurrencyCurrentForMerchant(
 	in *currenciespb.ExchangeCurrencyCurrentForMerchantRequest,
 	opts ...client.CallOption,
 ) (*currenciespb.ExchangeCurrencyResponse, error) {
-	if in.From == "EUR" && in.To == "RUB" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * eurPriceinRub * 1.02),
-			ExchangeRate:    tools.ToPrecise(eurPriceinRub * 1.02),
-			Correction:      0,
-			OriginalRate:    tools.ToPrecise(eurPriceinRub * 1.02),
-		}, nil
+
+	divider := float64(1)
+
+	switch in.ExchangeDirection {
+
+	case currenciespb.ExchangeDirectionSell:
+		divider = 1 - (merchantMarkupValuePercent / 100)
+
+	case currenciespb.ExchangeDirectionBuy:
+		divider = 1 + (merchantMarkupValuePercent / 100)
 	}
+
+	return s.exchangeCurrency(divider, in)
+}
+
+func (s *CurrencyServiceMockOk) exchangeCurrency(
+	divider float64,
+	in *currenciespb.ExchangeCurrencyCurrentForMerchantRequest,
+) (*currenciespb.ExchangeCurrencyResponse, error) {
+
 	if in.From == "RUB" && in.To == "EUR" {
+		rate := tools.ToPrecise((1 / eurPriceinRub) / divider)
+		a := in.Amount * rate
+
 		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount / eurPriceinRub * 1.02),
-			ExchangeRate:    tools.ToPrecise((1 / eurPriceinRub) * 1.02),
+			ExchangedAmount: tools.ToPrecise(a),
+			ExchangeRate:    rate,
 			Correction:      0,
-			OriginalRate:    tools.ToPrecise((1 / eurPriceinRub) * 1.02),
+			OriginalRate:    rate,
 		}, nil
 	}
+	if in.From == "EUR" && in.To == "RUB" {
+		rate := tools.ToPrecise(eurPriceinRub / divider)
+		a := in.Amount * rate
+
+		return &currenciespb.ExchangeCurrencyResponse{
+			ExchangedAmount: tools.ToPrecise(a),
+			ExchangeRate:    rate,
+			Correction:      0,
+			OriginalRate:    rate,
+		}, nil
+	}
+
 	if in.From == "USD" && in.To == "EUR" {
+		if in.RateType == currenciespb.RateTypeStock {
+			rate := tools.ToPrecise((usdPriceInRubStock / eurPriceInRubStock) / divider)
+			a := in.Amount * rate
+
+			return &currenciespb.ExchangeCurrencyResponse{
+				ExchangedAmount: tools.ToPrecise(a),
+				ExchangeRate:    rate,
+				Correction:      0,
+				OriginalRate:    rate,
+			}, nil
+		}
+
+		if in.RateType == currenciespb.RateTypeCentralbanks {
+			rate := tools.ToPrecise((usdPriceInRubCb / eurPriceInRubCb) / divider)
+			a := in.Amount * rate
+
+			return &currenciespb.ExchangeCurrencyResponse{
+				ExchangedAmount: tools.ToPrecise(a),
+				ExchangeRate:    rate,
+				Correction:      0,
+				OriginalRate:    rate,
+			}, nil
+		}
+
+		rate := tools.ToPrecise((usdPriceInRub / eurPriceinRub) / divider)
+		a := in.Amount * rate
 		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * (usdPriceInRub / eurPriceinRub) * 0.98),
-			ExchangeRate:    tools.ToPrecise((usdPriceInRub / eurPriceinRub) * 0.98),
+			ExchangedAmount: tools.ToPrecise(a),
+			ExchangeRate:    rate,
 			Correction:      0,
-			OriginalRate:    tools.ToPrecise((usdPriceInRub / eurPriceinRub) * 0.98),
+			OriginalRate:    rate,
 		}, nil
 	}
+
 	if in.From == "EUR" && in.To == "USD" {
+		if in.RateType == currenciespb.RateTypeStock {
+			rate := tools.ToPrecise((eurPriceInRubStock / usdPriceInRubStock) / divider)
+			a := in.Amount * rate
+
+			return &currenciespb.ExchangeCurrencyResponse{
+				ExchangedAmount: tools.ToPrecise(a),
+				ExchangeRate:    rate,
+				Correction:      0,
+				OriginalRate:    rate,
+			}, nil
+		}
+
+		if in.RateType == currenciespb.RateTypeCentralbanks {
+			rate := tools.ToPrecise((eurPriceInRubCb / usdPriceInRubCb) / divider)
+			a := in.Amount * rate
+
+			return &currenciespb.ExchangeCurrencyResponse{
+				ExchangedAmount: tools.ToPrecise(a),
+				ExchangeRate:    rate,
+				Correction:      0,
+				OriginalRate:    rate,
+			}, nil
+		}
+
+		rate := tools.ToPrecise((eurPriceinRub / usdPriceInRub) / divider)
+		a := in.Amount * rate
 		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * (eurPriceinRub / usdPriceInRub) * 1.02),
-			ExchangeRate:    tools.ToPrecise((eurPriceinRub / usdPriceInRub) * 1.02),
+			ExchangedAmount: tools.ToPrecise(a),
+			ExchangeRate:    rate,
 			Correction:      0,
-			OriginalRate:    tools.ToPrecise((eurPriceinRub / usdPriceInRub) * 1.02),
+			OriginalRate:    rate,
 		}, nil
 	}
 
 	if in.From == "USD" && in.To == "RUB" {
-		if in.RateType == currenciespb.RateTypeCentralbanks {
+		if in.RateType == currenciespb.RateTypeStock {
+			rate := tools.ToPrecise(usdPriceInRubStock / divider)
+			a := in.Amount * rate
+
 			return &currenciespb.ExchangeCurrencyResponse{
-				ExchangedAmount: tools.ToPrecise(in.Amount * usdPriceInRubCb * 0.98),
-				ExchangeRate:    tools.ToPrecise(usdPriceInRubCb * 0.98),
+				ExchangedAmount: tools.ToPrecise(a),
+				ExchangeRate:    rate,
 				Correction:      0,
-				OriginalRate:    tools.ToPrecise(usdPriceInRubCb * 0.98),
+				OriginalRate:    rate,
 			}, nil
 		}
 
+		if in.RateType == currenciespb.RateTypeCentralbanks {
+			rate := tools.ToPrecise(usdPriceInRubCb / divider)
+			a := in.Amount * rate
+
+			return &currenciespb.ExchangeCurrencyResponse{
+				ExchangedAmount: tools.ToPrecise(a),
+				ExchangeRate:    rate,
+				Correction:      0,
+				OriginalRate:    rate,
+			}, nil
+		}
+
+		rate := tools.ToPrecise(usdPriceInRub / divider)
+		a := in.Amount * rate
 		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: tools.ToPrecise(in.Amount * usdPriceInRub * 0.98),
-			ExchangeRate:    tools.ToPrecise(usdPriceInRub * 0.98),
+			ExchangedAmount: tools.ToPrecise(a),
+			ExchangeRate:    rate,
 			Correction:      0,
-			OriginalRate:    tools.ToPrecise(usdPriceInRub * 0.98),
+			OriginalRate:    rate,
 		}, nil
 	}
 	if in.From == "RUB" && in.To == "USD" {
-		if in.RateType == currenciespb.RateTypeCentralbanks {
-			a := (in.Amount / usdPriceInRubCb) * 1.02
+		if in.RateType == currenciespb.RateTypeStock {
+			rate := tools.ToPrecise((1 / usdPriceInRubStock) / divider)
+			a := in.Amount * rate
+
 			return &currenciespb.ExchangeCurrencyResponse{
 				ExchangedAmount: tools.ToPrecise(a),
-				ExchangeRate:    tools.ToPrecise(1 / usdPriceInRubCb * 1.02),
+				ExchangeRate:    rate,
 				Correction:      0,
-				OriginalRate:    tools.ToPrecise(1 / usdPriceInRubCb * 1.02),
+				OriginalRate:    rate,
 			}, nil
 		}
-		a := (in.Amount / usdPriceInRub) * 1.02
+
+		if in.RateType == currenciespb.RateTypeCentralbanks {
+			rate := tools.ToPrecise((1 / usdPriceInRubCb) / divider)
+			a := in.Amount * rate
+
+			return &currenciespb.ExchangeCurrencyResponse{
+				ExchangedAmount: tools.ToPrecise(a),
+				ExchangeRate:    rate,
+				Correction:      0,
+				OriginalRate:    rate,
+			}, nil
+		}
+
+		rate := tools.ToPrecise((1 / usdPriceInRub) / divider)
+		a := in.Amount * rate
 		return &currenciespb.ExchangeCurrencyResponse{
 			ExchangedAmount: tools.ToPrecise(a),
-			ExchangeRate:    tools.ToPrecise(1 / usdPriceInRub * 1.02),
+			ExchangeRate:    rate,
 			Correction:      0,
-			OriginalRate:    tools.ToPrecise(1 / usdPriceInRub * 1.02),
+			OriginalRate:    rate,
 		}, nil
 	}
 

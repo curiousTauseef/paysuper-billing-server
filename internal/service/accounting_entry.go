@@ -464,6 +464,11 @@ func (h *accountingEntry) processPaymentEvent() error {
 			return err
 		}
 		merchantTaxFeeCentralBankFx.Amount = amount - merchantTaxFeeCostValue.Amount
+		// merchantTaxFeeCentralBankFx amount can not be negative
+		// @see https://protocolone.tpondemand.com/entity/196061
+		if merchantTaxFeeCentralBankFx.Amount < 0 {
+			merchantTaxFeeCentralBankFx.Amount = 0
+		}
 	}
 	if err = h.addEntry(merchantTaxFeeCentralBankFx); err != nil {
 		return err
@@ -793,7 +798,10 @@ func (h *accountingEntry) processRefundEvent() error {
 	reverseTaxFeeDelta := h.newEntry(pkg.AccountingEntryTypeReverseTaxFeeDelta)
 	psReverseTaxFeeDelta := h.newEntry(pkg.AccountingEntryTypePsReverseTaxFeeDelta)
 
-	if h.country.VatEnabled {
+	// do not calculate reverseTaxFeeDelta and psReverseTaxFeeDelta
+	// if merchantTaxFeeCentralBankFx amount is zero.
+	// @see https://protocolone.tpondemand.com/entity/196061
+	if h.country.VatEnabled && merchantTaxFeeCentralBankFx.Amount > 0 {
 		// #192161 calculation rules changed:
 		// first, restoring tax amount from merchantRefund,
 		// then converting restored tax amount from merchant currency to vat currency by centralbank rate,
@@ -876,10 +884,12 @@ func (h *accountingEntry) GetExchangePsCurrentMerchant(from string, amount float
 	}
 
 	return h.GetExchangeCurrentMerchant(&currenciespb.ExchangeCurrencyCurrentForMerchantRequest{
-		From:              from,
-		To:                to,
-		RateType:          currenciespb.RateTypePaysuper,
-		ExchangeDirection: currenciespb.ExchangeDirectionBuy,
+		From:     from,
+		To:       to,
+		RateType: currenciespb.RateTypePaysuper,
+		// use exchange direction SELL for merchant exchages
+		// @see https://protocolone.tpondemand.com/entity/196061
+		ExchangeDirection: currenciespb.ExchangeDirectionSell,
 		MerchantId:        h.order.GetMerchantId(),
 		Amount:            amount,
 	})

@@ -9268,7 +9268,7 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		"merchant_method_fixed_fee":                 {Amount: 2.0, Currency: "USD"},
 		"real_merchant_method_fixed_fee":            {Amount: 2.0, Currency: "USD"},
 		"real_merchant_method_fixed_fee_cost_value": {Amount: 0, Currency: "USD"},
-		"merchant_ps_fixed_fee":                     {Amount: 0.056492, Currency: "USD"},
+		"merchant_ps_fixed_fee":                     {Amount: 0.056515, Currency: "USD"},
 		"real_merchant_ps_fixed_fee":                {Amount: 0.055385, Currency: "USD"},
 	}
 
