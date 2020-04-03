@@ -122,8 +122,8 @@ type Config struct {
 	CheckoutUrl  string `envconfig:"CHECKOUT_URL" default:"https://checkout.tst.pay.super.com"`
 
 	MetricsPort              string `envconfig:"METRICS_PORT" default:"8086"`
-	MetricsReadTimeout       int    `envconfig:"METRICS_READ_TIMEOUT" default:"10"`
-	MetricsReadHeaderTimeout int    `envconfig:"METRICS_READ_HEADER_TIMEOUT" default:"10"`
+	MetricsReadTimeout       int    `envconfig:"METRICS_READ_TIMEOUT" default:"60"`
+	MetricsReadHeaderTimeout int    `envconfig:"METRICS_READ_HEADER_TIMEOUT" default:"60"`
 }
 
 func NewConfig() (*Config, error) {
