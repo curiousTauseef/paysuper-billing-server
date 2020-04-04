@@ -133,18 +133,6 @@ func (s *Service) SendWebhookToMerchant(
 		return nil
 	}
 
-	if req.OrderId != "" {
-		if err := processor.processProjectOrderId(); err != nil {
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				res.Status = billingpb.ResponseStatusBadData
-				res.Message = e
-				return nil
-			}
-			return err
-		}
-	}
-
 	processor.processMetadata()
 	processor.processPrivateMetadata()
 

@@ -843,7 +843,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -921,7 +920,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemNotExists_Err
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -986,7 +984,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemReturnError_E
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1071,7 +1068,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_RefundNotAllowed_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1129,7 +1125,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_WasRefunded_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1191,7 +1186,6 @@ func (suite *RefundTestSuite) TestRefund_ListRefunds_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1284,7 +1278,6 @@ func (suite *RefundTestSuite) TestRefund_GetRefund_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1373,7 +1366,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1581,7 +1573,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() 
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1669,7 +1660,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownHandler_Er
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1784,7 +1774,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_RefundNotFound_Er
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1899,7 +1888,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -2246,7 +2234,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -2420,7 +2407,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -2603,7 +2589,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_NotHasCostsRates() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
