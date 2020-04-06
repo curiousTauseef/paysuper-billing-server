@@ -158,6 +158,7 @@ func (s *Service) SendWebhookToMerchant(
 
 		topic = notifierpb.PayOneTopicNameValidateUser
 		payload = s.getCheckUserRequestByOrder(order)
+		payload.(*notifierpb.CheckUserRequest).TestingCase = req.TestingCase
 		broker = s.validateUserBroker
 	} else {
 		topic = constant.PayOneTopicNotifyPaymentName
