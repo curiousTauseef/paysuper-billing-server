@@ -901,7 +901,6 @@ func HelperCreateAndPayOrder(
 		Currency:    currency,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Id:    primitive.NewObjectID().Hex(),
 			Email: "test@unit.unit",
@@ -1236,7 +1235,6 @@ func HelperCreateAndPayOrder2(
 		ProjectId:   project.Id,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",

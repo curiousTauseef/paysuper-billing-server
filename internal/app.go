@@ -288,8 +288,10 @@ func (app *Application) initMetrics() {
 
 func (app *Application) Run() {
 	app.httpServer = &http.Server{
-		Addr:    ":" + app.cfg.MetricsPort,
-		Handler: app.router,
+		Addr:              ":" + app.cfg.MetricsPort,
+		Handler:           app.router,
+		ReadTimeout:       time.Duration(app.cfg.MetricsReadTimeout) * time.Second,
+		ReadHeaderTimeout: time.Duration(app.cfg.MetricsReadHeaderTimeout) * time.Second,
 	}
 
 	go func() {

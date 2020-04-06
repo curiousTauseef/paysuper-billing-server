@@ -2872,91 +2872,6 @@ func (suite *OrderTestSuite) TestOrder_GetOrderProductsItems_ProductHasNoDescInS
 	assert.Equal(suite.T(), len(items), 1)
 }
 
-func (suite *OrderTestSuite) TestOrder_ProcessProjectOrderId_Ok() {
-	req := &billingpb.OrderCreateRequest{
-		Type:      pkg.OrderType_simple,
-		ProjectId: suite.project.Id,
-		Amount:    100,
-	}
-	processor := &OrderCreateRequestProcessor{
-		Service: suite.service,
-		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
-	}
-
-	err := processor.processProject()
-	assert.Nil(suite.T(), err)
-
-	err = processor.processProjectOrderId()
-	assert.Nil(suite.T(), err)
-}
-
-func (suite *OrderTestSuite) TestOrder_ProcessProjectOrderId_Duplicate_Error() {
-	req := &billingpb.OrderCreateRequest{
-		Type:      pkg.OrderType_simple,
-		ProjectId: suite.project.Id,
-		Amount:    100,
-		OrderId:   "1234567890",
-		Account:   "unit-test",
-		Currency:  "RUB",
-		Other:     make(map[string]string),
-		User:      &billingpb.OrderUser{Ip: "127.0.0.1"},
-	}
-	processor := &OrderCreateRequestProcessor{
-		Service: suite.service,
-		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
-	}
-
-	err := processor.processProject()
-	assert.Nil(suite.T(), err)
-
-	err = processor.processUserData()
-	assert.Nil(suite.T(), err)
-
-	err = processor.processCurrency(req.Type)
-	assert.Nil(suite.T(), err)
-
-	err = processor.processPayerIp(context.TODO())
-	assert.Nil(suite.T(), err)
-
-	err = processor.processPaylinkProducts(context.TODO())
-	assert.Error(suite.T(), err)
-
-	id := primitive.NewObjectID().Hex()
-
-	order := &billingpb.Order{
-		Id: id,
-		Project: &billingpb.ProjectOrder{
-			Id:                processor.checked.project.Id,
-			Name:              processor.checked.project.Name,
-			UrlSuccess:        processor.checked.project.UrlRedirectSuccess,
-			UrlFail:           processor.checked.project.UrlRedirectFail,
-			SendNotifyEmail:   processor.checked.project.SendNotifyEmail,
-			NotifyEmails:      processor.checked.project.NotifyEmails,
-			SecretKey:         processor.checked.project.SecretKey,
-			UrlCheckAccount:   processor.checked.project.UrlCheckAccount,
-			UrlProcessPayment: processor.checked.project.UrlProcessPayment,
-			CallbackProtocol:  processor.checked.project.CallbackProtocol,
-			MerchantId:        processor.checked.project.MerchantId,
-		},
-		Description:    fmt.Sprintf(orderDefaultDescription, id),
-		ProjectOrderId: req.OrderId,
-		ProjectAccount: req.Account,
-		ProjectParams:  req.Other,
-		PrivateStatus:  recurringpb.OrderStatusNew,
-		CreatedAt:      ptypes.TimestampNow(),
-		IsJsonRequest:  false,
-	}
-
-	err = suite.service.orderRepository.Insert(context.TODO(), order)
-	assert.Nil(suite.T(), err)
-
-	err = processor.processProjectOrderId()
-	assert.Error(suite.T(), err)
-	assert.Equal(suite.T(), orderErrorProjectOrderIdIsDuplicate, err)
-}
-
 func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethod_Ok() {
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,
@@ -3276,7 +3191,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessSignature_Form_Ok() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		PayerEmail:    "test@unit.unit",
 	}
 
@@ -3287,7 +3201,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessSignature_Form_Ok() {
 		"PO_AMOUNT":         fmt.Sprintf("%f", req.Amount),
 		"PO_ACCOUNT":        req.Account,
 		"PO_DESCRIPTION":    req.Description,
-		"PO_ORDER_ID":       req.OrderId,
 		"PO_PAYER_EMAIL":    req.PayerEmail,
 	}
 
@@ -3335,14 +3248,13 @@ func (suite *OrderTestSuite) TestOrder_ProcessSignature_Json_Ok() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		PayerEmail:    "test@unit.unit",
 		IsJson:        true,
 	}
 
 	req.RawBody = `{"project":"` + suite.project.Id + `","amount":` + fmt.Sprintf("%f", req.Amount) +
-		`,"currency":"` + req.Currency + `","account":"` + req.Account + `","order_id":"` + req.OrderId +
-		`","description":"` + req.Description + `","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail +
+		`,"currency":"` + req.Currency + `","account":"` + req.Account + `","description":"` + req.Description +
+		`","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail +
 		`","type":"` + pkg.OrderType_simple + `"}`
 
 	hashString := req.RawBody + suite.project.SecretKey
@@ -3375,18 +3287,17 @@ func (suite *OrderTestSuite) TestOrder_ProcessSignature_Error() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		PayerEmail:    "test@unit.unit",
 		IsJson:        true,
 	}
 
 	req.RawBody = `{"project":"` + suite.project.Id + `","amount":` + fmt.Sprintf("%f", req.Amount) +
-		`,"currency":"` + req.Currency + `","account":"` + req.Account + `","order_id":"` + req.OrderId +
-		`","description":"` + req.Description + `","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
+		`,"currency":"` + req.Currency + `","account":"` + req.Account + `","description":"` + req.Description +
+		`","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
 
 	fakeBody := `{"project":"` + suite.project.Id + `","amount":` + fmt.Sprintf("%f", req.Amount) +
-		`,"currency":"` + req.Currency + `","account":"fake_account","order_id":"` + req.OrderId +
-		`","description":"` + req.Description + `","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
+		`,"currency":"` + req.Currency + `","account":"fake_account","description":"` + req.Description +
+		`","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
 	hashString := fakeBody + suite.project.SecretKey
 
 	h := sha512.New()
@@ -3416,7 +3327,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3451,9 +3361,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_Ok() {
 	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
-	err = processor.processProjectOrderId()
-	assert.Nil(suite.T(), err)
-
 	err = processor.processLimitAmounts()
 	assert.Nil(suite.T(), err)
 
@@ -3472,7 +3379,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_PaymentMethod_Ok() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3505,9 +3411,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_PaymentMethod_Ok() {
 	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
-	err = processor.processProjectOrderId()
-	assert.Nil(suite.T(), err)
-
 	err = processor.processLimitAmounts()
 	assert.Nil(suite.T(), err)
 
@@ -3536,7 +3439,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlVerify_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3568,9 +3470,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlVerify_Error() {
 	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
-	err = processor.processProjectOrderId()
-	assert.Nil(suite.T(), err)
-
 	err = processor.processLimitAmounts()
 	assert.Nil(suite.T(), err)
 
@@ -3587,7 +3486,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlRedirect_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3619,9 +3517,6 @@ func (suite *OrderTestSuite) TestOrder_PrepareOrder_UrlRedirect_Error() {
 	err = processor.processPaylinkProducts(context.TODO())
 	assert.Nil(suite.T(), err)
 
-	err = processor.processProjectOrderId()
-	assert.Nil(suite.T(), err)
-
 	err = processor.processLimitAmounts()
 	assert.Nil(suite.T(), err)
 
@@ -3642,7 +3537,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Ok() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3671,7 +3565,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_ProjectInactive_Error(
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3697,7 +3590,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_SignatureInvalid_Error
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		PayerEmail:    "test@unit.unit",
 		User: &billingpb.OrderUser{
 			Ip: "127.0.0.1",
@@ -3706,12 +3598,12 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_SignatureInvalid_Error
 	}
 
 	req.RawBody = `{"project":"` + suite.project.Id + `","amount":` + fmt.Sprintf("%f", req.Amount) +
-		`,"currency":"` + req.Currency + `","account":"` + req.Account + `","order_id":"` + req.OrderId +
-		`","description":"` + req.Description + `","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
+		`,"currency":"` + req.Currency + `","account":"` + req.Account + `","description":"` + req.Description +
+		`","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
 
 	fakeBody := `{"project":"` + suite.project.Id + `","amount":` + fmt.Sprintf("%f", req.Amount) +
-		`,"currency":"` + req.Currency + `","account":"fake_account","order_id":"` + req.OrderId +
-		`","description":"` + req.Description + `","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
+		`,"currency":"` + req.Currency + `","account":"fake_account","description":"` + req.Description +
+		`","payment_method":"` + req.PaymentMethod + `","payer_email":"` + req.PayerEmail + `"}`
 	hashString := fakeBody + suite.project.SecretKey
 
 	h := sha512.New()
@@ -3740,7 +3632,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Error_CheckoutWithoutA
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3765,7 +3656,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Error_CheckoutWithoutA
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3791,7 +3681,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Error_CheckoutWithoutP
 		Currency:      "USD",
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3815,7 +3704,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_CurrencyInvalid_Error(
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3839,7 +3727,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_CurrencyEmpty_Error() 
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3856,62 +3743,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_CurrencyEmpty_Error() 
 	assert.Nil(suite.T(), rsp.Item)
 }
 
-func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_DuplicateProjectOrderId_Error() {
-	orderId := primitive.NewObjectID().Hex()
-
-	req := &billingpb.OrderCreateRequest{
-		Type:          pkg.OrderType_simple,
-		ProjectId:     suite.project.Id,
-		PaymentMethod: suite.paymentMethod.Group,
-		Currency:      "RUB",
-		Amount:        100,
-		Account:       "unit test",
-		Description:   "unit test",
-		OrderId:       orderId,
-		User: &billingpb.OrderUser{
-			Email: "test@unit.unit",
-			Ip:    "127.0.0.1",
-		},
-	}
-
-	order := &billingpb.Order{
-		Id: primitive.NewObjectID().Hex(),
-		Project: &billingpb.ProjectOrder{
-			Id:                suite.project.Id,
-			Name:              suite.project.Name,
-			UrlSuccess:        suite.project.UrlRedirectSuccess,
-			UrlFail:           suite.project.UrlRedirectFail,
-			SendNotifyEmail:   suite.project.SendNotifyEmail,
-			NotifyEmails:      suite.project.NotifyEmails,
-			SecretKey:         suite.project.SecretKey,
-			UrlCheckAccount:   suite.project.UrlCheckAccount,
-			UrlProcessPayment: suite.project.UrlProcessPayment,
-			CallbackProtocol:  suite.project.CallbackProtocol,
-			MerchantId:        suite.project.MerchantId,
-		},
-		Description:    fmt.Sprintf(orderDefaultDescription, orderId),
-		ProjectOrderId: req.OrderId,
-		ProjectAccount: req.Account,
-		ProjectParams:  req.Other,
-		PrivateStatus:  recurringpb.OrderStatusNew,
-		CreatedAt:      ptypes.TimestampNow(),
-		IsJsonRequest:  false,
-	}
-
-	err := suite.service.orderRepository.Insert(context.TODO(), order)
-	assert.Nil(suite.T(), err)
-
-	rsp := &billingpb.OrderCreateProcessResponse{}
-	err = suite.service.OrderCreateProcess(context.TODO(), req, rsp)
-
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusBadData)
-	assert.Equal(suite.T(), orderErrorProjectOrderIdIsDuplicate, rsp.Message)
-
-	assert.Nil(suite.T(), rsp.Item)
-	assert.Equal(suite.T(), orderErrorProjectOrderIdIsDuplicate, rsp.Message)
-}
-
 func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_PaymentMethodInvalid_Error() {
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,
@@ -3921,7 +3752,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_PaymentMethodInvalid_E
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -3970,7 +3800,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessRenderFormPaymentMethods_DevEnviro
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4010,7 +3839,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessRenderFormPaymentMethods_ProdEnvir
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4049,7 +3877,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_SavedCards_Ok()
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4090,7 +3917,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_EmptySavedCards
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4133,7 +3959,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_NotBankCard_Ok(
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4176,7 +4001,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentMethodsData_GetSavedCards_E
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4217,7 +4041,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcessAlreadyProcesse
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4269,7 +4092,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_Ok() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email:  "test@unit.unit",
 			Ip:     "127.0.0.1",
@@ -4341,7 +4163,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcessWithProducts_Ok
 		Currency:      "RUB",
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4376,7 +4197,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_BankCard_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4423,7 +4243,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_Bitcoin_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4461,7 +4280,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_OrderIdEmpty_Error
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4498,7 +4316,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_PaymentMethodEmpty
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4536,7 +4353,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_EmailEmpty_Error()
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4574,7 +4390,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_OrderNotFound_Erro
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4612,7 +4427,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_OrderHasEndedStatu
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4655,7 +4469,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_ProjectProcess_Err
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4697,7 +4510,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_PaymentMethodNotFo
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4736,7 +4548,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_PaymentMethodProce
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4775,7 +4586,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_AmountLimitProcess
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4818,7 +4628,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_BankCardNumberInva
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4861,7 +4670,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_GetBinData_Error()
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4912,7 +4720,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_AccountEmpty_Error
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4950,7 +4757,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_ChangeProjectAccou
 		Currency:    "RUB",
 		Amount:      100,
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -4994,7 +4800,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5046,7 +4851,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_ProcessValidation_Er
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5090,7 +4894,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_ChangeTerminalData_O
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5138,7 +4941,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_CreatePaymentSystemH
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5179,7 +4981,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_FormInputTimeExpired
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5231,7 +5032,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Ok() {
 		Currency:    "RUB",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		Products:    suite.productIds,
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
@@ -5356,7 +5156,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Recurring_Ok() {
 		Currency:    "RUB",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5476,7 +5275,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormLanguageChanged_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5515,7 +5313,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormLanguageChanged_OrderNotFound_
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5549,7 +5346,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormLanguageChanged_NoChanges_Ok()
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email:  "test@unit.unit",
 			Ip:     "127.0.0.1",
@@ -5597,7 +5393,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_BankCard
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5676,7 +5471,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_Qiwi_Ok(
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5717,7 +5511,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_Qiwi_Sys
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5752,7 +5545,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_OrderNot
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5787,7 +5579,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_PaymentM
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5822,7 +5613,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_AccountI
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5857,7 +5647,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_BinDataN
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5892,7 +5681,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_QiwiAcco
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5927,7 +5715,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_QiwiAcco
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5962,7 +5749,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_Bitcoin_
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -5999,7 +5785,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormPaymentAccountChanged_NoChange
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6035,7 +5820,6 @@ func (suite *OrderTestSuite) TestOrder_OrderReCalculateAmounts_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6091,7 +5875,6 @@ func (suite *OrderTestSuite) TestOrder_OrderReCalculateAmounts_OrderNotFound_Err
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6126,7 +5909,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_UserAddressDataRequi
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6196,7 +5978,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_UserAddressDataRequi
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6316,7 +6097,6 @@ func (suite *OrderTestSuite) TestOrder_updateOrder_NotifyKeys_Ok() {
 		Currency:      "RUB",
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6346,7 +6126,6 @@ func (suite *OrderTestSuite) TestOrder_updateOrder_NotifyKeysRejected_Ok() {
 		Currency:      "RUB",
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6385,7 +6164,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_NewCookie_Ok()
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Ip: "127.0.0.1",
 		},
@@ -6422,7 +6200,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_ExistCookie_Ok
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 	}
 
 	rsp0 := &billingpb.OrderCreateProcessResponse{}
@@ -6505,7 +6282,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_NotOwnBankCard_Error
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6548,7 +6324,6 @@ func (suite *OrderTestSuite) TestOrder_IsOrderCanBePaying_Ok() {
 		Currency:    "RUB",
 		Amount:      100,
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6583,7 +6358,6 @@ func (suite *OrderTestSuite) TestOrder_IsOrderCanBePaying_IncorrectProject_Error
 		Currency:    "RUB",
 		Amount:      100,
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6616,7 +6390,6 @@ func (suite *OrderTestSuite) TestOrder_IsOrderCanBePaying_HasEndedStatus_Error()
 		Currency:    "RUB",
 		Amount:      100,
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6915,7 +6688,6 @@ func (suite *OrderTestSuite) TestOrder_orderNotifyMerchant_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -6960,7 +6732,6 @@ func (suite *OrderTestSuite) TestCardpay_fillPaymentDataCrypto() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7002,7 +6773,6 @@ func (suite *OrderTestSuite) TestCardpay_fillPaymentDataEwallet() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7046,7 +6816,6 @@ func (suite *OrderTestSuite) TestCardpay_fillPaymentDataCard() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7098,7 +6867,6 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifySales_Ok() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7154,7 +6922,6 @@ func (suite *OrderTestSuite) TestBillingService_SetUserNotifyNewRegion_Ok() {
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7382,7 +7149,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_UserAddressDataRequi
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7436,7 +7202,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_AccountingEntries_
 		Currency:    "RUB",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		Products:    suite.productIds,
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
@@ -7547,7 +7312,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7652,7 +7416,6 @@ func (suite *OrderTestSuite) Test_processPaylinkKeyProducts_error() {
 		Currency:    "USD",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7672,7 +7435,6 @@ func (suite *OrderTestSuite) Test_processPaylinkKeyProducts_error() {
 		Currency:    "USD",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7696,7 +7458,6 @@ func (suite *OrderTestSuite) Test_ProcessOrderKeyProducts() {
 		Currency:    "USD",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7798,7 +7559,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_KeyProductReservat
 		Currency:    "RUB",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7844,7 +7604,6 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_KeyProductReservat
 		Currency:    "RUB",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7887,7 +7646,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_AllPaymentMeth
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7934,7 +7692,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_OnePaymentMeth
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -7981,7 +7738,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_NoPaymentMetho
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8118,7 +7874,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_CostsNotFound_Error(
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8233,7 +7988,6 @@ func (suite *OrderTestSuite) TestOrder_DeclineOrder_Ok() {
 		Currency:    "RUB",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8363,7 +8117,6 @@ func (suite *OrderTestSuite) TestOrder_SuccessOrderCentrifugoPaymentSystemError_
 		Currency:    "RUB",
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8490,7 +8243,6 @@ func (suite *OrderTestSuite) TestOrder_KeyProductWithoutPriceDifferentRegion_Ok(
 		PaymentMethod: suite.paymentMethod.Group,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.2",
@@ -8527,7 +8279,6 @@ func (suite *OrderTestSuite) TestOrder_ProductWithoutPriceDifferentRegion_Ok() {
 		PaymentMethod: suite.paymentMethod.Group,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.2",
@@ -8564,7 +8315,6 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcessVirtualCurrency_Ok() {
 		Account:       "unit test",
 		Description:   "unit test",
 		Products:      suite.productIdsWithVirtualCurrency,
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8648,7 +8398,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_MinSystemLimit
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8674,7 +8423,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_LowerThanMinSy
 		Amount:      10,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8701,7 +8449,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_MinSystemLimit
 		Amount:      10,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -8729,7 +8476,6 @@ func (suite *OrderTestSuite) TestOrder_ReCreateOrder_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 	}
 
 	rsp0 := &billingpb.OrderCreateProcessResponse{}
@@ -8786,7 +8532,6 @@ func (suite *OrderTestSuite) TestOrder_ReCreateOrder_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 	}
 
 	rsp0 := &billingpb.OrderCreateProcessResponse{}
@@ -8892,7 +8637,6 @@ func (suite *OrderTestSuite) TestOrder_PaymentFormJsonDataProcess_WithUnknownCou
 		Amount:        100,
 		Account:       "unit test",
 		Description:   "unit test",
-		OrderId:       primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 		},
@@ -9132,7 +8876,6 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		ProjectId:   suite.projectWithProducts.Id,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		Products:    []string{suite.productWithProcessingDefaultCurrency.Id},
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
@@ -9269,7 +9012,7 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		"merchant_method_fixed_fee":                 {Amount: 2.0, Currency: "USD"},
 		"real_merchant_method_fixed_fee":            {Amount: 2.0, Currency: "USD"},
 		"real_merchant_method_fixed_fee_cost_value": {Amount: 0, Currency: "USD"},
-		"merchant_ps_fixed_fee":                     {Amount: 0.056492, Currency: "USD"},
+		"merchant_ps_fixed_fee":                     {Amount: 0.056515, Currency: "USD"},
 		"real_merchant_ps_fixed_fee":                {Amount: 0.055385, Currency: "USD"},
 	}
 

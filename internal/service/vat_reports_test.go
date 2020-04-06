@@ -288,7 +288,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	assert.EqualValues(suite.T(), 25, report.TransactionsCount)
 	assert.EqualValues(suite.T(), 600, report.GrossRevenue)
 	assert.EqualValues(suite.T(), 100, report.VatAmount)
-	assert.EqualValues(suite.T(), 144.38, report.FeesAmount)
+	assert.EqualValues(suite.T(), 144.36, report.FeesAmount)
 	assert.EqualValues(suite.T(), 0, report.DeductionAmount)
 	assert.EqualValues(suite.T(), 600, report.CountryAnnualTurnover)
 	assert.EqualValues(suite.T(), 4393.9, report.WorldAnnualTurnover)

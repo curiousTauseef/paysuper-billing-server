@@ -285,8 +285,14 @@ func (s *Service) GetRecommendedPriceByConversion(
 			return err
 		}
 
+		if region.Region == req.Currency {
+			amount = req.Amount
+		} else {
+			amount = s.calculatePriceWithFraction(region.Fraction, amount)
+		}
+
 		res.RecommendedPrice = append(res.RecommendedPrice, &billingpb.RecommendedPrice{
-			Amount:   s.calculatePriceWithFraction(region.Fraction, amount),
+			Amount:   amount,
 			Region:   region.Region,
 			Currency: region.Currency,
 		})

@@ -464,18 +464,6 @@ func (s *Service) OrderCreateProcess(
 		break
 	}
 
-	if req.OrderId != "" {
-		if err := processor.processProjectOrderId(); err != nil {
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusBadData
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
-	}
-
 	if req.PaymentMethod != "" {
 		pm, err := s.paymentMethodRepository.GetByGroupAndCurrency(
 			ctx,
@@ -2120,9 +2108,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			RedirectSettings:        v.checked.project.RedirectSettings,
 		},
 		Description:    fmt.Sprintf(orderDefaultDescription, id),
-		ProjectOrderId: v.request.OrderId,
 		ProjectAccount: v.request.Account,
-		ProjectParams:  v.request.Other,
 		PrivateStatus:  recurringpb.OrderStatusNew,
 		CreatedAt:      ptypes.TimestampNow(),
 		IsJsonRequest:  v.request.IsJson,
@@ -2435,20 +2421,6 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts(_ context.Context) 
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
 	v.checked.items = items
-
-	return nil
-}
-
-func (v *OrderCreateRequestProcessor) processProjectOrderId() error {
-	order, err := v.orderRepository.GetByProjectOrderId(v.ctx, v.checked.project.Id, v.request.OrderId)
-
-	if err != nil && err != mongo.ErrNoDocuments {
-		return orderErrorCanNotCreate
-	}
-
-	if order != nil {
-		return orderErrorProjectOrderIdIsDuplicate
-	}
 
 	return nil
 }
