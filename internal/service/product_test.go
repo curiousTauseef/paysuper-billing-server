@@ -92,6 +92,7 @@ func (suite *ProductTestSuite) SetupTest() {
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
 		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {

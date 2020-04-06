@@ -20,7 +20,6 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
-	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-proto/go/taxpb"
@@ -47,6 +46,7 @@ const (
 	callbackHandlerIncorrect            = "unknown callback type"
 	orderErrorPublishNotificationFailed = "publish order notification failed"
 	orderErrorUpdateOrderDataFailed     = "update order data failed"
+	brokerPublicationFailed             = "message publication to broker failed"
 
 	orderDefaultDescription = "Payment by order # %s"
 
@@ -125,7 +125,6 @@ var (
 	orderErrorCheckoutWithProducts                            = newBillingServerErrorMsg("fm000069", "request to processing simple payment can't contain products list")
 	orderErrorMerchantDoNotHaveCompanyInfo                    = newBillingServerErrorMsg("fm000070", "merchant don't have completed company info")
 	orderErrorMerchantDoNotHaveBanking                        = newBillingServerErrorMsg("fm000071", "merchant don't have completed banking info")
-	orderErrorMerchantWebHookTestingNotPassed                 = newBillingServerErrorMsg("fm000072", "merchant don't passed webhook api testing")
 	orderErrorMerchantUserAccountNotChecked                   = newBillingServerErrorMsg("fm000073", "failed to check user account")
 	orderErrorAmountLowerThanMinLimitSystem                   = newBillingServerErrorMsg("fm000074", "order amount is lower than min system limit")
 	orderErrorAlreadyProcessed                                = newBillingServerErrorMsg("fm000075", "order is already processed")
@@ -2373,14 +2372,13 @@ func (v *OrderCreateRequestProcessor) processPayerIp(ctx context.Context) error 
 		return err
 	}
 
-	// fully replace address, to avoid inconsistence
+	// fully replace address, to avoid inconsistency
 	v.checked.user.Address = address
 
 	return nil
 }
 
 func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
-
 	amount, priceGroup, items, _, err := v.processKeyProducts(
 		v.ctx,
 		v.checked.project.Id,
@@ -2395,14 +2393,6 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 	}
 
 	v.checked.priceGroup = priceGroup
-
-	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
-		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
-			!(v.checked.project.WebhookTesting.Keys.IsPassed)) {
-			return orderErrorMerchantWebHookTestingNotPassed
-		}
-	}
-
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
@@ -2426,17 +2416,7 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts(_ context.Context) 
 		return err
 	}
 
-	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
-		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
-			!(v.checked.project.WebhookTesting.Products.IncorrectPayment &&
-				v.checked.project.WebhookTesting.Products.CorrectPayment &&
-				v.checked.project.WebhookTesting.Products.ExistingUser &&
-				v.checked.project.WebhookTesting.Products.NonExistingUser)) {
-			return orderErrorMerchantWebHookTestingNotPassed
-		}
-	}
 	v.checked.priceGroup = priceGroup
-
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
@@ -3187,35 +3167,10 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 
 	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault &&
 		v.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
-		checkReq := &notifierpb.CheckUserRequest{Url: v.checked.project.UrlCheckAccount,
-			SecretKey: v.checked.project.GetSecretKey(),
-			User: &notifierpb.User{
-				ProjectAccount: order.ProjectAccount,
-				Email:          order.User.Email,
-				Name:           order.User.Name,
-				Metadata:       order.User.Metadata,
-				Phone:          order.User.Phone,
-			},
-		}
+		err = v.service.webhookCheckUser(order)
 
-		resp, err := v.service.notifier.CheckUser(context.TODO(), checkReq)
 		if err != nil {
-			zap.L().Error(
-				pkg.ErrorGrpcServiceCallFailed,
-				zap.Error(err),
-				zap.String(errorFieldService, "Notifier"),
-				zap.String(errorFieldMethod, "CheckUser"),
-			)
-			return orderErrorMerchantUserAccountNotChecked
-		}
-
-		if resp.Status != billingpb.ResponseStatusOk {
-			zap.L().Error(
-				pkg.ErrorUserCheckFailed,
-				zap.String(errorFieldStatus, string(resp.Status)),
-				zap.String(errorFieldMessage, resp.Message),
-			)
-			return orderErrorMerchantUserAccountNotChecked
+			return err
 		}
 	}
 
@@ -3721,7 +3676,7 @@ func (s *Service) notifyPaylinkError(ctx context.Context, paylinkId string, err 
 		"event":     "error",
 		"paylinkId": paylinkId,
 		"message":   "Invalid paylink",
-		"error":     err,
+		"error":     err.Error(),
 		"request":   req,
 		"order":     order,
 	}
@@ -4418,17 +4373,6 @@ func (v *OrderCreateRequestProcessor) processVirtualCurrency(_ context.Context) 
 	}
 
 	v.checked.virtualAmount = amount
-
-	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault {
-		if len(v.request.TestingCase) == 0 && (v.checked.project.WebhookTesting == nil ||
-			!(v.checked.project.WebhookTesting.VirtualCurrency.IncorrectPayment &&
-				v.checked.project.WebhookTesting.VirtualCurrency.CorrectPayment &&
-				v.checked.project.WebhookTesting.VirtualCurrency.ExistingUser &&
-				v.checked.project.WebhookTesting.VirtualCurrency.NonExistingUser)) {
-			return orderErrorMerchantWebHookTestingNotPassed
-		}
-	}
-
 	return nil
 }
 

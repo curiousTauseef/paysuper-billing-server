@@ -57,6 +57,7 @@ func (suite *RecurringTestSuite) SetupTest() {
 		mocks.NewBrokerMockOk(),
 		casbin,
 		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {

@@ -804,6 +804,19 @@ func HelperCreateProject(
 			},
 			Keys: &billingpb.KeysTesting{IsPassed: true},
 		},
+		VirtualCurrency: &billingpb.ProjectVirtualCurrency{
+			Logo:           "logo",
+			Name:           map[string]string{"en": "name"},
+			SuccessMessage: map[string]string{"en": "message"},
+			Prices: []*billingpb.ProductPrice{
+				{
+					Amount:   100,
+					Currency: "RUB",
+					Region:   "RUB",
+				},
+			},
+			SellCountType: "integral",
+		},
 	}
 
 	if err := service.project.Insert(context.TODO(), project); err != nil {

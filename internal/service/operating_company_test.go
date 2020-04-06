@@ -71,6 +71,7 @@ func (suite *OperatingCompanyTestSuite) SetupTest() {
 		mocks.NewBrokerMockOk(),
 		casbin,
 		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {

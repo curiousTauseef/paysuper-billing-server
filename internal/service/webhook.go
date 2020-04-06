@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
+	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 )
 
 var (
@@ -29,35 +32,39 @@ func (s *Service) SendWebhookToMerchant(
 		Service: s,
 		request: req,
 		checked: &orderCreateRequestProcessorChecked{},
+		ctx:     ctx,
 	}
 
-	if err := processor.processProject(); err != nil {
-		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-			res.Status = billingpb.ResponseStatusBadData
-			res.Message = e
-			return nil
-		}
-		return err
+	err := processor.processProject()
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusBadData
+		res.Message = err.(*billingpb.ResponseErrorMessage)
+		return nil
 	}
 
 	switch req.Type {
 	case pkg.OrderType_key:
-		if err := processor.processPaylinkKeyProducts(); err != nil {
+		err = processor.processPaylinkKeyProducts()
+
+		if err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+
 			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 				res.Status = billingpb.ResponseStatusBadData
 				res.Message = e
 				return nil
 			}
+
 			return err
 		}
 		break
 	case pkg.OrderType_product:
-		if err := processor.processPaylinkProducts(ctx); err != nil {
+		err = processor.processPaylinkProducts(ctx)
+
+		if err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
@@ -73,17 +80,14 @@ func (s *Service) SendWebhookToMerchant(
 				res.Message = e
 				return nil
 			}
+
 			return err
 		}
 		break
 	case pkg.OrderTypeVirtualCurrency:
-		err := processor.processVirtualCurrency(ctx)
-		if err != nil {
-			zap.L().Error(
-				pkg.MethodFinishedWithError,
-				zap.Error(err),
-			)
+		err = processor.processVirtualCurrency(ctx)
 
+		if err != nil {
 			res.Status = billingpb.ResponseStatusBadData
 			res.Message = err.(*billingpb.ResponseErrorMessage)
 			return nil
@@ -103,28 +107,21 @@ func (s *Service) SendWebhookToMerchant(
 	}
 
 	if req.User != nil {
-		err := processor.processUserData()
+		err = processor.processUserData()
 
 		if err != nil {
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				res.Status = billingpb.ResponseStatusBadData
-				res.Message = e
-				return nil
-			}
-			return err
+			res.Status = billingpb.ResponseStatusBadData
+			res.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
 		}
 	}
 
-	err := processor.processCurrency(req.Type)
+	err = processor.processCurrency(req.Type)
+
 	if err != nil {
-		zap.L().Error("process currency failed", zap.Error(err))
-		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-			res.Status = billingpb.ResponseStatusBadData
-			res.Message = e
-			return nil
-		}
-		return err
+		res.Status = billingpb.ResponseStatusBadData
+		res.Message = err.(*billingpb.ResponseErrorMessage)
+		return nil
 	}
 
 	if processor.checked.currency == "" {
@@ -135,11 +132,9 @@ func (s *Service) SendWebhookToMerchant(
 
 	processor.processMetadata()
 	processor.processPrivateMetadata()
-
 	order, err := processor.prepareOrder()
 
 	if err != nil {
-		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 			res.Status = billingpb.ResponseStatusBadData
 			res.Message = e
@@ -150,23 +145,38 @@ func (s *Service) SendWebhookToMerchant(
 
 	order.PrivateStatus = constant.OrderStatusPaymentSystemComplete
 
-	if req.TestingCase == billingpb.TestCaseNonExistingUser {
-		order.User.ExternalId = "paysuper_test_" + uuid.New().String()
+	var (
+		topic   string
+		payload proto.Message
+		broker  rabbitmq.BrokerInterface
+	)
+
+	if req.TestingCase == billingpb.TestCaseNonExistingUser || req.TestingCase == billingpb.TestCaseExistingUser {
+		if req.TestingCase == billingpb.TestCaseNonExistingUser {
+			order.User.ExternalId = "paysuper_test_" + uuid.New().String()
+		}
+
+		topic = notifierpb.PayOneTopicNameValidateUser
+		payload = s.getCheckUserRequestByOrder(order)
+		broker = s.validateUserBroker
+	} else {
+		topic = constant.PayOneTopicNotifyPaymentName
+		payload = order
+		broker = s.broker
 	}
 
-	err = s.broker.Publish(constant.PayOneTopicNotifyPaymentName, order, amqp.Table{"x-retry-count": int32(0)})
+	err = broker.Publish(topic, payload, amqp.Table{"x-retry-count": int32(0)})
 
 	if err != nil {
 		zap.L().Error(
-			orderErrorPublishNotificationFailed,
+			brokerPublicationFailed,
 			zap.Error(err),
-			zap.String("topic", constant.PayOneTopicNotifyPaymentName),
-			zap.Any("order", order),
+			zap.String("topic", topic),
+			zap.Any("payload", payload),
 		)
 	}
 
-	res.OrderId = order.GetUuid()
-
+	res.OrderId = order.Uuid
 	return nil
 }
 
@@ -278,4 +288,66 @@ func (s *Service) processTestingProducts(project *billingpb.Project, req *billin
 		project.WebhookTesting.Products.IncorrectPayment = req.IsPassed
 		break
 	}
+}
+
+func (s *Service) getCheckUserRequestByOrder(order *billingpb.Order) *notifierpb.CheckUserRequest {
+	req := &notifierpb.CheckUserRequest{
+		Url:           order.Project.UrlProcessPayment,
+		SecretKey:     order.Project.GetSecretKey(),
+		IsLiveProject: order.Project.Status == billingpb.ProjectStatusInProduction,
+		User: &notifierpb.User{
+			Id:                   order.User.Id,
+			Object:               order.User.Object,
+			ExternalId:           order.User.ExternalId,
+			Name:                 order.User.Name,
+			Email:                order.User.Email,
+			EmailVerified:        order.User.EmailVerified,
+			Phone:                order.User.Phone,
+			PhoneVerified:        order.User.PhoneVerified,
+			Ip:                   order.User.Ip,
+			Locale:               order.User.Locale,
+			Metadata:             order.User.Metadata,
+			NotifyNewRegion:      order.User.NotifyNewRegion,
+			NotifyNewRegionEmail: order.User.NotifyNewRegionEmail,
+		},
+		OrderUuid:  order.Uuid,
+		MerchantId: order.Project.MerchantId,
+	}
+
+	if order.User.Address != nil {
+		req.User.Address = &notifierpb.BillingAddress{
+			Country:    order.User.Address.Country,
+			City:       order.User.Address.City,
+			PostalCode: order.User.Address.PostalCode,
+			State:      order.User.Address.State,
+		}
+	}
+
+	return req
+}
+
+func (s *Service) webhookCheckUser(order *billingpb.Order) error {
+	req := s.getCheckUserRequestByOrder(order)
+	rsp, err := s.notifier.CheckUser(context.TODO(), req)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, notifierpb.ServiceName),
+			zap.String(errorFieldMethod, "CheckUser"),
+		)
+		return orderErrorMerchantUserAccountNotChecked
+	}
+
+	if rsp.Status != billingpb.ResponseStatusOk {
+		zap.L().Error(
+			pkg.ErrorUserCheckFailed,
+			zap.Int32(errorFieldStatus, rsp.Status),
+			zap.String(errorFieldMessage, rsp.Message),
+		)
+		return orderErrorMerchantUserAccountNotChecked
+	}
+
+	return nil
 }

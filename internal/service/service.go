@@ -111,6 +111,7 @@ type Service struct {
 	merchantPaymentMethodHistoryRepository repository.MerchantPaymentMethodHistoryRepositoryInterface
 	feedbackRepository                     repository.FeedbackRepositoryInterface
 	dashboardRepository                    repository.DashboardRepositoryInterface
+	validateUserBroker                     rabbitmq.BrokerInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -146,23 +147,25 @@ func NewBillingService(
 	postmarkBroker rabbitmq.BrokerInterface,
 	casbinService casbinpb.CasbinService,
 	notifier notifierpb.NotifierService,
+	validateUserBroker rabbitmq.BrokerInterface,
 ) *Service {
 	return &Service{
-		db:              db,
-		cfg:             cfg,
-		geo:             geo,
-		rep:             rep,
-		tax:             tax,
-		broker:          broker,
-		redis:           redis,
-		cacher:          cache,
-		curService:      curService,
-		documentSigner:  documentSigner,
-		reporterService: reporterService,
-		formatter:       formatter,
-		postmarkBroker:  postmarkBroker,
-		casbinService:   casbinService,
-		notifier:        notifier,
+		db:                 db,
+		cfg:                cfg,
+		geo:                geo,
+		rep:                rep,
+		tax:                tax,
+		broker:             broker,
+		redis:              redis,
+		cacher:             cache,
+		curService:         curService,
+		documentSigner:     documentSigner,
+		reporterService:    reporterService,
+		formatter:          formatter,
+		postmarkBroker:     postmarkBroker,
+		casbinService:      casbinService,
+		notifier:           notifier,
+		validateUserBroker: validateUserBroker,
 	}
 }
 
