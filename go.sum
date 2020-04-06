@@ -478,6 +478,8 @@ github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200327073829-6f2dae6cd
 github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200327073829-6f2dae6cd24b/go.mod h1:6gCoUEx91Sux73W44vdVu2UhnZsgJQS8kssjIwLIgf8=
 github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200401120231-de7c50995ed4 h1:o0dmLAx9S403xjU//TW4+7sIV4xxgc/jDyY+Z+nZK+E=
 github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200401120231-de7c50995ed4/go.mod h1:6gCoUEx91Sux73W44vdVu2UhnZsgJQS8kssjIwLIgf8=
+github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200406132246-777573b2beed h1:tmlRAvTSr+Y+aaOG4mfbQ9n8oibceQHKvCaObM/vvQ0=
+github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200406132246-777573b2beed/go.mod h1:6gCoUEx91Sux73W44vdVu2UhnZsgJQS8kssjIwLIgf8=
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200302133127-ba8bd156664b h1:iHx707nj9+PDfFBudpvEm9UIGoVspTzkUNm6BRg7UFM=
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:yVmBUkR8sxQhUgU4mvO10u4x6bwlIGPoY9M++Wlnv9Q=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200302121221-60194355f1cc/go.mod h1:u48GCpSgBmO9VhSSRiAzv3dReqvB7pKjFmFHkvpB8wM=
