@@ -134,7 +134,6 @@ func (suite *WebhookTestSuite) SetupTest() {
 			ExternalId: "unit_test",
 			Address:    &billingpb.OrderBillingAddress{Country: "RU"},
 		},
-		OrderId:   "254e3736-000f-5000-8000-178d1d80bf70",
 		Amount:    100,
 		ProjectId: suite.project.Id,
 	}
@@ -281,22 +280,6 @@ func (suite *WebhookTestSuite) Test_SendWebhook_CheckedCurrencyIsEmpty_Error() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
 	assert.Equal(suite.T(), orderErrorCurrencyIsRequired, rsp.Message)
-	assert.Empty(suite.T(), rsp.OrderId)
-}
-
-func (suite *WebhookTestSuite) Test_SendWebhook_Processor_ProcessProjectOrderId_Error() {
-	orderRepositoryMock := &mocks.OrderRepositoryInterface{}
-	orderRepositoryMock.On("GetByProjectOrderId", mock.Anything, mock.Anything, mock.Anything).
-		Return(nil, errors.New("some error"))
-	suite.service.orderRepository = orderRepositoryMock
-
-	suite.request.OrderId = "254e3736-000f-5000-8000-178d1d80bf70"
-
-	rsp := &billingpb.SendWebhookToMerchantResponse{}
-	err := suite.service.SendWebhookToMerchant(ctx, suite.request, rsp)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
-	assert.Equal(suite.T(), orderErrorCanNotCreate, rsp.Message)
 	assert.Empty(suite.T(), rsp.OrderId)
 }
 

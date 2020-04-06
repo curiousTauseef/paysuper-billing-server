@@ -130,16 +130,6 @@ func (s *Service) SendWebhookToMerchant(
 		return nil
 	}
 
-	if req.OrderId != "" {
-		err = processor.processProjectOrderId()
-
-		if err != nil {
-			res.Status = billingpb.ResponseStatusBadData
-			res.Message = err.(*billingpb.ResponseErrorMessage)
-			return nil
-		}
-	}
-
 	processor.processMetadata()
 	processor.processPrivateMetadata()
 	order, err := processor.prepareOrder()
