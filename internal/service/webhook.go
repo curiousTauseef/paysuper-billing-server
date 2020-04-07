@@ -151,7 +151,8 @@ func (s *Service) SendWebhookToMerchant(
 		broker  rabbitmq.BrokerInterface
 	)
 
-	if req.TestingCase == billingpb.TestCaseNonExistingUser || req.TestingCase == billingpb.TestCaseExistingUser {
+	if (req.TestingCase == billingpb.TestCaseNonExistingUser || req.TestingCase == billingpb.TestCaseExistingUser) &&
+		processor.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
 		if req.TestingCase == billingpb.TestCaseNonExistingUser {
 			order.User.ExternalId = "paysuper_test_" + uuid.New().String()
 		}
