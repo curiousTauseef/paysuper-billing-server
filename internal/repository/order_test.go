@@ -248,45 +248,6 @@ func (suite *OrderTestSuite) TestOrder_GetByRefundReceiptNumber_Error() {
 	assert.Nil(suite.T(), order2)
 }
 
-func (suite *OrderTestSuite) TestOrder_GetByProjectOrderId_Ok() {
-	order := suite.getOrderTemplate()
-	order.Refund = &billingpb.OrderNotificationRefund{ReceiptNumber: "number"}
-	err := suite.repository.Insert(context.TODO(), order)
-	assert.NoError(suite.T(), err)
-
-	order2, err := suite.repository.GetByProjectOrderId(context.TODO(), order.Project.Id, order.ProjectOrderId)
-	assert.NoError(suite.T(), err)
-
-	order.CreatedAt = order2.CreatedAt
-	order.UpdatedAt = order2.UpdatedAt
-	order.CanceledAt = order2.CanceledAt
-	order.RefundedAt = order2.RefundedAt
-	order.ProjectLastRequestedAt = order2.ProjectLastRequestedAt
-	order.PaymentMethodOrderClosedAt = order2.PaymentMethodOrderClosedAt
-	order.ExpireDateToFormInput = order2.ExpireDateToFormInput
-	assert.Equal(suite.T(), order, order2)
-}
-
-func (suite *OrderTestSuite) TestOrder_GetByProjectOrderId_ErrorNotFound_InvalidProjectId() {
-	order := suite.getOrderTemplate()
-	err := suite.repository.Insert(context.TODO(), order)
-	assert.NoError(suite.T(), err)
-
-	order2, err := suite.repository.GetByProjectOrderId(context.TODO(), order.Id, order.ProjectOrderId)
-	assert.Error(suite.T(), err)
-	assert.Nil(suite.T(), order2)
-}
-
-func (suite *OrderTestSuite) TestOrder_GetByProjectOrderId_ErrorNotFound_InvalidOrderId() {
-	order := suite.getOrderTemplate()
-	err := suite.repository.Insert(context.TODO(), order)
-	assert.NoError(suite.T(), err)
-
-	order2, err := suite.repository.GetByProjectOrderId(context.TODO(), order.Project.Id, order.Id)
-	assert.Error(suite.T(), err)
-	assert.Nil(suite.T(), order2)
-}
-
 func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
 	return &billingpb.Order{
 		Id: primitive.NewObjectID().Hex(),
@@ -351,7 +312,6 @@ func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
 		PrivateStatus:               4,
 		ProductType:                 "ProductType",
 		ProjectAccount:              "ProjectAccount",
-		ProjectOrderId:              primitive.NewObjectID().Hex(),
 		ProjectParams:               map[string]string{"string": "e"},
 		ReceiptEmail:                "",
 		ReceiptPhone:                "",

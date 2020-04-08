@@ -176,7 +176,7 @@ func (s *Service) getOrdersList(
 		query["$or"] = []bson.M{
 			{"uuid": bson.M{"$regex": r}},
 			{"user.external_id": bson.M{"$regex": r, "$exists": true}},
-			{"project_order_id": bson.M{"$regex": r, "$exists": true}},
+			{"metadata_values": bson.M{"$regex": r}},
 			{"project.name": bson.M{"$elemMatch": bson.M{"value": r}}},
 			{"payment_method.name": bson.M{"$regex": r, "$exists": true}},
 		}

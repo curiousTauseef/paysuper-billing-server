@@ -53,7 +53,6 @@ type MgoOrder struct {
 	Metadata                    map[string]string                        `bson:"metadata"`
 	PrivateMetadata             map[string]string                        `bson:"private_metadata"`
 	Project                     *MgoOrderProject                         `bson:"project"`
-	ProjectOrderId              string                                   `bson:"project_order_id"`
 	ProjectAccount              string                                   `bson:"project_account"`
 	ProjectLastRequestedAt      time.Time                                `bson:"project_last_requested_at"`
 	ProjectParams               map[string]string                        `bson:"project_params"`
@@ -92,6 +91,7 @@ type MgoOrder struct {
 	IsProduction                bool                                     `bson:"is_production"`
 	FormMode                    string                                   `bson:"form_mode"`
 	IsCurrencyPredefined        bool                                     `bson:"is_currency_predefined"`
+	MetadataValues              []string                                 `bson:"metadata_values"`
 }
 
 type orderMapper struct {
@@ -158,7 +158,6 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 			MerchantRoyaltyCurrency: m.Project.MerchantRoyaltyCurrency,
 			RedirectSettings:        m.Project.RedirectSettings,
 		},
-		ProjectOrderId:              m.ProjectOrderId,
 		ProjectAccount:              m.ProjectAccount,
 		ProjectParams:               m.ProjectParams,
 		IsJsonRequest:               m.IsJsonRequest,
@@ -382,6 +381,14 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		st.ParentPaymentAt = t
 	}
 
+	if len(m.Metadata) > 0 {
+		st.MetadataValues = make([]string, 0)
+
+		for _, val := range m.Metadata {
+			st.MetadataValues = append(st.MetadataValues, val)
+		}
+	}
+
 	return st, nil
 }
 
@@ -432,6 +439,7 @@ func (o *orderMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 	m.IsRefundAllowed = decoded.IsRefundAllowed
 	m.FormMode = decoded.FormMode
 	m.IsCurrencyPredefined = decoded.IsCurrencyPredefined
+	m.MetadataValues = decoded.MetadataValues
 
 	if decoded.Refund != nil {
 		m.Refund = &billingpb.OrderNotificationRefund{
@@ -484,7 +492,6 @@ func (o *orderMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 		}
 	}
 
-	m.ProjectOrderId = decoded.ProjectOrderId
 	m.ProjectAccount = decoded.ProjectAccount
 	m.ProjectParams = decoded.ProjectParams
 	m.IsJsonRequest = decoded.IsJsonRequest

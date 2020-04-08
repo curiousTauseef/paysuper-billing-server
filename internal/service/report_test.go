@@ -11,6 +11,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -521,4 +522,61 @@ func (suite *ReportTestSuite) TestReport_GetOrder() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.NotNil(suite.T(), rsp.Item)
+}
+
+func (suite *ReportTestSuite) TestReport_FindByProjectOrderId_QuickSearch_Ok() {
+	req := &billingpb.ListOrdersRequest{
+		Merchant:    []string{suite.project.MerchantId},
+		QuickSearch: "254e3736-000f-5000-8000-178d1d80bf70",
+	}
+	rsp := &billingpb.ListOrdersPublicResponse{}
+	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
+
+	req1 := &billingpb.OrderCreateRequest{
+		Type:        pkg.OrderType_simple,
+		ProjectId:   suite.project.Id,
+		Amount:      100,
+		Currency:    "RUB",
+		Account:     "unit test",
+		Description: "unit test",
+		User: &billingpb.OrderUser{
+			Id:    primitive.NewObjectID().Hex(),
+			Email: "test@unit.unit",
+			Ip:    "127.0.0.1",
+			Address: &billingpb.OrderBillingAddress{
+				Country:    "RU",
+				PostalCode: "19000",
+			},
+		},
+		Metadata: map[string]string{
+			"invoiceId": "254e3736-000f-5000-8000-178d1d80bf70",
+			"status":    "VIP 8",
+			"server":    "3",
+		},
+	}
+
+	rsp1 := &billingpb.OrderCreateProcessResponse{}
+	err = suite.service.OrderCreateProcess(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
+
+	_ = HelperPayOrder(suite.Suite, suite.service, rsp1.Item, suite.pmBankCard, "RU")
+
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), 1, rsp.Item.Count)
+
+	// search by quick filter by partial match
+	req.QuickSearch = "254e3736-000f"
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), 1, rsp.Item.Count)
 }

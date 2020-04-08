@@ -22,9 +22,6 @@ type OrderRepositoryInterface interface {
 	// GetByRefundReceiptNumber returns a order by its receipt number.
 	GetByRefundReceiptNumber(context.Context, string) (*billingpb.Order, error)
 
-	// GetByProjectOrderId returns a order by project and order identifiers.
-	GetByProjectOrderId(context.Context, string, string) (*billingpb.Order, error)
-
 	// UpdateOrderView updates orders into order view.
 	UpdateOrderView(context.Context, []string) error
 }

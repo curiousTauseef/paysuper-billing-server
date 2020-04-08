@@ -191,51 +191,10 @@ func (h *orderRepository) GetByRefundReceiptNumber(ctx context.Context, id strin
 	return obj.(*billingpb.Order), nil
 }
 
-func (h *orderRepository) GetByProjectOrderId(ctx context.Context, projectId, projectOrderId string) (*billingpb.Order, error) {
-	id, err := primitive.ObjectIDFromHex(projectId)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseInvalidObjectId,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
-			zap.String(pkg.ErrorDatabaseFieldQuery, projectId),
-		)
-		return nil, err
-	}
-
-	mgo := &models.MgoOrder{}
-
-	query := bson.M{"project._id": id, "project_order_id": projectOrderId}
-	err = h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, err
-	}
-
-	obj, err := h.mapper.MapMgoToObject(mgo)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorMapModelFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
-		)
-		return nil, err
-	}
-
-	return obj.(*billingpb.Order), nil
-}
-
 func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) error {
 	defer helper.TimeTrack(time.Now(), "updateOrderView")
 
-	idsHex := []primitive.ObjectID{}
+	idsHex := make([]primitive.ObjectID, 0)
 
 	for _, id := range ids {
 		oid, err := primitive.ObjectIDFromHex(id)
@@ -3255,7 +3214,7 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 				"_id":                  1,
 				"uuid":                 1,
 				"pm_order_id":          1,
-				"project_order_id":     1,
+				"metadata_values":      1,
 				"project":              1,
 				"created_at":           1,
 				"pm_order_close_date":  1,
