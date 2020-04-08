@@ -91,7 +91,7 @@ type MgoOrder struct {
 	IsProduction                bool                                     `bson:"is_production"`
 	FormMode                    string                                   `bson:"form_mode"`
 	IsCurrencyPredefined        bool                                     `bson:"is_currency_predefined"`
-	MetadataValues              []string                                 `bson:"metadata_values"`
+	MetadataValues              []string                                 `bson:"metadata_values" json:"-"`
 }
 
 type orderMapper struct {
