@@ -439,7 +439,6 @@ func (o *orderMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 	m.IsRefundAllowed = decoded.IsRefundAllowed
 	m.FormMode = decoded.FormMode
 	m.IsCurrencyPredefined = decoded.IsCurrencyPredefined
-	m.MetadataValues = decoded.MetadataValues
 
 	if decoded.Refund != nil {
 		m.Refund = &billingpb.OrderNotificationRefund{
