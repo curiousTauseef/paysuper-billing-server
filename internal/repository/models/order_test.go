@@ -8,6 +8,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"log"
 	"testing"
 )
 
@@ -57,15 +58,19 @@ func (suite *OrderTestSuite) Test_MapToMgo_Ok() {
 	buf1 := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
 	marshaler := &jsonpb.Marshaler{}
+	err = marshaler.Marshal(buf1, original)
+	err = marshaler.Marshal(buf2, obj.(*billingpb.Order))
+
+	log.Println(string(buf1.Bytes()))
+	log.Println(string(buf2.Bytes()))
 
 	assert.NoError(suite.T(), marshaler.Marshal(buf1, original))
 	assert.NoError(suite.T(), marshaler.Marshal(buf2, obj.(*billingpb.Order)))
-	assert.JSONEq(suite.T(), string(buf1.Bytes()), string(buf2.Bytes()))
+	assert.Equal(suite.T(), buf1.Bytes(), buf2.Bytes())
 }
 
 func (suite *OrderTestSuite) Test_Error_Items_CreatedAt() {
-	original := &billingpb.Order{
-	}
+	original := &billingpb.Order{}
 	err := faker.FakeData(original)
 	original.Items[0].CreatedAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)
@@ -73,8 +78,7 @@ func (suite *OrderTestSuite) Test_Error_Items_CreatedAt() {
 }
 
 func (suite *OrderTestSuite) Test_Error_Items_UpdatedAt() {
-	original := &billingpb.Order{
-	}
+	original := &billingpb.Order{}
 	err := faker.FakeData(original)
 	original.Items[0].UpdatedAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)
@@ -82,8 +86,7 @@ func (suite *OrderTestSuite) Test_Error_Items_UpdatedAt() {
 }
 
 func (suite *OrderTestSuite) Test_Error_CreatedAt() {
-	original := &billingpb.Order{
-	}
+	original := &billingpb.Order{}
 	err := faker.FakeData(original)
 	original.CreatedAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)
@@ -91,8 +94,7 @@ func (suite *OrderTestSuite) Test_Error_CreatedAt() {
 }
 
 func (suite *OrderTestSuite) Test_Error_RefundedAt() {
-	original := &billingpb.Order{
-	}
+	original := &billingpb.Order{}
 	err := faker.FakeData(original)
 	original.RefundedAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)
@@ -100,8 +102,7 @@ func (suite *OrderTestSuite) Test_Error_RefundedAt() {
 }
 
 func (suite *OrderTestSuite) Test_Error_UpdatedAt() {
-	original := &billingpb.Order{
-	}
+	original := &billingpb.Order{}
 	err := faker.FakeData(original)
 	original.UpdatedAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)
@@ -109,18 +110,15 @@ func (suite *OrderTestSuite) Test_Error_UpdatedAt() {
 }
 
 func (suite *OrderTestSuite) Test_Error_ParentPaymentAt() {
-	original := &billingpb.Order{
-	}
+	original := &billingpb.Order{}
 	err := faker.FakeData(original)
 	original.ParentPaymentAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)
 	assert.Error(suite.T(), err)
 }
 
-
 func (suite *OrderTestSuite) Test_Error_CancelledAt() {
-	original := &billingpb.Order{
-	}
+	original := &billingpb.Order{}
 	err := faker.FakeData(original)
 	original.CanceledAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)

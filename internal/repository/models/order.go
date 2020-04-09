@@ -92,10 +92,10 @@ type MgoOrder struct {
 	FormMode                    string                                   `bson:"form_mode"`
 	IsCurrencyPredefined        bool                                     `bson:"is_currency_predefined"`
 	MetadataValues              []string                                 `bson:"metadata_values" json:"-"`
+	MerchantInfo                *billingpb.OrderViewMerchantInfo         `bson:"merchant_info"`
 }
 
-type orderMapper struct {
-}
+type orderMapper struct{}
 
 func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 	m := obj.(*billingpb.Order)
@@ -191,6 +191,7 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		VatPayer:                    m.VatPayer,
 		IsProduction:                m.IsProduction,
 		FormMode:                    m.FormMode,
+		MerchantInfo:                m.MerchantInfo,
 	}
 
 	if m.Refund != nil {
@@ -508,6 +509,7 @@ func (o *orderMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 	m.CountryCode = decoded.CountryCode
 	m.VatPayer = decoded.VatPayer
 	m.IsProduction = decoded.IsProduction
+	m.MerchantInfo = decoded.MerchantInfo
 
 	m.PaymentMethodOrderClosedAt, err = ptypes.TimestampProto(decoded.PaymentMethodOrderClosedAt)
 	if err != nil {
