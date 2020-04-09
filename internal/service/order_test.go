@@ -79,6 +79,8 @@ type OrderTestSuite struct {
 
 	logObserver *zap.Logger
 	zapRecorder *observer.ObservedLogs
+
+	merchant *billingpb.Merchant
 }
 
 func Test_Order(t *testing.T) {
@@ -2319,6 +2321,8 @@ func (suite *OrderTestSuite) SetupTest() {
 	if err != nil {
 		suite.FailNow("Insert BIN test data failed", "%v", err)
 	}
+
+	suite.merchant = merchant
 }
 
 func (suite *OrderTestSuite) TearDownTest() {
@@ -3554,6 +3558,9 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_Ok() {
 	assert.NotNil(suite.T(), rsp.Item.PaymentMethod)
 	assert.Equal(suite.T(), pkg.OrderTypeOrder, rsp.Item.Type)
 	assert.Equal(suite.T(), req.FormMode, rsp.Item.FormMode)
+	assert.NotNil(suite.T(), rsp.Item.MerchantInfo)
+	assert.Equal(suite.T(), rsp.Item.MerchantInfo.CompanyName, suite.merchant.GetCompanyName())
+	assert.Equal(suite.T(), rsp.Item.MerchantInfo.AgreementNumber, suite.merchant.AgreementNumber)
 }
 
 func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_ProjectInactive_Error() {

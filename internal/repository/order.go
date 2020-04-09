@@ -226,40 +226,6 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 		match,
 		{
 			"$lookup": bson.M{
-				"from": "merchant",
-				"let": bson.M{
-					"merchant_id": "$project.merchant_id",
-				},
-				"pipeline": []bson.M{
-					{
-						"$match": bson.M{
-							"$expr": bson.M{
-								"$eq": []string{
-									"$_id",
-									"$$merchant_id",
-								},
-							},
-						},
-					},
-					{
-						"$project": bson.M{
-							"company_name":     "$company.name",
-							"agreement_number": "$agreement_number",
-							"_id":              0,
-						},
-					},
-				},
-				"as": "merchant_info",
-			},
-		},
-		{
-			"$unwind": bson.M{
-				"path":                       "$merchant_info",
-				"preserveNullAndEmptyArrays": true,
-			},
-		},
-		{
-			"$lookup": bson.M{
 				"from": "accounting_entry",
 				"let": bson.M{
 					"order_id":    "$_id",
@@ -3228,7 +3194,7 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 				"merchant_id":          "$project.merchant_id",
 				"status":               1,
 				"tax_rate":             "$tax.rate",
-				"merchant_info":        1,
+				"merchant_info":        "$merchant_info",
 				"locale": bson.M{
 					"$cond": []interface{}{
 						bson.M{
