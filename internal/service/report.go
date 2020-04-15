@@ -176,9 +176,12 @@ func (s *Service) getOrdersList(
 		query["$or"] = []bson.M{
 			{"uuid": bson.M{"$regex": r}},
 			{"user.external_id": bson.M{"$regex": r, "$exists": true}},
+			{"user.email": bson.M{"$regex": r, "$exists": true}},
+			{"user.phone": bson.M{"$regex": r, "$exists": true}},
 			{"metadata_values": bson.M{"$regex": r}},
 			{"project.name": bson.M{"$elemMatch": bson.M{"value": r}}},
 			{"payment_method.name": bson.M{"$regex": r, "$exists": true}},
+			{"merchant_info.company_name": bson.M{"$regex": r, "$exists": true}},
 		}
 	} else {
 		if req.Id != "" {
@@ -258,6 +261,13 @@ func (s *Service) getOrdersList(
 		if req.StatusNotificationFailedFor != "" {
 			field := fmt.Sprintf(orderFailedNotificationQueryFieldMask, req.StatusNotificationFailedFor)
 			query[field] = false
+		}
+
+		if req.MerchantName != "" {
+			query["merchant_info.company_name"] = bson.M{
+				"$regex":  primitive.Regex{Pattern: ".*" + req.MerchantName + ".*", Options: "i"},
+				"$exists": true,
+			}
 		}
 	}
 

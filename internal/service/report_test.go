@@ -40,6 +40,8 @@ type ReportTestSuite struct {
 	pmBitcoin1              *billingpb.PaymentMethod
 	productIds              []string
 	merchantDefaultCurrency string
+
+	merchant *billingpb.Merchant
 }
 
 func Test_Report(t *testing.T) {
@@ -101,7 +103,7 @@ func (suite *ReportTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	_, suite.project, suite.pmBankCard, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, suite.pmBankCard, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 }
 
 func (suite *ReportTestSuite) TearDownTest() {
@@ -579,4 +581,72 @@ func (suite *ReportTestSuite) TestReport_FindByProjectOrderId_QuickSearch_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), 1, rsp.Item.Count)
+}
+
+func (suite *ReportTestSuite) TestReport_FindByMerchantId_QuickSearch_Ok() {
+	req := &billingpb.ListOrdersRequest{
+		Merchant:    []string{suite.project.MerchantId},
+		QuickSearch: suite.merchant.GetCompanyName(),
+	}
+	rsp := &billingpb.ListOrdersPublicResponse{}
+	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
+
+	expectedCount := 5
+
+	for i := 0; i < expectedCount; i++ {
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	}
+
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+
+	// search by quick filter by partial match
+	merchantName := suite.merchant.GetCompanyName()
+	req.QuickSearch = merchantName[0:4]
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+}
+
+func (suite *ReportTestSuite) TestReport_FindByMerchantId_Ok() {
+	req := &billingpb.ListOrdersRequest{
+		Merchant:     []string{suite.project.MerchantId},
+		MerchantName: suite.merchant.GetCompanyName(),
+	}
+	rsp := &billingpb.ListOrdersPublicResponse{}
+	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
+
+	expectedCount := 3
+
+	for i := 0; i < expectedCount; i++ {
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	}
+
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+
+	// search by quick filter by partial match
+	merchantName := suite.merchant.GetCompanyName()
+	req.MerchantName = merchantName[0:4]
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
 }

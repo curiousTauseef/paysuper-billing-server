@@ -2149,6 +2149,10 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 		IsCurrencyPredefined:    v.checked.isCurrencyPredefined,
 		VatPayer:                v.checked.project.VatPayer,
 		IsProduction:            v.checked.project.IsProduction(),
+		MerchantInfo: &billingpb.OrderViewMerchantInfo{
+			CompanyName:     v.checked.merchant.GetCompanyName(),
+			AgreementNumber: v.checked.merchant.AgreementNumber,
+		},
 	}
 
 	if v.checked.virtualAmount > 0 {
