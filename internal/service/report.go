@@ -118,14 +118,6 @@ func (s *Service) GetOrderPublic(
 	}
 
 	rsp.Item = order
-
-	if rsp.Item.MerchantId != req.MerchantId {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
-		return nil
-	}
-
 	rsp.Status = billingpb.ResponseStatusOk
 
 	return nil

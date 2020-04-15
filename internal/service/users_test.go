@@ -10,6 +10,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinProto "github.com/paysuper/paysuper-proto/go/casbinpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -1727,4 +1728,36 @@ func (suite *UsersTestSuite) Test_getUserPermissions_Ok() {
 	perm, err := suite.service.getUserPermissions(context.TODO(), "1", "2")
 	shouldBe.NoError(err)
 	shouldBe.Len(perm, 1)
+}
+
+func (suite *UsersTestSuite) TestUsers_GetAdminByUserId_Ok() {
+	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
+	userRoleRepositoryMock.On("GetAdminUserByUserId", mock.Anything, mock.Anything).Return(&billingpb.UserRole{}, nil)
+	suite.service.userRoleRepository = userRoleRepositoryMock
+
+	req := &billingpb.CommonUserProfileRequest{
+		UserId: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+	}
+	rsp := &billingpb.UserRoleResponse{}
+	err := suite.service.GetAdminByUserId(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.UserRole)
+}
+
+func (suite *UsersTestSuite) TestUsers_GetAdminByUserId_AdminUserNotFound_Error() {
+	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
+	userRoleRepositoryMock.On("GetAdminUserByUserId", mock.Anything, mock.Anything).
+		Return(nil, errors.New("some error"))
+	suite.service.userRoleRepository = userRoleRepositoryMock
+
+	req := &billingpb.CommonUserProfileRequest{
+		UserId: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+	}
+	rsp := &billingpb.UserRoleResponse{}
+	err := suite.service.GetAdminByUserId(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), errorUserNotFound, rsp.Message)
+	assert.Nil(suite.T(), rsp.UserRole)
 }
