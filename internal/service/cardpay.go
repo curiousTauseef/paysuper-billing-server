@@ -866,6 +866,7 @@ func (t *cardPayTransport) log(reqUrl string, reqHeader http.Header, reqBody []b
 
 	zap.L().Info(
 		reqUrl,
+		zap.String("action", "payment_create"),
 		zap.Any("request_headers", reqHeader),
 		zap.ByteString("request_body", request),
 		zap.Int("response_status", rsp.StatusCode),

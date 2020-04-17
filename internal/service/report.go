@@ -39,19 +39,10 @@ func (s *Service) FindAllOrdersPublic(
 		return nil
 	}
 
-	orderList := orders.([]*billingpb.OrderViewPublic)
-
-	if len(orderList) > 0 && orderList[0].MerchantId != req.Merchant[0] {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = reportErrorUnknown
-
-		return nil
-	}
-
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Item = &billingpb.ListOrdersPublicResponseItem{
 		Count: count,
-		Items: orderList,
+		Items: orders.([]*billingpb.OrderViewPublic),
 	}
 
 	return nil
