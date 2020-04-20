@@ -2,7 +2,7 @@ package mocks
 
 import (
 	"errors"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/streadway/amqp"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 )
@@ -39,6 +39,8 @@ func (b *BrokerMockOk) Publish(topic string, msg proto.Message, h amqp.Table) er
 
 func (b *BrokerMockOk) SetExchangeName(name string) {}
 
+func (b *BrokerMockOk) SetQueueOptsArgs(args amqp.Table) {}
+
 func (b *BrokerMockError) RegisterSubscriber(topic string, fn interface{}) error {
 	return errors.New(SomeError)
 }
@@ -52,3 +54,5 @@ func (b *BrokerMockError) Publish(topic string, msg proto.Message, h amqp.Table)
 }
 
 func (b *BrokerMockError) SetExchangeName(name string) {}
+
+func (b *BrokerMockError) SetQueueOptsArgs(args amqp.Table) {}
