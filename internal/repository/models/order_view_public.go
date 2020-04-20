@@ -63,6 +63,7 @@ type MgoOrderViewPublic struct {
 	BillingCountryChangedByUser             bool                                     `bson:"billing_country_changed_by_user"`
 	VatPayer                                string                                   `bson:"vat_payer"`
 	IsProduction                            bool                                     `bson:"is_production"`
+	MerchantInfo                            *billingpb.OrderViewMerchantInfo         `bson:"merchant_info"`
 }
 
 func NewOrderViewPublicMapper() Mapper {
@@ -138,6 +139,7 @@ func (o *orderViewPublicMapper) MapMgoToObject(obj interface{}) (interface{}, er
 	m.BillingCountryChangedByUser = decoded.BillingCountryChangedByUser
 	m.VatPayer = decoded.VatPayer
 	m.IsProduction = decoded.IsProduction
+	m.MerchantInfo = decoded.MerchantInfo
 
 	m.CreatedAt, err = ptypes.TimestampProto(decoded.CreatedAt)
 	if err != nil {

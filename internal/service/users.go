@@ -1023,3 +1023,23 @@ func (s *Service) GetAdminUserRole(
 
 	return nil
 }
+
+func (s *Service) GetAdminByUserId(
+	ctx context.Context,
+	req *billingpb.CommonUserProfileRequest,
+	rsp *billingpb.UserRoleResponse,
+) error {
+	user, err := s.userRoleRepository.GetAdminUserByUserId(ctx, req.UserId)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = errorUserNotFound
+
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.UserRole = user
+
+	return nil
+}
