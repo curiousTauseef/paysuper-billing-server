@@ -954,7 +954,28 @@ func (suite *PaylinkTestSuite) Test_Paylink_GetPaylink_Ok() {
 	res.Item.UpdatedAt = suite.paylink1.UpdatedAt
 	res.Item.ExpiresAt = suite.paylink1.ExpiresAt
 
-	assert.Equal(suite.T(), res.Item, suite.paylink1)
+	assert.Equal(suite.T(), res.Item.Id, suite.paylink1.Id)
+	assert.Equal(suite.T(), res.Item.Object, suite.paylink1.Object)
+	assert.Equal(suite.T(), res.Item.Products, suite.paylink1.Products)
+	assert.Equal(suite.T(), res.Item.ExpiresAt, suite.paylink1.ExpiresAt)
+	assert.Equal(suite.T(), res.Item.CreatedAt, suite.paylink1.CreatedAt)
+	assert.Equal(suite.T(), res.Item.UpdatedAt, suite.paylink1.UpdatedAt)
+	assert.Equal(suite.T(), res.Item.MerchantId, suite.paylink1.MerchantId)
+	assert.Equal(suite.T(), res.Item.ProjectId, suite.paylink1.ProjectId)
+	assert.Equal(suite.T(), res.Item.Name, suite.paylink1.Name)
+	assert.Equal(suite.T(), res.Item.IsExpired, suite.paylink1.IsExpired)
+	assert.Equal(suite.T(), res.Item.Visits, suite.paylink1.Visits)
+	assert.Equal(suite.T(), res.Item.NoExpiryDate, suite.paylink1.NoExpiryDate)
+	assert.Equal(suite.T(), res.Item.ProductsType, suite.paylink1.ProductsType)
+	assert.Equal(suite.T(), res.Item.Deleted, suite.paylink1.Deleted)
+	assert.Equal(suite.T(), res.Item.TotalTransactions, suite.paylink1.TotalTransactions)
+	assert.Equal(suite.T(), res.Item.SalesCount, suite.paylink1.SalesCount)
+	assert.Equal(suite.T(), res.Item.ReturnsCount, suite.paylink1.ReturnsCount)
+	assert.Equal(suite.T(), res.Item.Conversion, suite.paylink1.Conversion)
+	assert.Equal(suite.T(), res.Item.GrossSalesAmount, suite.paylink1.GrossSalesAmount)
+	assert.Equal(suite.T(), res.Item.GrossReturnsAmount, suite.paylink1.GrossReturnsAmount)
+	assert.Equal(suite.T(), res.Item.GrossTotalAmount, suite.paylink1.GrossTotalAmount)
+	assert.Equal(suite.T(), res.Item.TransactionsCurrency, suite.paylink1.TransactionsCurrency)
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_GetPaylink_Ok_Expired() {
@@ -973,7 +994,29 @@ func (suite *PaylinkTestSuite) Test_Paylink_GetPaylink_Ok_Expired() {
 	res.Item.UpdatedAt = suite.paylink3.UpdatedAt
 	res.Item.ExpiresAt = suite.paylink3.ExpiresAt
 
-	assert.Equal(suite.T(), res.Item, suite.paylink3)
+	assert.Equal(suite.T(), res.Item.Id, suite.paylink3.Id)
+	assert.Equal(suite.T(), res.Item.Object, suite.paylink3.Object)
+	assert.Equal(suite.T(), res.Item.Products, suite.paylink3.Products)
+	assert.Equal(suite.T(), res.Item.ExpiresAt, suite.paylink3.ExpiresAt)
+	assert.Equal(suite.T(), res.Item.CreatedAt, suite.paylink3.CreatedAt)
+	assert.Equal(suite.T(), res.Item.UpdatedAt, suite.paylink3.UpdatedAt)
+	assert.Equal(suite.T(), res.Item.MerchantId, suite.paylink3.MerchantId)
+	assert.Equal(suite.T(), res.Item.ProjectId, suite.paylink3.ProjectId)
+	assert.Equal(suite.T(), res.Item.Name, suite.paylink3.Name)
+	assert.Equal(suite.T(), res.Item.IsExpired, suite.paylink3.IsExpired)
+	assert.Equal(suite.T(), res.Item.Visits, suite.paylink3.Visits)
+	assert.Equal(suite.T(), res.Item.NoExpiryDate, suite.paylink3.NoExpiryDate)
+	assert.Equal(suite.T(), res.Item.ProductsType, suite.paylink3.ProductsType)
+	assert.Equal(suite.T(), res.Item.Deleted, suite.paylink3.Deleted)
+	assert.Equal(suite.T(), res.Item.TotalTransactions, suite.paylink3.TotalTransactions)
+	assert.Equal(suite.T(), res.Item.SalesCount, suite.paylink3.SalesCount)
+	assert.Equal(suite.T(), res.Item.ReturnsCount, suite.paylink3.ReturnsCount)
+	assert.Equal(suite.T(), res.Item.Conversion, suite.paylink3.Conversion)
+	assert.Equal(suite.T(), res.Item.GrossSalesAmount, suite.paylink3.GrossSalesAmount)
+	assert.Equal(suite.T(), res.Item.GrossReturnsAmount, suite.paylink3.GrossReturnsAmount)
+	assert.Equal(suite.T(), res.Item.GrossTotalAmount, suite.paylink3.GrossTotalAmount)
+	assert.Equal(suite.T(), res.Item.TransactionsCurrency, suite.paylink3.TransactionsCurrency)
+
 }
 
 func (suite *PaylinkTestSuite) Test_Paylink_GetPaylink_Fail_Deleted() {
