@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 )
 
 const (
@@ -556,7 +557,7 @@ func (r *paymentMethodRepository) FindByName(ctx context.Context, name string, s
 	query := bson.M{"is_active": true}
 
 	if name != "" {
-		query["name"] = primitive.Regex{Pattern: ".*" + name + ".*", Options: "i"}
+		query["name"] = primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(name) + ".*", Options: "i"}
 	}
 
 	opts := options.Find().SetSort(mongodb.ToSortOption(sort))

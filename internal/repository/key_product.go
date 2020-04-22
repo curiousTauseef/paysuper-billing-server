@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 )
 
 const (
@@ -274,10 +275,10 @@ func (r *keyProductRepository) Find(
 	}
 
 	if sku != "" {
-		query["sku"] = primitive.Regex{Pattern: sku, Options: "i"}
+		query["sku"] = primitive.Regex{Pattern: regexp.QuoteMeta(sku), Options: "i"}
 	}
 	if name != "" {
-		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: name, Options: "i"}}}
+		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: regexp.QuoteMeta(name), Options: "i"}}}
 	}
 
 	if enabled == "true" {
@@ -362,10 +363,10 @@ func (r *keyProductRepository) FindCount(ctx context.Context, merchantId, projec
 	}
 
 	if sku != "" {
-		query["sku"] = primitive.Regex{Pattern: sku, Options: "i"}
+		query["sku"] = primitive.Regex{Pattern: regexp.QuoteMeta(sku), Options: "i"}
 	}
 	if name != "" {
-		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: name, Options: "i"}}}
+		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: regexp.QuoteMeta(name), Options: "i"}}}
 	}
 
 	if enabled == "true" {

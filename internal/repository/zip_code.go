@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 )
 
 const (
@@ -115,7 +116,10 @@ func (h *zipCodeRepository) GetByZipAndCountry(ctx context.Context, zip, country
 }
 
 func (h *zipCodeRepository) FindByZipAndCountry(ctx context.Context, zip, country string, offset, limit int64) ([]*billingpb.ZipCode, error) {
-	query := bson.D{{"zip", primitive.Regex{Pattern: zip}}, {"country", country}}
+	query := bson.D{
+		{"zip", primitive.Regex{Pattern: regexp.QuoteMeta(zip)}},
+		{"country", country},
+	}
 	opts := options.Find().SetLimit(limit).SetSkip(offset)
 	cursor, err := h.db.Collection(collectionZipCode).Find(ctx, query, opts)
 
