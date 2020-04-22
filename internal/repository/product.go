@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 )
 
 const (
@@ -258,10 +259,10 @@ func (r *productRepository) Find(
 	}
 
 	if sku != "" {
-		query["sku"] = primitive.Regex{Pattern: sku, Options: "i"}
+		query["sku"] = primitive.Regex{Pattern: regexp.QuoteMeta(sku), Options: "i"}
 	}
 	if name != "" {
-		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: name, Options: "i"}}}
+		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: regexp.QuoteMeta(name), Options: "i"}}}
 	}
 
 	if enabled > 0 {
@@ -355,10 +356,10 @@ func (r *productRepository) FindCount(
 	}
 
 	if sku != "" {
-		query["sku"] = primitive.Regex{Pattern: sku, Options: "i"}
+		query["sku"] = primitive.Regex{Pattern: regexp.QuoteMeta(sku), Options: "i"}
 	}
 	if name != "" {
-		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: name, Options: "i"}}}
+		query["name"] = bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: regexp.QuoteMeta(name), Options: "i"}}}
 	}
 
 	if enabled > 0 {

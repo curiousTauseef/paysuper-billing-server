@@ -484,7 +484,6 @@ func (h *merchantRepository) GetAll(ctx context.Context) ([]*billingpb.Merchant,
 		return nil, err
 	}
 
-
 	var mgoMerchants []*models.MgoMerchant
 	err = cursor.All(ctx, &mgoMerchants)
 

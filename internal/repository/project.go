@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 	"strings"
 )
 
@@ -274,9 +275,10 @@ func (r *projectRepository) Find(
 	}
 
 	if quickSearch != "" {
+		pattern := primitive.Regex{Pattern: regexp.QuoteMeta(quickSearch), Options: "i"}
 		query["$or"] = []bson.M{
-			{"name": bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: quickSearch, Options: "i"}}}},
-			{"id_string": primitive.Regex{Pattern: quickSearch, Options: "i"}},
+			{"name": bson.M{"$elemMatch": bson.M{"value": pattern}}},
+			{"id_string": pattern},
 		}
 	}
 
@@ -421,9 +423,10 @@ func (r *projectRepository) FindCount(ctx context.Context, merchantId, quickSear
 	}
 
 	if quickSearch != "" {
+		pattern := primitive.Regex{Pattern: regexp.QuoteMeta(quickSearch), Options: "i"}
 		query["$or"] = []bson.M{
-			{"name": bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: quickSearch, Options: "i"}}}},
-			{"id_string": primitive.Regex{Pattern: quickSearch, Options: "i"}},
+			{"name": bson.M{"$elemMatch": bson.M{"value": pattern}}},
+			{"id_string": pattern},
 		}
 	}
 

@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 	"time"
 )
 
@@ -154,7 +155,7 @@ func (s *Service) getOrdersList(
 	}
 
 	if req.QuickSearch != "" {
-		r := primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}
+		r := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.QuickSearch) + ".*", Options: "i"}
 
 		query["$or"] = []bson.M{
 			{"uuid": bson.M{"$regex": r}},
@@ -202,7 +203,7 @@ func (s *Service) getOrdersList(
 		}
 
 		if req.Account != "" {
-			r := primitive.Regex{Pattern: ".*" + req.Account + ".*", Options: "i"}
+			r := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.Account) + ".*", Options: "i"}
 			query["$or"] = []bson.M{
 				{"user.external_id": r},
 				{"user.phone": r},
@@ -248,7 +249,7 @@ func (s *Service) getOrdersList(
 
 		if req.MerchantName != "" {
 			query["merchant_info.company_name"] = bson.M{
-				"$regex":  primitive.Regex{Pattern: ".*" + req.MerchantName + ".*", Options: "i"},
+				"$regex":  primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.MerchantName) + ".*", Options: "i"},
 				"$exists": true,
 			}
 		}

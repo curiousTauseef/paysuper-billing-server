@@ -20,6 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -123,15 +124,16 @@ func (s *Service) ListMerchants(
 	query := make(bson.M)
 
 	if req.QuickSearch != "" {
+		pattern := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.QuickSearch) + ".*", Options: "i"}
 		query["$or"] = []bson.M{
-			{"company.name": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
-			{"user.email": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
-			{"user.first_name": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
-			{"user.last_name": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
+			{"company.name": pattern},
+			{"user.email": pattern},
+			{"user.first_name": pattern},
+			{"user.last_name": pattern},
 		}
 	} else {
 		if req.Name != "" {
-			query["company.name"] = primitive.Regex{Pattern: ".*" + req.Name + ".*", Options: "i"}
+			query["company.name"] = primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.Name) + ".*", Options: "i"}
 		}
 
 		if req.LastPayoutDateFrom > 0 || req.LastPayoutDateTo > 0 {
