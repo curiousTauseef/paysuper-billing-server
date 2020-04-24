@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	tools "github.com/paysuper/paysuper-tools/number"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -113,6 +115,12 @@ var (
 	rollingReserveAccountingEntriesList = []string{
 		pkg.AccountingEntryTypeMerchantRollingReserveCreate,
 		pkg.AccountingEntryTypeMerchantRollingReserveRelease,
+	}
+
+	processableOrderStatus = []string{
+		recurringpb.OrderPublicStatusProcessed,
+		recurringpb.OrderPublicStatusRefunded,
+		recurringpb.OrderPublicStatusChargeback,
 	}
 )
 
@@ -252,6 +260,10 @@ func (s *Service) CreateAccountingEntry(
 }
 
 func (s *Service) onPaymentNotify(ctx context.Context, order *billingpb.Order) error {
+	if !helper.Contains(processableOrderStatus, order.GetPublicStatus()) {
+		return nil
+	}
+
 	country, err := s.country.GetByIsoCodeA2(ctx, order.GetCountry())
 	if err != nil {
 		return err
@@ -274,6 +286,10 @@ func (s *Service) onPaymentNotify(ctx context.Context, order *billingpb.Order) e
 }
 
 func (s *Service) onRefundNotify(ctx context.Context, refund *billingpb.Refund, order *billingpb.Order) error {
+	if !helper.Contains(processableOrderStatus, order.GetPublicStatus()) {
+		return nil
+	}
+
 	country, err := s.country.GetByIsoCodeA2(ctx, order.GetCountry())
 
 	if err != nil {
