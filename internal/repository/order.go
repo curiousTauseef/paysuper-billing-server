@@ -93,18 +93,44 @@ func (h *orderRepository) Update(ctx context.Context, order *billingpb.Order) er
 	return nil
 }
 
-func (h *orderRepository) GetByUuid(ctx context.Context, uuid string) (*billingpb.Order, error) {
-	query := bson.M{"uuid": uuid}
+func (h *orderRepository) GetByUuidAndMerchantId(
+	ctx context.Context,
+	uuid string,
+	merchantId string,
+) (*billingpb.Order, error) {
+	filter := bson.M{
+		"uuid": uuid,
+	}
 
+	if merchantId != "" {
+		oid, err := primitive.ObjectIDFromHex(merchantId)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
+				zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+			)
+			return nil, err
+		}
+
+		filter["project.merchant_id"] = oid
+	}
+
+	return h.GetOneBy(ctx, filter)
+}
+
+func (h *orderRepository) GetOneBy(ctx context.Context, filter bson.M) (*billingpb.Order, error) {
 	mgo := &models.MgoOrder{}
-	err := h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
+	err := h.db.Collection(CollectionOrder).FindOne(ctx, filter).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
 		)
 		return nil, err
 	}
@@ -120,6 +146,10 @@ func (h *orderRepository) GetByUuid(ctx context.Context, uuid string) (*billingp
 	}
 
 	return obj.(*billingpb.Order), nil
+}
+
+func (h *orderRepository) GetByUuid(ctx context.Context, uuid string) (*billingpb.Order, error) {
+	return h.GetOneBy(ctx, bson.M{"uuid": uuid})
 }
 
 func (h *orderRepository) GetById(ctx context.Context, id string) (*billingpb.Order, error) {
@@ -135,60 +165,11 @@ func (h *orderRepository) GetById(ctx context.Context, id string) (*billingpb.Or
 		return nil, err
 	}
 
-	query := bson.M{"_id": oid}
-	mgo := &models.MgoOrder{}
-	err = h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, err
-	}
-
-	obj, err := h.mapper.MapMgoToObject(mgo)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorMapModelFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
-		)
-		return nil, err
-	}
-
-	return obj.(*billingpb.Order), nil
+	return h.GetOneBy(ctx, bson.M{"_id": oid})
 }
 
 func (h *orderRepository) GetByRefundReceiptNumber(ctx context.Context, id string) (*billingpb.Order, error) {
-	query := bson.M{"refund.receipt_number": id}
-	mgo := &models.MgoOrder{}
-
-	err := h.db.Collection(CollectionOrder).FindOne(ctx, query).Decode(mgo)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, err
-	}
-
-	obj, err := h.mapper.MapMgoToObject(mgo)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorMapModelFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
-		)
-		return nil, err
-	}
-
-	return obj.(*billingpb.Order), nil
+	return h.GetOneBy(ctx, bson.M{"refund.receipt_number": id})
 }
 
 func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) error {
