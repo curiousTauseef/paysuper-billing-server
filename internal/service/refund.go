@@ -138,17 +138,9 @@ func (s *Service) GetRefund(
 	req *billingpb.GetRefundRequest,
 	rsp *billingpb.CreateRefundResponse,
 ) error {
-	order, err := s.orderRepository.GetByUuid(ctx, req.OrderId)
+	_, err := s.orderRepository.GetByUuidAndMerchantId(ctx, req.OrderId, req.MerchantId)
 
 	if err != nil {
-		rsp.Status = billingpb.ResponseStatusNotFound
-		rsp.Message = refundErrorNotFound
-
-		return nil
-	}
-
-	if order.GetMerchantId() != req.MerchantId {
-		zap.S().Errorw("Merchant ID does not match requested.", "uuid", req.OrderId, "merchantId", req.MerchantId)
 		rsp.Status = billingpb.ResponseStatusNotFound
 		rsp.Message = refundErrorNotFound
 
@@ -452,10 +444,6 @@ func (p *createRefundProcessor) processCreateRefund() (*billingpb.Refund, error)
 
 	order := p.checked.order
 
-	if order.GetMerchantId() != p.request.MerchantId {
-		return nil, newBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorOrderNotFound)
-	}
-
 	refund := &billingpb.Refund{
 		Id: primitive.NewObjectID().Hex(),
 		OriginalOrder: &billingpb.RefundOrder{
@@ -498,7 +486,7 @@ func (p *createRefundProcessor) processCreateRefund() (*billingpb.Refund, error)
 }
 
 func (p *createRefundProcessor) processOrder() error {
-	order, err := p.service.getOrderByUuid(p.ctx, p.request.OrderId)
+	order, err := p.service.orderRepository.GetByUuidAndMerchantId(p.ctx, p.request.OrderId, p.request.MerchantId)
 
 	if err != nil {
 		return newBillingServerResponseError(billingpb.ResponseStatusNotFound, refundErrorNotFound)
