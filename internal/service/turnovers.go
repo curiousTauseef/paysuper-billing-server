@@ -35,20 +35,7 @@ func (s *Service) CalcAnnualTurnovers(ctx context.Context, req *billingpb.EmptyR
 		return err
 	}
 	for _, operatingCompany := range operatingCompanies {
-		var cnt []*billingpb.Country
-
-		if len(operatingCompany.PaymentCountries) == 0 {
-			cnt = countries.Countries
-		} else {
-			for _, countryCode := range operatingCompany.PaymentCountries {
-				country, err := s.country.GetByIsoCodeA2(ctx, countryCode)
-				if err != nil {
-					return err
-				}
-				cnt = append(cnt, country)
-			}
-		}
-		for _, country := range cnt {
+		for _, country := range countries.Countries {
 			err = s.calcAnnualTurnover(ctx, country.IsoCodeA2, operatingCompany.Id)
 			if err != nil {
 				if err != errorTurnoversCurrencyRatesPolicyNotSupported {

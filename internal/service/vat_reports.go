@@ -514,19 +514,6 @@ func (h *vatReportProcessor) ProcessVatReports(ctx context.Context) error {
 	}
 
 	for _, oc := range operatingCompanies {
-		var countries []*billingpb.Country
-
-		if len(oc.PaymentCountries) == 0 {
-			countries = h.countries
-		} else {
-			for _, countryCode := range oc.PaymentCountries {
-				country, err := h.Service.country.GetByIsoCodeA2(ctx, countryCode)
-				if err != nil {
-					return err
-				}
-				countries = append(countries, country)
-			}
-		}
 		for _, c := range h.countries {
 			err := h.processVatReportForPeriod(ctx, c, oc.Id)
 			if err != nil {
