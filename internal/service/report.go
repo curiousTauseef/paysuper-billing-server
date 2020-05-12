@@ -205,9 +205,9 @@ func (s *Service) getOrdersList(
 		if req.Account != "" {
 			r := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.Account) + ".*", Options: "i"}
 			query["$or"] = []bson.M{
-				{"user.external_id": r},
-				{"user.phone": r},
-				{"user.email": r},
+				{"user.external_id": bson.M{"$regex": r}},
+				{"user.phone": bson.M{"$regex": r}},
+				{"user.email": bson.M{"$regex": r}},
 				{"payment_method.card.masked": bson.M{"$regex": r, "$exists": true}},
 				{"payment_method.crypto_currency.address": bson.M{"$regex": r, "$exists": true}},
 				{"payment_method.wallet.account": bson.M{"$regex": r, "$exists": true}},
