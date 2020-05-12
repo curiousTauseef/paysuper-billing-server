@@ -6,6 +6,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
@@ -379,7 +380,7 @@ func (suite *ReportTestSuite) TestReport_FindByAccount() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByPmDateFrom() {
-	req := &billingpb.ListOrdersRequest{PmDateFrom: time.Now().Unix() - 10}
+	req := &billingpb.ListOrdersRequest{PmDateFrom: time.Now().Add(-10 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -407,7 +408,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateFrom() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
-	req := &billingpb.ListOrdersRequest{PmDateTo: time.Now().Unix() + 1000}
+	req := &billingpb.ListOrdersRequest{PmDateTo: time.Now().Add(1000 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -425,7 +426,11 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
 	}
 
 	req.Merchant = append(req.Merchant, suite.project.MerchantId)
-	req.PmDateTo = date.Seconds + 100
+
+	t, err := ptypes.Timestamp(date)
+	assert.NoError(suite.T(), err)
+	req.PmDateTo = t.Add(100 * time.Second).Format(billingpb.FilterDatetimeFormat)
+
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
@@ -438,7 +443,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByProjectDateFrom() {
-	req := &billingpb.ListOrdersRequest{ProjectDateFrom: time.Now().Unix() - 10}
+	req := &billingpb.ListOrdersRequest{ProjectDateFrom: time.Now().UTC().Add(-10 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -466,7 +471,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateFrom() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByProjectDateTo() {
-	req := &billingpb.ListOrdersRequest{ProjectDateTo: time.Now().Unix() + 100}
+	req := &billingpb.ListOrdersRequest{ProjectDateTo: time.Now().Add(100 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
