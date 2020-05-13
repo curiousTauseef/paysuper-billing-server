@@ -136,15 +136,15 @@ func (s *Service) ListMerchants(
 			query["company.name"] = primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.Name) + ".*", Options: "i"}
 		}
 
-		if req.LastPayoutDateFrom > 0 || req.LastPayoutDateTo > 0 {
+		if req.LastPayoutDateFrom != "" || req.LastPayoutDateTo != "" {
 			payoutDates := make(bson.M)
 
-			if req.LastPayoutDateFrom > 0 {
-				payoutDates["$gte"] = time.Unix(req.LastPayoutDateFrom, 0)
+			if req.LastPayoutDateFrom != "" {
+				payoutDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.LastPayoutDateFrom)
 			}
 
-			if req.LastPayoutDateTo > 0 {
-				payoutDates["$lte"] = time.Unix(req.LastPayoutDateTo, 0)
+			if req.LastPayoutDateTo != "" {
+				payoutDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.LastPayoutDateTo)
 			}
 
 			query["last_payout.date"] = payoutDates
@@ -162,29 +162,29 @@ func (s *Service) ListMerchants(
 			query["last_payout.amount"] = req.LastPayoutAmount
 		}
 
-		if req.RegistrationDateFrom > 0 || req.RegistrationDateTo > 0 {
+		if req.RegistrationDateFrom != "" || req.RegistrationDateTo != "" {
 			regDates := bson.M{}
 
-			if req.RegistrationDateFrom > 0 {
-				regDates["$gte"] = time.Unix(req.RegistrationDateFrom, 0)
+			if req.RegistrationDateFrom != "" {
+				regDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.RegistrationDateFrom)
 			}
 
-			if req.RegistrationDateTo > 0 {
-				regDates["$lte"] = time.Unix(req.RegistrationDateTo, 0)
+			if req.RegistrationDateTo != "" {
+				regDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.RegistrationDateTo)
 			}
 
 			query["user.registration_date"] = regDates
 		}
 
-		if req.ReceivedDateFrom > 0 || req.ReceivedDateTo > 0 {
+		if req.ReceivedDateFrom != "" || req.ReceivedDateTo != "" {
 			dates := bson.M{}
 
-			if req.ReceivedDateFrom > 0 {
-				dates["$gte"] = time.Unix(req.ReceivedDateFrom, 0)
+			if req.ReceivedDateFrom != "" {
+				dates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ReceivedDateFrom)
 			}
 
-			if req.ReceivedDateTo > 0 {
-				dates["$lte"] = time.Unix(req.ReceivedDateTo, 0)
+			if req.ReceivedDateTo != "" {
+				dates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ReceivedDateTo)
 			}
 
 			query["received_date"] = dates

@@ -26,8 +26,8 @@ type PayoutRepositoryInterface interface {
 	GetLast(context.Context, string, string) (*billingpb.PayoutDocument, error)
 
 	// Find payouts by merchant, statuses and dates from/to with pagination.
-	Find(context.Context, string, []string, int64, int64, int64, int64) ([]*billingpb.PayoutDocument, error)
+	Find(ctx context.Context, merchantId string, statuses []string, dateFrom, dateTo string, limit, offset int64) ([]*billingpb.PayoutDocument, error)
 
 	// FindCount return count of payouts by merchant, statuses and dates from/to.
-	FindCount(context.Context, string, []string, int64, int64) (int64, error)
+	FindCount(ctx context.Context, merchantId string, statuses []string, dateFrom, dateTo string) (int64, error)
 }

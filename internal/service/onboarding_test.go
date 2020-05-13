@@ -1138,7 +1138,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateFromQue
 	date := time.Now().Add(time.Hour * -450)
 
 	req := &billingpb.MerchantListingRequest{
-		LastPayoutDateFrom: date.Unix(),
+		LastPayoutDateFrom: date.Format(billingpb.FilterDatetimeFormat),
 	}
 	rsp := &billingpb.MerchantListingResponse{}
 
@@ -1153,7 +1153,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateToQuery
 	date := time.Now()
 
 	req := &billingpb.MerchantListingRequest{
-		LastPayoutDateTo: date.Unix(),
+		LastPayoutDateTo: date.Format(billingpb.FilterDatetimeFormat),
 	}
 	rsp := &billingpb.MerchantListingResponse{}
 
@@ -1166,8 +1166,8 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateToQuery
 
 func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateFromToQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{
-		LastPayoutDateFrom: time.Now().Add(time.Hour * -500).Unix(),
-		LastPayoutDateTo:   time.Now().Add(time.Hour * -400).Unix(),
+		LastPayoutDateFrom: time.Now().Add(time.Hour * -500).Format(billingpb.FilterDatetimeFormat),
+		LastPayoutDateTo:   time.Now().Add(time.Hour * -400).Format(billingpb.FilterDatetimeFormat),
 	}
 	rsp := &billingpb.MerchantListingResponse{}
 
@@ -3323,7 +3323,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 		assert.NoError(suite.T(), err)
 	}
 
-	req2 := &billingpb.MerchantListingRequest{RegistrationDateFrom: time.Now().Add(-49 * time.Hour).Unix()}
+	req2 := &billingpb.MerchantListingRequest{RegistrationDateFrom: time.Now().Add(-49 * time.Hour).Format(billingpb.FilterDatetimeFormat)}
 	rsp2 := &billingpb.MerchantListingResponse{}
 
 	err := suite.service.ListMerchants(context.TODO(), req2, rsp2)
@@ -3331,13 +3331,13 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 	assert.EqualValues(suite.T(), 7, rsp2.Count)
 	assert.Len(suite.T(), rsp2.Items, int(rsp2.Count))
 
-	req2.RegistrationDateTo = time.Now().Add(-23 * time.Hour).Unix()
+	req2.RegistrationDateTo = time.Now().Add(-23 * time.Hour).Format(billingpb.FilterDatetimeFormat)
 	err = suite.service.ListMerchants(context.TODO(), req2, rsp2)
 	assert.Nil(suite.T(), err)
 	assert.EqualValues(suite.T(), 3, rsp2.Count)
 	assert.Len(suite.T(), rsp2.Items, int(rsp2.Count))
 
-	req2 = &billingpb.MerchantListingRequest{RegistrationDateTo: time.Now().Add(-48 * time.Hour).Unix()}
+	req2 = &billingpb.MerchantListingRequest{RegistrationDateTo: time.Now().Add(-48 * time.Hour).Format(billingpb.FilterDatetimeFormat)}
 	err = suite.service.ListMerchants(context.TODO(), req2, rsp2)
 	assert.Nil(suite.T(), err)
 	assert.EqualValues(suite.T(), 6, rsp2.Count)
@@ -3375,7 +3375,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 		assert.NoError(suite.T(), err)
 	}
 
-	req2 := &billingpb.MerchantListingRequest{ReceivedDateFrom: time.Now().Add(-49 * time.Hour).Unix()}
+	req2 := &billingpb.MerchantListingRequest{ReceivedDateFrom: time.Now().Add(-49 * time.Hour).Format(billingpb.FilterDatetimeFormat)}
 	rsp2 := &billingpb.MerchantListingResponse{}
 
 	err := suite.service.ListMerchants(context.TODO(), req2, rsp2)
@@ -3383,13 +3383,13 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 	assert.EqualValues(suite.T(), 7, rsp2.Count)
 	assert.Len(suite.T(), rsp2.Items, int(rsp2.Count))
 
-	req2.ReceivedDateTo = time.Now().Add(-23 * time.Hour).Unix()
+	req2.ReceivedDateTo = time.Now().Add(-23 * time.Hour).Format(billingpb.FilterDatetimeFormat)
 	err = suite.service.ListMerchants(context.TODO(), req2, rsp2)
 	assert.Nil(suite.T(), err)
 	assert.EqualValues(suite.T(), 3, rsp2.Count)
 	assert.Len(suite.T(), rsp2.Items, int(rsp2.Count))
 
-	req2 = &billingpb.MerchantListingRequest{ReceivedDateTo: time.Now().Add(-48 * time.Hour).Unix()}
+	req2 = &billingpb.MerchantListingRequest{ReceivedDateTo: time.Now().Add(-48 * time.Hour).Format(billingpb.FilterDatetimeFormat)}
 	err = suite.service.ListMerchants(context.TODO(), req2, rsp2)
 	assert.Nil(suite.T(), err)
 	assert.EqualValues(suite.T(), 6, rsp2.Count)

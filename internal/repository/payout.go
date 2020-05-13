@@ -363,7 +363,7 @@ func (r *payoutRepository) GetLast(ctx context.Context, merchantId, currency str
 	return obj.(*billingpb.PayoutDocument), nil
 }
 
-func (r *payoutRepository) FindCount(ctx context.Context, merchantId string, status []string, dateFrom, dateTo int64) (int64, error) {
+func (r *payoutRepository) FindCount(ctx context.Context, merchantId string, status []string, dateFrom, dateTo string) (int64, error) {
 	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
 
 	if err != nil {
@@ -382,14 +382,17 @@ func (r *payoutRepository) FindCount(ctx context.Context, merchantId string, sta
 		query["status"] = bson.M{"$in": status}
 	}
 
-	if dateFrom > 0 || dateTo > 0 {
+	if dateFrom != "" || dateTo != "" {
 		date := bson.M{}
-		if dateFrom > 0 {
-			date["$gte"] = time.Unix(dateFrom, 0)
+
+		if dateFrom != "" {
+			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
 		}
-		if dateTo > 0 {
-			date["$lte"] = time.Unix(dateTo, 0)
+
+		if dateTo != "" {
+			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
 		}
+
 		query["created_at"] = date
 	}
 
@@ -412,7 +415,7 @@ func (r *payoutRepository) Find(
 	ctx context.Context,
 	merchantId string,
 	status []string,
-	dateFrom, dateTo,
+	dateFrom, dateTo string,
 	offset, limit int64,
 ) ([]*billingpb.PayoutDocument, error) {
 	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
@@ -433,14 +436,17 @@ func (r *payoutRepository) Find(
 		query["status"] = bson.M{"$in": status}
 	}
 
-	if dateFrom > 0 || dateTo > 0 {
+	if dateFrom != "" || dateTo != "" {
 		date := bson.M{}
-		if dateFrom > 0 {
-			date["$gte"] = time.Unix(dateFrom, 0)
+
+		if dateFrom != "" {
+			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
 		}
-		if dateTo > 0 {
-			date["$lte"] = time.Unix(dateTo, 0)
+
+		if dateTo != "" {
+			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
 		}
+
 		query["created_at"] = date
 	}
 

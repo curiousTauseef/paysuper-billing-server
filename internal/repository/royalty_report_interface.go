@@ -46,8 +46,8 @@ type RoyaltyReportRepositoryInterface interface {
 	GetRoyaltyHistoryById(ctx context.Context, id string) ([]*billingpb.RoyaltyReportChanges, error)
 
 	// FindByMerchantStatusDates returns the royalty reports by merchant id, status and dates from/to.
-	FindByMerchantStatusDates(context.Context, string, []string, int64, int64, int64, int64) ([]*billingpb.RoyaltyReport, error)
+	FindByMerchantStatusDates(ctx context.Context, merchantId string, statuses []string, dateFrom, dateTo string, limit, offset int64) ([]*billingpb.RoyaltyReport, error)
 
 	// FindCountByMerchantStatusDates returns count of royalty reports by merchant id, status and dates from/to.
-	FindCountByMerchantStatusDates(context.Context, string, []string, int64, int64) (int64, error)
+	FindCountByMerchantStatusDates(ctx context.Context, merchantId string, statuses []string, dateFrom, dateTo string) (int64, error)
 }
