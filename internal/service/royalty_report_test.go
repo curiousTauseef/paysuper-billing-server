@@ -584,8 +584,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 
 	req1 := &billingpb.ListRoyaltyReportsRequest{
 		MerchantId: suite.project.GetMerchantId(),
-		PeriodFrom: time.Now().Add(30 * -time.Hour).Unix(),
-		PeriodTo:   time.Now().Add(20 * -time.Hour).Unix(),
+		PeriodFrom: time.Now().Add(30 * -time.Hour).Format(billingpb.FilterDatetimeFormat),
+		PeriodTo:   time.Now().Add(20 * -time.Hour).Format(billingpb.FilterDatetimeFormat),
 	}
 	rsp1 := &billingpb.ListRoyaltyReportsResponse{}
 	err = suite.service.ListRoyaltyReports(context.TODO(), req1, rsp1)
@@ -597,8 +597,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindByPeriod_NotFound() {
 	req := &billingpb.ListRoyaltyReportsRequest{
 		MerchantId: suite.project.GetMerchantId(),
-		PeriodFrom: time.Now().Unix(),
-		PeriodTo:   time.Now().Unix(),
+		PeriodFrom: time.Now().Format(billingpb.FilterDatetimeFormat),
+		PeriodTo:   time.Now().Format(billingpb.FilterDatetimeFormat),
 	}
 	rsp := &billingpb.ListRoyaltyReportsResponse{}
 	err := suite.service.ListRoyaltyReports(context.TODO(), req, rsp)

@@ -217,12 +217,12 @@ func (s *Service) getOrdersList(
 
 		pmDates := make(bson.M)
 
-		if req.PmDateFrom != 0 {
-			pmDates["$gte"] = time.Unix(req.PmDateFrom, 0)
+		if req.PmDateFrom != "" {
+			pmDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.PmDateFrom)
 		}
 
-		if req.PmDateTo != 0 {
-			pmDates["$lte"] = time.Unix(req.PmDateTo, 0)
+		if req.PmDateTo != "" {
+			pmDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.PmDateTo)
 		}
 
 		if len(pmDates) > 0 {
@@ -231,12 +231,12 @@ func (s *Service) getOrdersList(
 
 		prjDates := make(bson.M)
 
-		if req.ProjectDateFrom != 0 {
-			prjDates["$gte"] = time.Unix(req.ProjectDateFrom, 0)
+		if req.ProjectDateFrom != "" {
+			prjDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ProjectDateFrom)
 		}
 
-		if req.ProjectDateTo != 0 {
-			prjDates["$lte"] = time.Unix(req.ProjectDateTo, 0)
+		if req.ProjectDateTo != "" {
+			prjDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ProjectDateTo)
 		}
 
 		if len(prjDates) > 0 {
