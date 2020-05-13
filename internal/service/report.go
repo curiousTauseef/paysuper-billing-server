@@ -211,6 +211,7 @@ func (s *Service) getOrdersList(
 				{"payment_method.card.masked": bson.M{"$regex": r, "$exists": true}},
 				{"payment_method.crypto_currency.address": bson.M{"$regex": r, "$exists": true}},
 				{"payment_method.wallet.account": bson.M{"$regex": r, "$exists": true}},
+				{"uuid": bson.M{"$regex": r}},
 			}
 		}
 
