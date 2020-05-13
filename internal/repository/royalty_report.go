@@ -362,7 +362,7 @@ func (r *royaltyReportRepository) GetRoyaltyHistoryById(ctx context.Context, id 
 }
 
 func (r *royaltyReportRepository) FindByMerchantStatusDates(
-	ctx context.Context, merchantId string, status []string, dateFrom, dateTo, offset, limit int64,
+	ctx context.Context, merchantId string, status []string, dateFrom, dateTo string, offset, limit int64,
 ) ([]*billingpb.RoyaltyReport, error) {
 	var err error
 	query := bson.M{}
@@ -385,14 +385,17 @@ func (r *royaltyReportRepository) FindByMerchantStatusDates(
 		query["status"] = bson.M{"$in": status}
 	}
 
-	if dateFrom > 0 || dateTo > 0 {
+	if dateFrom != "" || dateTo != "" {
 		date := bson.M{}
-		if dateFrom > 0 {
-			date["$gte"] = time.Unix(dateFrom, 0)
+
+		if dateFrom != "" {
+			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
 		}
-		if dateTo > 0 {
-			date["$lte"] = time.Unix(dateTo, 0)
+
+		if dateTo != "" {
+			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
 		}
+
 		query["created_at"] = date
 	}
 
@@ -443,7 +446,7 @@ func (r *royaltyReportRepository) FindByMerchantStatusDates(
 }
 
 func (r *royaltyReportRepository) FindCountByMerchantStatusDates(
-	ctx context.Context, merchantId string, status []string, dateFrom, dateTo int64,
+	ctx context.Context, merchantId string, status []string, dateFrom, dateTo string,
 ) (int64, error) {
 	var err error
 	query := bson.M{}
@@ -466,14 +469,17 @@ func (r *royaltyReportRepository) FindCountByMerchantStatusDates(
 		query["status"] = bson.M{"$in": status}
 	}
 
-	if dateFrom > 0 || dateTo > 0 {
+	if dateFrom != "" || dateTo != "" {
 		date := bson.M{}
-		if dateFrom > 0 {
-			date["$gte"] = time.Unix(dateFrom, 0)
+
+		if dateFrom != "" {
+			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
 		}
-		if dateTo > 0 {
-			date["$lte"] = time.Unix(dateTo, 0)
+
+		if dateTo != "" {
+			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
 		}
+
 		query["created_at"] = date
 	}
 
@@ -726,7 +732,7 @@ func (r *royaltyReportRepository) Update(ctx context.Context, rr *billingpb.Roya
 	return nil
 }
 
-func (r *royaltyReportRepository) UpdateMany(ctx context.Context, query bson.M, set bson.M) error {
+func (r *royaltyReportRepository) UpdateMany(_ context.Context, query bson.M, set bson.M) error {
 	_, err := r.db.Collection(CollectionRoyaltyReport).UpdateMany(context.TODO(), query, set)
 
 	if err != nil {
