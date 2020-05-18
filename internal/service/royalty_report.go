@@ -585,7 +585,14 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		return royaltyReportErrorAlreadyExistsAndCannotBeUpdated
 	}
 
-	summaryItems, summaryTotal, err := h.orderViewRepository.GetRoyaltySummary(ctx, merchant.Id, merchant.GetPayoutCurrency(), h.from, h.to)
+	summaryItems, summaryTotal, ordersIds, err := h.orderViewRepository.GetRoyaltySummary(
+		ctx,
+		merchant.Id,
+		merchant.GetPayoutCurrency(),
+		h.from,
+		h.to,
+	)
+
 	if err != nil {
 		return err
 	}
@@ -683,6 +690,8 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		if err != nil {
 			return err
 		}
+
+		ordersIds
 	}
 
 	err = h.Service.renderRoyaltyReport(ctx, newReport, merchant)

@@ -90,8 +90,9 @@ type RoyaltyReportMerchant struct {
 }
 
 type RoyaltySummaryResult struct {
-	Items []*billingpb.RoyaltyReportProductSummaryItem `bson:"top"`
-	Total *billingpb.RoyaltyReportProductSummaryItem   `bson:"total"`
+	Items     []*billingpb.RoyaltyReportProductSummaryItem `bson:"top"`
+	Total     *billingpb.RoyaltyReportProductSummaryItem   `bson:"total"`
+	OrdersIds []primitive.ObjectID                         `bson:"orders_ids"`
 }
 
 type PaylinkVisits struct {

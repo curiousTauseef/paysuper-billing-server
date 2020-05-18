@@ -214,9 +214,12 @@ func (r *orderViewRepository) GetRoyaltySummary(
 	ctx context.Context,
 	merchantId, currency string,
 	from, to time.Time,
-) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, err error) {
-	items = []*billingpb.RoyaltyReportProductSummaryItem{}
-	total = &billingpb.RoyaltyReportProductSummaryItem{}
+) (
+	[]*billingpb.RoyaltyReportProductSummaryItem,
+	*billingpb.RoyaltyReportProductSummaryItem,
+	[]primitive.ObjectID,
+	error,
+) {
 	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
 
 	statusForRoyaltySummary := []string{
@@ -236,6 +239,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$project": bson.M{
+				"id": "$_id",
 				"names": bson.M{
 					"$filter": bson.M{
 						"input": "$project.name",
@@ -267,6 +271,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$project": bson.M{
+				"id":                       1,
 				"region":                   1,
 				"status":                   1,
 				"type":                     1,
@@ -298,6 +303,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$project": bson.M{
+				"id":                       1,
 				"product":                  1,
 				"region":                   1,
 				"status":                   1,
@@ -316,14 +322,16 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$facet": bson.M{
-				"top":   r.getRoyaltySummaryGroupingQuery(false),
-				"total": r.getRoyaltySummaryGroupingQuery(true),
+				"top":        r.getRoyaltySummaryGroupingQuery(false),
+				"total":      r.getRoyaltySummaryGroupingQuery(true),
+				"orders_ids": []bson.M{{"$project": bson.M{"id": 1}}},
 			},
 		},
 		{
 			"$project": bson.M{
-				"top":   "$top",
-				"total": bson.M{"$arrayElemAt": []interface{}{"$total", 0}},
+				"top":        "$top",
+				"total":      bson.M{"$arrayElemAt": []interface{}{"$total", 0}},
+				"orders_ids": "$orders_ids.id",
 			},
 		},
 	}
@@ -337,7 +345,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return
+		return nil, nil, nil, err
 	}
 
 	defer func() {
@@ -362,31 +370,26 @@ func (r *orderViewRepository) GetRoyaltySummary(
 				zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
 				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 			)
-			return
+			return nil, nil, nil, err
 		}
 	}
 
 	if result == nil {
-		return
-	}
-
-	if result.Items != nil {
-		items = result.Items
+		return nil, nil, nil, err
 	}
 
 	if result.Total != nil {
-		total = result.Total
-		total.Product = ""
-		total.Region = ""
+		result.Total.Product = ""
+		result.Total.Region = ""
 	}
 
-	for _, item := range items {
+	for _, item := range result.Items {
 		r.royaltySummaryItemPrecise(item)
 	}
 
-	r.royaltySummaryItemPrecise(total)
+	r.royaltySummaryItemPrecise(result.Total)
 
-	return
+	return result.Items, result.Total, result.OrdersIds, nil
 }
 
 func (r *orderViewRepository) royaltySummaryItemPrecise(item *billingpb.RoyaltyReportProductSummaryItem) {
@@ -397,7 +400,6 @@ func (r *orderViewRepository) royaltySummaryItemPrecise(item *billingpb.RoyaltyR
 	item.TotalVat = tools.ToPrecise(item.TotalVat)
 	item.PayoutAmount = tools.ToPrecise(item.PayoutAmount)
 }
-
 
 func (r *orderViewRepository) GetPrivateOrderBy(
 	ctx context.Context,
