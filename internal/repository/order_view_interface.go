@@ -58,4 +58,7 @@ type OrderViewRepositoryInterface interface {
 
 	// GetRoyaltyForMerchants returns orders for merchants royal report by statuses and dates.
 	GetRoyaltyForMerchants(context.Context, []string, time.Time, time.Time) ([]*pkg.RoyaltyReportMerchant, error)
+
+	// Mark orders as included to royalty report.
+	MarkIncludedToRoyaltyReport(ctx context.Context, ordersIds []primitive.ObjectID, royaltyReportId string) error
 }
