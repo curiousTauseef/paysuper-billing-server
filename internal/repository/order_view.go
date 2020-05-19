@@ -396,7 +396,9 @@ func (r *orderViewRepository) GetRoyaltySummary(
 
 	r.royaltySummaryItemPrecise(total)
 
-	return result.Items, result.Total, result.OrdersIds, nil
+	orderIds = result.OrdersIds
+
+	return
 }
 
 func (r *orderViewRepository) royaltySummaryItemPrecise(item *billingpb.RoyaltyReportProductSummaryItem) {
