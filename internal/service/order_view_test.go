@@ -379,7 +379,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_NoTransacti
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, ordersIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 0)
@@ -396,6 +396,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_NoTransacti
 	assert.Equal(suite.T(), tools.FormatAmount(summaryTotal.TotalFees), float64(0))
 	assert.Equal(suite.T(), tools.FormatAmount(summaryTotal.TotalVat), float64(0))
 	assert.Equal(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), float64(0))
+	assert.Empty(suite.T(), ordersIds)
 
 	controlTotal := summaryTotal.GrossSalesAmount - summaryTotal.TotalFees - summaryTotal.TotalVat
 	assert.Equal(suite.T(), summaryTotal.PayoutAmount, controlTotal)
@@ -431,7 +432,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, orderIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 2)
@@ -478,6 +479,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.TotalFees), 1.96)
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.TotalVat), 6.09)
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), 27.93)
+	assert.Len(suite.T(), orderIds, numberOfOrders)
 
 	controlTotal := summaryTotal.GrossSalesAmount - summaryTotal.TotalFees - summaryTotal.TotalVat
 	assert.Equal(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), tools.FormatAmount(controlTotal))
@@ -522,7 +524,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, orderIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 2)
@@ -569,6 +571,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.TotalFees), 1.96)
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.TotalVat), 0)
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), -1.96)
+	assert.Len(suite.T(), orderIds, numberOfOrders)
 
 	controlTotal := summaryTotal.GrossTotalAmount - summaryTotal.TotalFees - summaryTotal.TotalVat
 	assert.Equal(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), tools.FormatAmount(controlTotal))
