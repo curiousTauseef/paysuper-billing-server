@@ -59,29 +59,6 @@ func (_m *OrderViewRepositoryInterface) GetById(_a0 context.Context, _a1 string)
 	return r0, r1
 }
 
-// GetOrderBy provides a mock function with given fields: ctx, id, uuid, merchantId, receiver
-func (_m *OrderViewRepositoryInterface) GetOrderBy(ctx context.Context, id string, uuid string, merchantId string, receiver interface{}) (interface{}, error) {
-	ret := _m.Called(ctx, id, uuid, merchantId, receiver)
-
-	var r0 interface{}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, interface{}) interface{}); ok {
-		r0 = rf(ctx, id, uuid, merchantId, receiver)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(interface{})
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, interface{}) error); ok {
-		r1 = rf(ctx, id, uuid, merchantId, receiver)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetPaylinkStat provides a mock function with given fields: ctx, paylinkId, merchantId, from, to
 func (_m *OrderViewRepositoryInterface) GetPaylinkStat(ctx context.Context, paylinkId string, merchantId string, from int64, to int64) (*billingpb.StatCommon, error) {
 	ret := _m.Called(ctx, paylinkId, merchantId, from, to)
@@ -197,6 +174,29 @@ func (_m *OrderViewRepositoryInterface) GetPaylinkStatByUtm(ctx context.Context,
 	return r0, r1
 }
 
+// GetPrivateOrderBy provides a mock function with given fields: ctx, id, uuid, merchantId
+func (_m *OrderViewRepositoryInterface) GetPrivateOrderBy(ctx context.Context, id string, uuid string, merchantId string) (*billingpb.OrderViewPrivate, error) {
+	ret := _m.Called(ctx, id, uuid, merchantId)
+
+	var r0 *billingpb.OrderViewPrivate
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *billingpb.OrderViewPrivate); ok {
+		r0 = rf(ctx, id, uuid, merchantId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*billingpb.OrderViewPrivate)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, id, uuid, merchantId)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetPublicByOrderId provides a mock function with given fields: ctx, merchantId
 func (_m *OrderViewRepositoryInterface) GetPublicByOrderId(ctx context.Context, merchantId string) (*billingpb.OrderViewPublic, error) {
 	ret := _m.Called(ctx, merchantId)
@@ -213,6 +213,29 @@ func (_m *OrderViewRepositoryInterface) GetPublicByOrderId(ctx context.Context, 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, merchantId)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetPublicOrderBy provides a mock function with given fields: ctx, id, uuid, merchantId
+func (_m *OrderViewRepositoryInterface) GetPublicOrderBy(ctx context.Context, id string, uuid string, merchantId string) (*billingpb.OrderViewPublic, error) {
+	ret := _m.Called(ctx, id, uuid, merchantId)
+
+	var r0 *billingpb.OrderViewPublic
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *billingpb.OrderViewPublic); ok {
+		r0 = rf(ctx, id, uuid, merchantId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*billingpb.OrderViewPublic)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, id, uuid, merchantId)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -244,7 +267,7 @@ func (_m *OrderViewRepositoryInterface) GetRoyaltyForMerchants(_a0 context.Conte
 }
 
 // GetRoyaltySummary provides a mock function with given fields: ctx, merchantId, currency, from, to
-func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time) ([]*billingpb.RoyaltyReportProductSummaryItem, *billingpb.RoyaltyReportProductSummaryItem, error) {
+func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time) ([]*billingpb.RoyaltyReportProductSummaryItem, *billingpb.RoyaltyReportProductSummaryItem, []primitive.ObjectID, error) {
 	ret := _m.Called(ctx, merchantId, currency, from, to)
 
 	var r0 []*billingpb.RoyaltyReportProductSummaryItem
@@ -265,14 +288,23 @@ func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, m
 		}
 	}
 
-	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, string, string, time.Time, time.Time) error); ok {
+	var r2 []primitive.ObjectID
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, time.Time, time.Time) []primitive.ObjectID); ok {
 		r2 = rf(ctx, merchantId, currency, from, to)
 	} else {
-		r2 = ret.Error(2)
+		if ret.Get(2) != nil {
+			r2 = ret.Get(2).([]primitive.ObjectID)
+		}
 	}
 
-	return r0, r1, r2
+	var r3 error
+	if rf, ok := ret.Get(3).(func(context.Context, string, string, time.Time, time.Time) error); ok {
+		r3 = rf(ctx, merchantId, currency, from, to)
+	} else {
+		r3 = ret.Error(3)
+	}
+
+	return r0, r1, r2, r3
 }
 
 // GetTransactionsPrivate provides a mock function with given fields: ctx, match, limit, offset
@@ -365,4 +397,18 @@ func (_m *OrderViewRepositoryInterface) GetVatSummary(_a0 context.Context, _a1 s
 	}
 
 	return r0, r1
+}
+
+// MarkIncludedToRoyaltyReport provides a mock function with given fields: ctx, ordersIds, royaltyReportId
+func (_m *OrderViewRepositoryInterface) MarkIncludedToRoyaltyReport(ctx context.Context, ordersIds []primitive.ObjectID, royaltyReportId string) error {
+	ret := _m.Called(ctx, ordersIds, royaltyReportId)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []primitive.ObjectID, string) error); ok {
+		r0 = rf(ctx, ordersIds, royaltyReportId)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
