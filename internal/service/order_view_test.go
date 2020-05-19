@@ -571,7 +571,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.TotalFees), 1.96)
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.TotalVat), 0)
 	assert.EqualValues(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), -1.96)
-	assert.Len(suite.T(), orderIds, numberOfOrders)
+	assert.Len(suite.T(), orderIds, int(summaryTotal.TotalTransactions))
 
 	controlTotal := summaryTotal.GrossTotalAmount - summaryTotal.TotalFees - summaryTotal.TotalVat
 	assert.Equal(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), tools.FormatAmount(controlTotal))

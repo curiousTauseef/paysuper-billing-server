@@ -215,11 +215,13 @@ func (r *orderViewRepository) GetRoyaltySummary(
 	merchantId, currency string,
 	from, to time.Time,
 ) (
-	[]*billingpb.RoyaltyReportProductSummaryItem,
-	*billingpb.RoyaltyReportProductSummaryItem,
-	[]primitive.ObjectID,
-	error,
+	items []*billingpb.RoyaltyReportProductSummaryItem,
+	total *billingpb.RoyaltyReportProductSummaryItem,
+	orderIds []primitive.ObjectID,
+	err error,
 ) {
+	items = []*billingpb.RoyaltyReportProductSummaryItem{}
+	total = &billingpb.RoyaltyReportProductSummaryItem{}
 	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
 
 	statusForRoyaltySummary := []string{
@@ -378,16 +380,21 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		return nil, nil, nil, err
 	}
 
-	if result.Total != nil {
-		result.Total.Product = ""
-		result.Total.Region = ""
+	if result.Items != nil {
+		items = result.Items
 	}
 
-	for _, item := range result.Items {
+	if result.Total != nil {
+		total = result.Total
+		total.Product = ""
+		total.Region = ""
+	}
+
+	for _, item := range items {
 		r.royaltySummaryItemPrecise(item)
 	}
 
-	r.royaltySummaryItemPrecise(result.Total)
+	r.royaltySummaryItemPrecise(total)
 
 	return result.Items, result.Total, result.OrdersIds, nil
 }
