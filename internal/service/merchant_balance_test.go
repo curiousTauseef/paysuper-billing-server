@@ -13,8 +13,10 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
+	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -415,6 +417,16 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 	err := suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
+	reportingServiceMock := &reportingMocks.ReporterService{}
+	reportingServiceMock.On("CreateFile", mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(
+			&reporterpb.CreateFileResponse{
+				Status: billingpb.ResponseStatusOk,
+			},
+			nil,
+		)
+	suite.service.reporterService = reportingServiceMock
+
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
 		ReportId:   report.Id,
 		IsAccepted: true,
@@ -608,6 +620,15 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 
 // 5. trigger on auto-accepting royalty report
 func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeringOk_6() {
+	reportingServiceMock := &reportingMocks.ReporterService{}
+	reportingServiceMock.On("CreateFile", mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(
+			&reporterpb.CreateFileResponse{
+				Status: billingpb.ResponseStatusOk,
+			},
+			nil,
+		)
+	suite.service.reporterService = reportingServiceMock
 
 	count := suite.mbRecordsCount(suite.merchant.Id, suite.merchant.GetPayoutCurrency())
 	assert.EqualValues(suite.T(), count, 0)
