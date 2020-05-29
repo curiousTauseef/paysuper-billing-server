@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ProtocolONE/geoip-service/pkg/proto"
 	"github.com/go-redis/redis"
@@ -336,4 +337,24 @@ func (s *Service) CheckProjectRequestSignature(
 
 func (s *Service) getMerchantCentrifugoChannel(merchantId string) string {
 	return fmt.Sprintf(s.cfg.CentrifugoMerchantChannel, merchantId)
+}
+
+func (s *Service) reporterServiceCreateFile(ctx context.Context, req *reporterpb.ReportFile) error {
+	rsp, err := s.reporterService.CreateFile(ctx, req)
+
+	if err != nil || rsp.Status != billingpb.ResponseStatusOk {
+		if err == nil {
+			err = errors.New(rsp.Message.Message)
+		}
+
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, reporterpb.ServiceName),
+			zap.String(errorFieldMethod, "CreateFile"),
+			zap.Any(errorFieldRequest, req),
+		)
+	}
+
+	return err
 }

@@ -1541,3 +1541,52 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_
 	assert.Equal(suite.T(), zap.ErrorLevel, logs[0].Level)
 	assert.Equal(suite.T(), "Publication message to postmark broker failed", logs[0].Message)
 }
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyReport_Accepted_OnRoyaltyReportAccepted_RoyaltyReport_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, reports[0].AcceptedAt.Seconds)
+
+	reports[0].Status = billingpb.RoyaltyReportStatusPending
+	err = suite.service.royaltyReportRepository.Update(context.TODO(), reports[0], "127.0.0.1", pkg.RoyaltyReportChangeSourceMerchant)
+	assert.NoError(suite.T(), err)
+
+	reportingServiceMock := &reportingMocks.ReporterService{}
+	reportingServiceMock.On("CreateFile", mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(nil, errors.New("ReportingService_CreateFile"))
+	suite.service.reporterService = reportingServiceMock
+
+	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
+		ReportId:   reports[0].Id,
+		IsAccepted: true,
+		Ip:         "127.0.0.1",
+	}
+	rsp1 := &billingpb.ResponseError{}
+	err = suite.service.MerchantReviewRoyaltyReport(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_OnRoyaltyReportAccepted_MerchantNotFound_Error() {
+	err := suite.service.onRoyaltyReportAccepted(
+		context.Background(),
+		&billingpb.RoyaltyReport{
+			MerchantId: "ffffffffffffffffffffffff",
+		},
+	)
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), merchantErrorNotFound, err)
+}

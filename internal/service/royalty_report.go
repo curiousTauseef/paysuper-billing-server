@@ -162,6 +162,12 @@ func (s *Service) AutoAcceptRoyaltyReports(
 		if err != nil {
 			return err
 		}
+
+		err = s.onRoyaltyReportAccepted(ctx, report)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -268,7 +274,14 @@ func (s *Service) MerchantReviewRoyaltyReport(
 		if err != nil {
 			rsp.Status = billingpb.ResponseStatusSystemError
 			rsp.Message = royaltyReportUpdateBalanceError
+			return nil
+		}
 
+		err = s.onRoyaltyReportAccepted(ctx, report)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = royaltyReportEntryErrorUnknown
 			return nil
 		}
 	}
@@ -736,14 +749,8 @@ func (s *Service) renderRoyaltyReport(
 		SendNotification: true,
 	}
 
-	if _, err = s.reporterService.CreateFile(ctx, fileReq); err != nil {
-		zap.L().Error(
-			"Unable to create file in the reporting service for royalty report.",
-			zap.Error(err),
-		)
-		return err
-	}
-	return nil
+	err = s.reporterServiceCreateFile(ctx, fileReq)
+	return err
 }
 
 func (s *Service) RoyaltyReportPdfUploaded(
@@ -1102,4 +1109,32 @@ func (s *Service) RoyaltyReportFinanceDone(
 
 	res.Status = billingpb.ResponseStatusOk
 	return nil
+}
+
+func (s *Service) onRoyaltyReportAccepted(
+	ctx context.Context,
+	royaltyReport *billingpb.RoyaltyReport,
+) error {
+	merchant, err := s.merchantRepository.GetById(ctx, royaltyReport.MerchantId)
+
+	if err != nil {
+		return merchantErrorNotFound
+	}
+
+	params := []byte(`{"` + reporterpb.ParamsFieldId + `": "` + royaltyReport.Id + `"}`)
+	req := &reporterpb.ReportFile{
+		UserId:     merchant.User.Id,
+		MerchantId: merchant.Id,
+		ReportType: reporterpb.ReportTypeRoyaltyAccountant,
+		FileType:   reporterpb.OutputExtensionXlsx,
+		Params:     params,
+	}
+	err = s.reporterServiceCreateFile(ctx, req)
+
+	if err != nil {
+		return err
+	}
+
+	req.ReportType = reporterpb.ReportTypeRoyaltyTransactionsAccountant
+	return s.reporterServiceCreateFile(ctx, req)
 }
