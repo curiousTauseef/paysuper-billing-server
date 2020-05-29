@@ -28,6 +28,10 @@ import (
 	"time"
 )
 
+const (
+	financeReportsCountForSend = 2
+)
+
 var (
 	royaltyReportErrorNoTransactions = "no transactions for the period"
 
@@ -747,7 +751,6 @@ func (s *Service) RoyaltyReportPdfUploaded(
 	req *billingpb.RoyaltyReportPdfUploadedRequest,
 	res *billingpb.RoyaltyReportPdfUploadedResponse,
 ) error {
-
 	report, err := s.royaltyReportRepository.GetById(ctx, req.RoyaltyReportId)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -1021,5 +1024,82 @@ func (s *Service) royaltyReportChangedEmail(ctx context.Context, report *billing
 		return royaltyReportEntryErrorUnknown
 	}
 
+	return nil
+}
+
+func (s *Service) RoyaltyReportFinanceDone(
+	ctx context.Context,
+	req *billingpb.RoyaltyReportFinanceDoneRequest,
+	res *billingpb.EmptyResponseWithStatus,
+) error {
+	royaltyReport, err := s.royaltyReportRepository.GetById(ctx, req.RoyaltyReportId)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+
+		if err == mongo.ErrNoDocuments {
+			res.Status = billingpb.ResponseStatusNotFound
+			res.Message = royaltyReportErrorReportNotFound
+		}
+
+		return nil
+	}
+
+	attachment := &postmarkpb.PayloadAttachment{
+		Name:        req.FileName,
+		Content:     base64.StdEncoding.EncodeToString(req.FileContent),
+		ContentType: mime.TypeByExtension(filepath.Ext(req.FileName)),
+	}
+	attachments, err := s.royaltyReportRepository.SetRoyaltyReportFinanceItem(royaltyReport.Id, attachment)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+		return nil
+	}
+
+	if len(attachments) < financeReportsCountForSend {
+		res.Status = billingpb.ResponseStatusOk
+		return nil
+	}
+
+	err = s.royaltyReportRepository.RemoveRoyaltyReportFinanceItems(royaltyReport.Id)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+		return nil
+	}
+
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.EmailTemplates.NewRoyaltyReport,
+		TemplateModel: map[string]string{
+			"merchant_id":            req.MerchantId,
+			"royalty_report_id":      royaltyReport.Id,
+			"period_from":            req.PeriodFrom,
+			"period_to":              req.PeriodTo,
+			"license_agreement":      req.LicenseAgreementNumber,
+			"status":                 royaltyReport.Status,
+			"operating_company_name": req.OperatingCompanyName,
+		},
+		To:          s.cfg.EmailNotificationFinancierRecipient,
+		Attachments: attachments,
+	}
+
+	err = s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+
+	if err != nil {
+		zap.L().Error(
+			"Publication message to postmark broker failed",
+			zap.Error(err),
+			zap.Any("payload", payload),
+		)
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+		return nil
+	}
+
+	res.Status = billingpb.ResponseStatusOk
 	return nil
 }

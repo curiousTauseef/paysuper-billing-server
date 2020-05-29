@@ -67,6 +67,7 @@ backend:
     - CENTRIFUGO_DASHBOARD_SECRET
     - CENTRIFUGO_PAYMENT_FORM_URL
     - CENTRIFUGO_DASHBOARD_URL
+    - EMAIL_ACCOUNTANT_FINANCE_DOCUMENT
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious

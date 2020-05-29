@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
@@ -20,6 +22,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
+	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	mock2 "github.com/stretchr/testify/mock"
@@ -1305,4 +1308,236 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
 	assert.Equal(suite.T(), rsp1.Message, royaltyReportEntryErrorUnknown)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_Ok() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	emailsCounter := 0
+	postmarkBrokerMockFn := func(_ string, _ proto.Message, _ amqp.Table) error {
+		emailsCounter++
+		return nil
+	}
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.Anything, mock.Anything).
+		Return(postmarkBrokerMockFn)
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	t := time.Now()
+	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
+	assert.Zero(suite.T(), emailsCounter)
+
+	attachments := suite.service.royaltyReportRepository.GetAllRoyaltyReportFinanceItems(req1.RoyaltyReportId)
+	assert.Len(suite.T(), attachments, 1)
+	assert.Equal(suite.T(), req1.FileName, attachments[0].Name)
+	assert.Equal(suite.T(), base64.StdEncoding.EncodeToString(req1.FileContent), attachments[0].Content)
+
+	req1.FileName = "file_name1.txt"
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
+	assert.EqualValues(suite.T(), 1, emailsCounter)
+
+	attachments = suite.service.royaltyReportRepository.GetAllRoyaltyReportFinanceItems(req1.RoyaltyReportId)
+	assert.Empty(suite.T(), attachments)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_RoyaltyReportNotFound_Error() {
+	t := time.Now()
+	req := &billingpb.RoyaltyReportFinanceDoneRequest{
+		RoyaltyReportId:        "ffffffffffffffffffffffff",
+		MerchantId:             "ffffffffffffffffffffffff",
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.RoyaltyReportFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), royaltyReportErrorReportNotFound, rsp.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_SetRoyaltyReportFinanceItem_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	royaltyReportRepositoryMock := &mocks.RoyaltyReportRepositoryInterface{}
+	royaltyReportRepositoryMock.On("GetById", mock2.Anything, mock2.Anything).
+		Return(report[0], nil)
+	royaltyReportRepositoryMock.On("SetRoyaltyReportFinanceItem", mock2.Anything, mock2.Anything).
+		Return(nil, errors.New("SetRoyaltyReportFinanceItem"))
+	suite.service.royaltyReportRepository = royaltyReportRepositoryMock
+
+	t := time.Now()
+	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_RemoveRoyaltyReportFinanceItems_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	content := base64.StdEncoding.EncodeToString([]byte(``))
+
+	royaltyReportRepositoryMock := &mocks.RoyaltyReportRepositoryInterface{}
+	royaltyReportRepositoryMock.On("GetById", mock2.Anything, mock2.Anything).
+		Return(report[0], nil)
+	royaltyReportRepositoryMock.On("SetRoyaltyReportFinanceItem", mock2.Anything, mock2.Anything).
+		Return(
+			[]*postmarkpb.PayloadAttachment{
+				{
+					Content:     content,
+					Name:        "file_name.txt",
+					ContentType: "text/plain",
+				},
+				{
+					Content:     content,
+					Name:        "file_name.txt",
+					ContentType: "text/plain",
+				},
+			},
+			nil,
+		)
+	royaltyReportRepositoryMock.On("RemoveRoyaltyReportFinanceItems", mock2.Anything).
+		Return(errors.New("RemoveRoyaltyReportFinanceItems"))
+	suite.service.royaltyReportRepository = royaltyReportRepositoryMock
+
+	t := time.Now()
+	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_PostmarkBroker_Publish_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.Anything, mock.Anything).
+		Return(errors.New("PostmarkBroker_Publish"))
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	zap.ReplaceGlobals(suite.logObserver)
+	_, err = suite.service.royaltyReportRepository.SetRoyaltyReportFinanceItem(
+		report[0].Id,
+		&postmarkpb.PayloadAttachment{
+			Content:     base64.StdEncoding.EncodeToString([]byte(``)),
+			Name:        "file_name.txt",
+			ContentType: "text/plain",
+		},
+	)
+	assert.NoError(suite.T(), err)
+
+	t := time.Now()
+	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name1.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+
+	logs := suite.zapRecorder.All()
+	assert.NotEmpty(suite.T(), logs)
+	assert.Equal(suite.T(), zap.ErrorLevel, logs[0].Level)
+	assert.Equal(suite.T(), "Publication message to postmark broker failed", logs[0].Message)
 }

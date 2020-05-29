@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"time"
 )
@@ -50,4 +51,13 @@ type RoyaltyReportRepositoryInterface interface {
 
 	// FindCountByMerchantStatusDates returns count of royalty reports by merchant id, status and dates from/to.
 	FindCountByMerchantStatusDates(ctx context.Context, merchantId string, statuses []string, dateFrom, dateTo string) (int64, error)
+
+	// Return saved extended form of royalty reports for accountant
+	GetAllRoyaltyReportFinanceItems(royaltyReportId string) []*postmarkpb.PayloadAttachment
+
+	// Remove saved extended royalty reports form
+	RemoveRoyaltyReportFinanceItems(royaltyReportId string) error
+
+	// Add extended form of royalty reports for accountant to storage
+	SetRoyaltyReportFinanceItem(royaltyReportId string, item *postmarkpb.PayloadAttachment) ([]*postmarkpb.PayloadAttachment, error)
 }
