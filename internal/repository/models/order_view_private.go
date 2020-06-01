@@ -92,6 +92,7 @@ type MgoOrderViewPrivate struct {
 	IsProduction                               bool                                     `bson:"is_production"`
 	TaxRate                                    float64                                  `bson:"tax_rate"`
 	MerchantInfo                               *billingpb.OrderViewMerchantInfo         `bson:"merchant_info"`
+	OrderCharge                                *billingpb.OrderViewMoney                `bson:"order_charge"`
 	OrderChargeBeforeVat                       *billingpb.OrderViewMoney                `bson:"order_charge_before_vat"`
 	PaymentMethodTerminalId                    string                                   `bson:"payment_method_terminal_id"`
 }
@@ -204,6 +205,7 @@ func (o *orderViewPrivateMapper) MapMgoToObject(obj interface{}) (interface{}, e
 	m.IsProduction = decoded.IsProduction
 	m.TaxRate = decoded.TaxRate
 	m.MerchantInfo = decoded.MerchantInfo
+	m.OrderCharge = decoded.OrderCharge
 	m.OrderChargeBeforeVat = decoded.OrderChargeBeforeVat
 	m.PaymentMethodTerminalId = decoded.PaymentMethodTerminalId
 
