@@ -716,9 +716,10 @@ func (s *Service) PayoutFinanceDone(
 	}
 
 	payload := &postmarkpb.Payload{
-		TemplateAlias: s.cfg.EmailTemplates.NewRoyaltyReport,
+		TemplateAlias: s.cfg.EmailTemplates.PayoutInvoiceFinancier,
 		TemplateModel: map[string]string{
 			"merchant_id":            req.MerchantId,
+			"merchant_name":          req.MerchantName,
 			"payout_id":              payout.Id,
 			"period_from":            req.PeriodFrom,
 			"period_to":              req.PeriodTo,

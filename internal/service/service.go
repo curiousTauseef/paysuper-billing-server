@@ -342,7 +342,7 @@ func (s *Service) getMerchantCentrifugoChannel(merchantId string) string {
 func (s *Service) reporterServiceCreateFile(ctx context.Context, req *reporterpb.ReportFile) error {
 	rsp, err := s.reporterService.CreateFile(ctx, req)
 
-	if err != nil || rsp.Status != billingpb.ResponseStatusOk {
+	if err != nil || (rsp != nil && rsp.Status != billingpb.ResponseStatusOk) {
 		if err == nil {
 			err = errors.New(rsp.Message.Message)
 		}
