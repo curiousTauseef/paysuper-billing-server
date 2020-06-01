@@ -1337,7 +1337,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_
 	suite.service.postmarkBroker = postmarkBrokerMock
 
 	t := time.Now()
-	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+	req1 := &billingpb.ReportFinanceDoneRequest{
 		RoyaltyReportId:        report[0].Id,
 		MerchantId:             report[0].MerchantId,
 		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
@@ -1370,7 +1370,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_RoyaltyReportNotFound_Error() {
 	t := time.Now()
-	req := &billingpb.RoyaltyReportFinanceDoneRequest{
+	req := &billingpb.ReportFinanceDoneRequest{
 		RoyaltyReportId:        "ffffffffffffffffffffffff",
 		MerchantId:             "ffffffffffffffffffffffff",
 		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
@@ -1411,7 +1411,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_
 	suite.service.royaltyReportRepository = royaltyReportRepositoryMock
 
 	t := time.Now()
-	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+	req1 := &billingpb.ReportFinanceDoneRequest{
 		RoyaltyReportId:        report[0].Id,
 		MerchantId:             report[0].MerchantId,
 		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
@@ -1470,7 +1470,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_
 	suite.service.royaltyReportRepository = royaltyReportRepositoryMock
 
 	t := time.Now()
-	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+	req1 := &billingpb.ReportFinanceDoneRequest{
 		RoyaltyReportId:        report[0].Id,
 		MerchantId:             report[0].MerchantId,
 		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
@@ -1520,7 +1520,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_
 	assert.NoError(suite.T(), err)
 
 	t := time.Now()
-	req1 := &billingpb.RoyaltyReportFinanceDoneRequest{
+	req1 := &billingpb.ReportFinanceDoneRequest{
 		RoyaltyReportId:        report[0].Id,
 		MerchantId:             report[0].MerchantId,
 		PeriodFrom:             t.Format(billingpb.FilterDateFormat),

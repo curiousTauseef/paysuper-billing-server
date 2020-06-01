@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
@@ -12,7 +13,9 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
+	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -1012,4 +1015,88 @@ func (suite *PayoutsTestSuite) TestPayouts_GetPayoutDocuments_Ok_NotFound() {
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 	assert.Equal(suite.T(), res.Data.Count, int32(0))
 	assert.Nil(suite.T(), res.Data.Items)
+}
+
+func (suite *PayoutsTestSuite) TestPayouts_PayoutFinanceDone_Ok() {
+	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1})
+	suite.helperInsertPayoutDocuments([]*billingpb.PayoutDocument{suite.payout1})
+
+	emailsCounter := 0
+	postmarkBrokerMockFn := func(_ string, _ proto.Message, _ amqp.Table) error {
+		emailsCounter++
+		return nil
+	}
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock2.Anything, mock2.Anything).
+		Return(postmarkBrokerMockFn)
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	t := time.Now()
+	req := &billingpb.ReportFinanceDoneRequest{
+		PayoutId:               suite.payout1.Id,
+		MerchantId:             suite.payout1.MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.PayoutFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.EqualValues(suite.T(), 1, emailsCounter)
+}
+
+func (suite *PayoutsTestSuite) TestPayouts_PayoutFinanceDone_PayoutNotFound_Error() {
+	t := time.Now()
+	req := &billingpb.ReportFinanceDoneRequest{
+		PayoutId:               "ffffffffffffffffffffffff",
+		MerchantId:             suite.payout1.MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.PayoutFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), errorPayoutNotFound, rsp.Message)
+}
+
+func (suite *PayoutsTestSuite) TestPayouts_PayoutFinanceDone_PostmarkBroker_Publish_Error() {
+	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1})
+	suite.helperInsertPayoutDocuments([]*billingpb.PayoutDocument{suite.payout1})
+
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock2.Anything, mock2.Anything).
+		Return(errors.New("PostmarkBroker_Publish"))
+	suite.service.postmarkBroker = postmarkBrokerMock
+	zap.ReplaceGlobals(suite.logObserver)
+
+	t := time.Now()
+	req := &billingpb.ReportFinanceDoneRequest{
+		PayoutId:               suite.payout1.Id,
+		MerchantId:             suite.payout1.MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name1.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.PayoutFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), errorPayoutNotFound, rsp.Message)
+
+	logs := suite.zapRecorder.All()
+	assert.NotEmpty(suite.T(), logs)
+	assert.Equal(suite.T(), zap.ErrorLevel, logs[0].Level)
+	assert.Equal(suite.T(), "Publication message to postmark broker failed", logs[0].Message)
 }

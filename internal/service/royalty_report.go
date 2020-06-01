@@ -1036,7 +1036,7 @@ func (s *Service) royaltyReportChangedEmail(ctx context.Context, report *billing
 
 func (s *Service) RoyaltyReportFinanceDone(
 	ctx context.Context,
-	req *billingpb.RoyaltyReportFinanceDoneRequest,
+	req *billingpb.ReportFinanceDoneRequest,
 	res *billingpb.EmptyResponseWithStatus,
 ) error {
 	royaltyReport, err := s.royaltyReportRepository.GetById(ctx, req.RoyaltyReportId)

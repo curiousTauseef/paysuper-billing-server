@@ -688,3 +688,60 @@ func (s *Service) getPayoutDocumentSources(
 
 	return result, nil
 }
+
+func (s *Service) PayoutFinanceDone(
+	ctx context.Context,
+	req *billingpb.ReportFinanceDoneRequest,
+	res *billingpb.EmptyResponseWithStatus,
+) error {
+	payout, err := s.payoutRepository.GetById(ctx, req.PayoutId)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = errorPayoutNotFound
+
+		if err == mongo.ErrNoDocuments {
+			res.Status = billingpb.ResponseStatusNotFound
+			res.Message = errorPayoutNotFound
+		}
+
+		return nil
+	}
+
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.EmailTemplates.NewRoyaltyReport,
+		TemplateModel: map[string]string{
+			"merchant_id":            req.MerchantId,
+			"payout_id":              payout.Id,
+			"period_from":            req.PeriodFrom,
+			"period_to":              req.PeriodTo,
+			"license_agreement":      req.LicenseAgreementNumber,
+			"status":                 payout.Status,
+			"operating_company_name": req.OperatingCompanyName,
+		},
+		To: s.cfg.EmailNotificationFinancierRecipient,
+		Attachments: []*postmarkpb.PayloadAttachment{
+			{
+				Name:        req.FileName,
+				Content:     base64.StdEncoding.EncodeToString(req.FileContent),
+				ContentType: mime.TypeByExtension(filepath.Ext(req.FileName)),
+			},
+		},
+	}
+
+	err = s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+
+	if err != nil {
+		zap.L().Error(
+			"Publication message to postmark broker failed",
+			zap.Error(err),
+			zap.Any("payload", payload),
+		)
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = errorPayoutNotFound
+		return nil
+	}
+
+	res.Status = billingpb.ResponseStatusOk
+	return nil
+}
