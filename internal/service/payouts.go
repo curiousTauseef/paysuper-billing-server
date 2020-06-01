@@ -377,7 +377,7 @@ func (s *Service) renderPayoutDocument(
 		return err
 	}
 
-	fileReq := &reporterpb.ReportFile{
+	req := &reporterpb.ReportFile{
 		UserId:           merchant.User.Id,
 		MerchantId:       merchant.Id,
 		ReportType:       reporterpb.ReportTypePayout,
@@ -385,14 +385,21 @@ func (s *Service) renderPayoutDocument(
 		Params:           params,
 		SendNotification: merchant.ManualPayoutsEnabled,
 	}
+	err = s.reporterServiceCreateFile(ctx, req)
 
-	if _, err = s.reporterService.CreateFile(ctx, fileReq); err != nil {
-		zap.L().Error(
-			"Unable to create file in the reporting service for payout.",
-			zap.Error(err),
-		)
+	if err != nil {
 		return err
 	}
+
+	req.ReportType = reporterpb.ReportTypePayoutFinance
+	req.FileType = reporterpb.OutputExtensionXlsx
+	req.SendNotification = false
+	err = s.reporterServiceCreateFile(ctx, req)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
