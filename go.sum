@@ -522,6 +522,8 @@ github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200601062636-8f67be27de
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200601062636-8f67be27de18/go.mod h1:Y/B0wGyIqdo+HDanWshp9CTfzVUP/IJz1ooKcksG3F0=
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200601173304-7879b87f6b5d h1:bY7NImb5sWx+z/ns9+QFbZzM8R7beY70+QuPxB4462Q=
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200601173304-7879b87f6b5d/go.mod h1:Y/B0wGyIqdo+HDanWshp9CTfzVUP/IJz1ooKcksG3F0=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200604071945-7744c0e9efc7 h1:zMO2Xk6efUA0Yg4ffpJURiRmNGQ5N0QUnbg9KyHp0RU=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200604071945-7744c0e9efc7/go.mod h1:Y/B0wGyIqdo+HDanWshp9CTfzVUP/IJz1ooKcksG3F0=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b h1:s61VyrEMY6uw95yLCIoL5addjUbEyQ8mFpc33dDG/6w=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:sdQKpEC56et7ND0Otfqwf2HZAMsIm+5NkznUaC4HSqk=
 github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200303091345-2cee0f7f84c1 h1:siF07NAo6pO+L63lx2QHBiS3PRPVxB2x/4ocHKsjFR4=
@@ -557,6 +559,8 @@ github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200528153509-0dde165e2
 github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200528153509-0dde165e22f2/go.mod h1:HZp0q1eCu7eeIGYMGbbl4AJzZi3UO9POGPeQ/+KwBv4=
 github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200601062636-8f67be27de18 h1:qnKGLBaHMrU4Qvy3PLITE8XwG3JAJhRwK+5iqN6qkKQ=
 github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200601062636-8f67be27de18/go.mod h1:HZp0q1eCu7eeIGYMGbbl4AJzZi3UO9POGPeQ/+KwBv4=
+github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200604071945-7744c0e9efc7 h1:5LKlfcfY0iDZfr1vKH8snWuGNFrbodrGGEh2+pM0e8Q=
+github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200604071945-7744c0e9efc7/go.mod h1:HZp0q1eCu7eeIGYMGbbl4AJzZi3UO9POGPeQ/+KwBv4=
 github.com/paysuper/paysuper-proto/go/taxpb v0.0.0-20200302133127-ba8bd156664b h1:9U+WLmhNEvy+vywQ88FceMtGigLxKcPOOWf5PQztGM4=
 github.com/paysuper/paysuper-proto/go/taxpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:qoGrD2TSOFZByuWmhnKz4NBc4XbAeXF2XHOhptAd3WU=
 github.com/paysuper/paysuper-tools v0.0.0-20200117101901-522574ce4d1c h1:Hum6SxOv4GTd5zj45YC7sQzqQy1Nnp5msx/kc9Kk4ks=
