@@ -3260,6 +3260,7 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 				"merchant_payout_currency": bson.M{
 					"$ifNull": []interface{}{"$net_revenue.currency", "$refund_reverse_revenue.currency"},
 				},
+				"payment_method_terminal_id": "$payment_method.params.terminal_id",
 			},
 		},
 		{

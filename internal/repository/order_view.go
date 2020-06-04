@@ -214,7 +214,12 @@ func (r *orderViewRepository) GetRoyaltySummary(
 	ctx context.Context,
 	merchantId, currency string,
 	from, to time.Time,
-) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, err error) {
+) (
+	items []*billingpb.RoyaltyReportProductSummaryItem,
+	total *billingpb.RoyaltyReportProductSummaryItem,
+	orderIds []primitive.ObjectID,
+	err error,
+) {
 	items = []*billingpb.RoyaltyReportProductSummaryItem{}
 	total = &billingpb.RoyaltyReportProductSummaryItem{}
 	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
@@ -236,6 +241,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$project": bson.M{
+				"id": "$_id",
 				"names": bson.M{
 					"$filter": bson.M{
 						"input": "$project.name",
@@ -267,6 +273,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$project": bson.M{
+				"id":                       1,
 				"region":                   1,
 				"status":                   1,
 				"type":                     1,
@@ -298,6 +305,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$project": bson.M{
+				"id":                       1,
 				"product":                  1,
 				"region":                   1,
 				"status":                   1,
@@ -316,14 +324,16 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$facet": bson.M{
-				"top":   r.getRoyaltySummaryGroupingQuery(false),
-				"total": r.getRoyaltySummaryGroupingQuery(true),
+				"top":        r.getRoyaltySummaryGroupingQuery(false),
+				"total":      r.getRoyaltySummaryGroupingQuery(true),
+				"orders_ids": []bson.M{{"$project": bson.M{"id": 1}}},
 			},
 		},
 		{
 			"$project": bson.M{
-				"top":   "$top",
-				"total": bson.M{"$arrayElemAt": []interface{}{"$total", 0}},
+				"top":        "$top",
+				"total":      bson.M{"$arrayElemAt": []interface{}{"$total", 0}},
+				"orders_ids": "$orders_ids.id",
 			},
 		},
 	}
@@ -337,7 +347,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
-		return
+		return nil, nil, nil, err
 	}
 
 	defer func() {
@@ -362,12 +372,12 @@ func (r *orderViewRepository) GetRoyaltySummary(
 				zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
 				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 			)
-			return
+			return nil, nil, nil, err
 		}
 	}
 
 	if result == nil {
-		return
+		return nil, nil, nil, err
 	}
 
 	if result.Items != nil {
@@ -386,6 +396,8 @@ func (r *orderViewRepository) GetRoyaltySummary(
 
 	r.royaltySummaryItemPrecise(total)
 
+	orderIds = result.OrdersIds
+
 	return
 }
 
@@ -397,7 +409,6 @@ func (r *orderViewRepository) royaltySummaryItemPrecise(item *billingpb.RoyaltyR
 	item.TotalVat = tools.ToPrecise(item.TotalVat)
 	item.PayoutAmount = tools.ToPrecise(item.PayoutAmount)
 }
-
 
 func (r *orderViewRepository) GetPrivateOrderBy(
 	ctx context.Context,
@@ -984,4 +995,38 @@ func (r *orderViewRepository) GetById(ctx context.Context, id string) (*billingp
 	}
 
 	return obj.(*billingpb.OrderViewPublic), nil
+}
+
+func (r *orderViewRepository) MarkIncludedToRoyaltyReport(
+	ctx context.Context,
+	ordersIds []primitive.ObjectID,
+	royaltyReportId string,
+) error {
+	royaltyReportOid, err := primitive.ObjectIDFromHex(royaltyReportId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
+			zap.String(pkg.ErrorDatabaseFieldQuery, royaltyReportId),
+		)
+		return err
+	}
+
+	filter := bson.M{"_id": bson.M{"$in": ordersIds}}
+	update := bson.M{"$set": bson.M{"royalty_report_id": royaltyReportOid}}
+	_, err = r.db.Collection(CollectionOrderView).UpdateMany(ctx, filter, update)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+			zap.Any(pkg.ErrorDatabaseFieldSet, update),
+		)
+	}
+
+	return err
 }

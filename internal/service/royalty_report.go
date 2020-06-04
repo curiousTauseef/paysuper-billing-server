@@ -28,6 +28,10 @@ import (
 	"time"
 )
 
+const (
+	financeReportsCountForSend = 2
+)
+
 var (
 	royaltyReportErrorNoTransactions = "no transactions for the period"
 
@@ -158,6 +162,12 @@ func (s *Service) AutoAcceptRoyaltyReports(
 		if err != nil {
 			return err
 		}
+
+		err = s.onRoyaltyReportAccepted(ctx, report)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -264,7 +274,14 @@ func (s *Service) MerchantReviewRoyaltyReport(
 		if err != nil {
 			rsp.Status = billingpb.ResponseStatusSystemError
 			rsp.Message = royaltyReportUpdateBalanceError
+			return nil
+		}
 
+		err = s.onRoyaltyReportAccepted(ctx, report)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = royaltyReportEntryErrorUnknown
 			return nil
 		}
 	}
@@ -498,12 +515,14 @@ func (s *Service) ListRoyaltyReportOrders(
 	from, _ := ptypes.Timestamp(report.PeriodFrom)
 	to, _ := ptypes.Timestamp(report.PeriodTo)
 
-	oid, _ := primitive.ObjectIDFromHex(report.MerchantId)
+	royaltyReportOid, _ := primitive.ObjectIDFromHex(report.Id)
+	merchantOid, _ := primitive.ObjectIDFromHex(report.MerchantId)
 	match := bson.M{
-		"merchant_id":         oid,
+		"merchant_id":         merchantOid,
 		"pm_order_close_date": bson.M{"$gte": from, "$lte": to},
 		"status":              bson.M{"$in": orderStatusForRoyaltyReports},
 		"is_production":       true,
+		"royalty_report_id":   bson.M{"$exists": true, "$eq": royaltyReportOid},
 	}
 
 	ts, err := s.orderViewRepository.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
@@ -585,7 +604,14 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		return royaltyReportErrorAlreadyExistsAndCannotBeUpdated
 	}
 
-	summaryItems, summaryTotal, err := h.orderViewRepository.GetRoyaltySummary(ctx, merchant.Id, merchant.GetPayoutCurrency(), h.from, h.to)
+	summaryItems, summaryTotal, ordersIds, err := h.orderViewRepository.GetRoyaltySummary(
+		ctx,
+		merchant.Id,
+		merchant.GetPayoutCurrency(),
+		h.from,
+		h.to,
+	)
+
 	if err != nil {
 		return err
 	}
@@ -683,6 +709,11 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		if err != nil {
 			return err
 		}
+
+		err = h.orderViewRepository.MarkIncludedToRoyaltyReport(ctx, ordersIds, newReport.Id)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = h.Service.renderRoyaltyReport(ctx, newReport, merchant)
@@ -718,14 +749,8 @@ func (s *Service) renderRoyaltyReport(
 		SendNotification: true,
 	}
 
-	if _, err = s.reporterService.CreateFile(ctx, fileReq); err != nil {
-		zap.L().Error(
-			"Unable to create file in the reporting service for royalty report.",
-			zap.Error(err),
-		)
-		return err
-	}
-	return nil
+	err = s.reporterServiceCreateFile(ctx, fileReq)
+	return err
 }
 
 func (s *Service) RoyaltyReportPdfUploaded(
@@ -733,7 +758,6 @@ func (s *Service) RoyaltyReportPdfUploaded(
 	req *billingpb.RoyaltyReportPdfUploadedRequest,
 	res *billingpb.RoyaltyReportPdfUploadedResponse,
 ) error {
-
 	report, err := s.royaltyReportRepository.GetById(ctx, req.RoyaltyReportId)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -1008,4 +1032,110 @@ func (s *Service) royaltyReportChangedEmail(ctx context.Context, report *billing
 	}
 
 	return nil
+}
+
+func (s *Service) RoyaltyReportFinanceDone(
+	ctx context.Context,
+	req *billingpb.ReportFinanceDoneRequest,
+	res *billingpb.EmptyResponseWithStatus,
+) error {
+	royaltyReport, err := s.royaltyReportRepository.GetById(ctx, req.RoyaltyReportId)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+
+		if err == mongo.ErrNoDocuments {
+			res.Status = billingpb.ResponseStatusNotFound
+			res.Message = royaltyReportErrorReportNotFound
+		}
+
+		return nil
+	}
+
+	attachment := &postmarkpb.PayloadAttachment{
+		Name:        req.FileName,
+		Content:     base64.StdEncoding.EncodeToString(req.FileContent),
+		ContentType: mime.TypeByExtension(filepath.Ext(req.FileName)),
+	}
+	attachments, err := s.royaltyReportRepository.SetRoyaltyReportFinanceItem(royaltyReport.Id, attachment)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+		return nil
+	}
+
+	if len(attachments) < financeReportsCountForSend {
+		res.Status = billingpb.ResponseStatusOk
+		return nil
+	}
+
+	err = s.royaltyReportRepository.RemoveRoyaltyReportFinanceItems(royaltyReport.Id)
+
+	if err != nil {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+		return nil
+	}
+
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.EmailTemplates.RoyaltyReportFinancier,
+		TemplateModel: map[string]string{
+			"merchant_id":            req.MerchantId,
+			"merchant_name":          req.MerchantName,
+			"royalty_report_id":      royaltyReport.Id,
+			"period_from":            req.PeriodFrom,
+			"period_to":              req.PeriodTo,
+			"license_agreement":      req.LicenseAgreementNumber,
+			"status":                 royaltyReport.Status,
+			"operating_company_name": req.OperatingCompanyName,
+		},
+		To:          s.cfg.EmailNotificationFinancierRecipient,
+		Attachments: attachments,
+	}
+
+	err = s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+
+	if err != nil {
+		zap.L().Error(
+			"Publication message to postmark broker failed",
+			zap.Error(err),
+			zap.Any("payload", payload),
+		)
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = royaltyReportEntryErrorUnknown
+		return nil
+	}
+
+	res.Status = billingpb.ResponseStatusOk
+	return nil
+}
+
+func (s *Service) onRoyaltyReportAccepted(
+	ctx context.Context,
+	royaltyReport *billingpb.RoyaltyReport,
+) error {
+	merchant, err := s.merchantRepository.GetById(ctx, royaltyReport.MerchantId)
+
+	if err != nil {
+		return merchantErrorNotFound
+	}
+
+	params := []byte(`{"` + reporterpb.ParamsFieldId + `": "` + royaltyReport.Id + `"}`)
+	req := &reporterpb.ReportFile{
+		UserId:     merchant.User.Id,
+		MerchantId: merchant.Id,
+		ReportType: reporterpb.ReportTypeRoyaltyAccountant,
+		FileType:   reporterpb.OutputExtensionXlsx,
+		Params:     params,
+	}
+	err = s.reporterServiceCreateFile(ctx, req)
+
+	if err != nil {
+		return err
+	}
+
+	req.ReportType = reporterpb.ReportTypeRoyaltyTransactionsAccountant
+	return s.reporterServiceCreateFile(ctx, req)
 }

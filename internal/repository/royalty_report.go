@@ -11,6 +11,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -23,8 +24,14 @@ const (
 	CollectionRoyaltyReport        = "royalty_report"
 	CollectionRoyaltyReportChanges = "royalty_report_changes"
 
-	cacheKeyRoyaltyReport = "royalty_report:id:%s"
+	cacheKeyRoyaltyReport             = "royalty_report:id:%s"
+	cacheKeyRoyaltyReportFinance      = "royalty_report_finance:id:%s"
+	cacheLifetimeRoyaltyReportFinance = 86400 * time.Second
 )
+
+type RoyaltyReportFinance struct {
+	Items []*postmarkpb.PayloadAttachment `json:"items"`
+}
 
 type royaltyReportRepository repository
 
@@ -864,4 +871,55 @@ func (r *royaltyReportRepository) onRoyaltyReportChange(
 	}
 
 	return
+}
+
+func (r *royaltyReportRepository) GetAllRoyaltyReportFinanceItems(royaltyReportId string) []*postmarkpb.PayloadAttachment {
+	items := new(RoyaltyReportFinance)
+	key := fmt.Sprintf(cacheKeyRoyaltyReportFinance, royaltyReportId)
+	_ = r.cache.Get(key, items)
+	return items.Items
+}
+
+func (r *royaltyReportRepository) RemoveRoyaltyReportFinanceItems(royaltyReportId string) error {
+	key := fmt.Sprintf(cacheKeyRoyaltyReportFinance, royaltyReportId)
+	return r.cache.Delete(key)
+}
+
+func (r *royaltyReportRepository) SetRoyaltyReportFinanceItem(
+	royaltyReportId string,
+	item *postmarkpb.PayloadAttachment,
+) ([]*postmarkpb.PayloadAttachment, error) {
+	key := fmt.Sprintf(cacheKeyRoyaltyReportFinance, royaltyReportId)
+	items := r.GetAllRoyaltyReportFinanceItems(royaltyReportId)
+	existsItemIndex := -1
+
+	for key, val := range items {
+		if val.Name == item.Name {
+			existsItemIndex = key
+			break
+		}
+	}
+
+	if existsItemIndex >= 0 {
+		items[existsItemIndex] = item
+	} else {
+		items = append(items, item)
+	}
+
+	storage := &RoyaltyReportFinance{
+		Items: items,
+	}
+	err := r.cache.Set(key, storage, cacheLifetimeRoyaltyReportFinance)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorCacheQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
+			zap.String(pkg.ErrorCacheFieldKey, key),
+			zap.Any(pkg.ErrorCacheFieldData, storage),
+		)
+	}
+
+	return items, err
 }

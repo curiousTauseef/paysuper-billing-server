@@ -5,6 +5,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 )
 
@@ -23,7 +24,7 @@ type OrderViewRepositoryInterface interface {
 	GetTransactionsPrivate(ctx context.Context, match bson.M, limit, offset int64) (result []*billingpb.OrderViewPrivate, err error)
 
 	// GetRoyaltySummary returns orders for summary royal report by merchant id, currency and dates.
-	GetRoyaltySummary(ctx context.Context, merchantId, currency string, from, to time.Time) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, err error)
+	GetRoyaltySummary(ctx context.Context, merchantId, currency string, from, to time.Time) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, ordersIds []primitive.ObjectID, err error)
 
 	// GetPublicOrderBy returns orders for order identity, order public identity, merchant id.
 	GetPublicOrderBy(ctx context.Context, id, uuid, merchantId string) (*billingpb.OrderViewPublic, error)
@@ -57,4 +58,7 @@ type OrderViewRepositoryInterface interface {
 
 	// GetRoyaltyForMerchants returns orders for merchants royal report by statuses and dates.
 	GetRoyaltyForMerchants(context.Context, []string, time.Time, time.Time) ([]*pkg.RoyaltyReportMerchant, error)
+
+	// Mark orders as included to royalty report.
+	MarkIncludedToRoyaltyReport(ctx context.Context, ordersIds []primitive.ObjectID, royaltyReportId string) error
 }

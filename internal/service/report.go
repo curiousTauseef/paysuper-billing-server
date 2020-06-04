@@ -54,7 +54,7 @@ func (s *Service) FindAllOrdersPrivate(
 	req *billingpb.ListOrdersRequest,
 	rsp *billingpb.ListOrdersPrivateResponse,
 ) error {
-	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrderView, make([]*billingpb.OrderViewPrivate, 1))
+	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrderView, make([]*billingpb.OrderViewPrivate, 0))
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -253,6 +253,11 @@ func (s *Service) getOrdersList(
 				"$regex":  primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.MerchantName) + ".*", Options: "i"},
 				"$exists": true,
 			}
+		}
+
+		if req.RoyaltyReportId != "" {
+			royaltyReportOid, _ := primitive.ObjectIDFromHex(req.RoyaltyReportId)
+			query["royalty_report_id"] = bson.M{"$exists": true, "$eq": royaltyReportOid}
 		}
 	}
 

@@ -5,6 +5,7 @@ package mocks
 import billingpb "github.com/paysuper/paysuper-proto/go/billingpb"
 import context "context"
 import mock "github.com/stretchr/testify/mock"
+import postmarkpb "github.com/paysuper/paysuper-proto/go/postmarkpb"
 import primitive "go.mongodb.org/mongo-driver/bson/primitive"
 
 import time "time"
@@ -79,6 +80,22 @@ func (_m *RoyaltyReportRepositoryInterface) GetAll(ctx context.Context) ([]*bill
 	}
 
 	return r0, r1
+}
+
+// GetAllRoyaltyReportFinanceItems provides a mock function with given fields: royaltyReportId
+func (_m *RoyaltyReportRepositoryInterface) GetAllRoyaltyReportFinanceItems(royaltyReportId string) []*postmarkpb.PayloadAttachment {
+	ret := _m.Called(royaltyReportId)
+
+	var r0 []*postmarkpb.PayloadAttachment
+	if rf, ok := ret.Get(0).(func(string) []*postmarkpb.PayloadAttachment); ok {
+		r0 = rf(royaltyReportId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*postmarkpb.PayloadAttachment)
+		}
+	}
+
+	return r0
 }
 
 // GetBalanceAmount provides a mock function with given fields: ctx, merchantId, currency
@@ -268,6 +285,43 @@ func (_m *RoyaltyReportRepositoryInterface) Insert(ctx context.Context, document
 	}
 
 	return r0
+}
+
+// RemoveRoyaltyReportFinanceItems provides a mock function with given fields: royaltyReportId
+func (_m *RoyaltyReportRepositoryInterface) RemoveRoyaltyReportFinanceItems(royaltyReportId string) error {
+	ret := _m.Called(royaltyReportId)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(royaltyReportId)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SetRoyaltyReportFinanceItem provides a mock function with given fields: royaltyReportId, item
+func (_m *RoyaltyReportRepositoryInterface) SetRoyaltyReportFinanceItem(royaltyReportId string, item *postmarkpb.PayloadAttachment) ([]*postmarkpb.PayloadAttachment, error) {
+	ret := _m.Called(royaltyReportId, item)
+
+	var r0 []*postmarkpb.PayloadAttachment
+	if rf, ok := ret.Get(0).(func(string, *postmarkpb.PayloadAttachment) []*postmarkpb.PayloadAttachment); ok {
+		r0 = rf(royaltyReportId, item)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*postmarkpb.PayloadAttachment)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string, *postmarkpb.PayloadAttachment) error); ok {
+		r1 = rf(royaltyReportId, item)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Update provides a mock function with given fields: ctx, document, ip, source
