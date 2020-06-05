@@ -322,7 +322,6 @@ func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
 		PrivateMetadata:             map[string]string{"string": "d"},
 		PrivateStatus:               4,
 		ProductType:                 "ProductType",
-		ProjectAccount:              "ProjectAccount",
 		ProjectParams:               map[string]string{"string": "e"},
 		ReceiptEmail:                "",
 		ReceiptPhone:                "",

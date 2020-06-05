@@ -1,0 +1,21 @@
+[
+  {
+    "update": "order",
+    "updates": [
+      {
+        "q": {
+          "$and": [
+            {"$expr": {"$ne": ["$project_account" , "$user.external_id"]}},
+            {"project_account": {"$ne": "", "$exists": true}},
+            {"user.external_id": ""}
+          ]
+        },
+        "u": [
+          {"$set": {"user.external_id": "$project_account"}},
+          {"$unset": ["project_account"]}
+        ],
+        "multi": true
+      }
+    ]
+  }
+]
