@@ -4765,8 +4765,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_ChangeProjectAccou
 		Amount:      100,
 		Description: "unit test",
 		User: &billingpb.OrderUser{
-			Email: "test@unit.unit",
-			Ip:    "127.0.0.1",
+			Ip: "127.0.0.1",
 		},
 	}
 
@@ -4776,7 +4775,7 @@ func (suite *OrderTestSuite) TestOrder_ProcessPaymentFormData_ChangeProjectAccou
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), rsp1.Status, billingpb.ResponseStatusOk)
 	rsp := rsp1.Item
-	assert.Equal(suite.T(), "", rsp.ProjectAccount)
+	assert.Equal(suite.T(), "", rsp.User.Email)
 
 	data := map[string]string{
 		billingpb.PaymentCreateFieldOrderId:         rsp.Uuid,
@@ -5103,7 +5102,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Ok() {
 		Customer: &billingpb.CardPayCustomer{
 			Email:  order.User.Email,
 			Ip:     order.User.Ip,
-			Id:     order.ProjectAccount,
+			Id:     order.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
@@ -5229,7 +5228,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Recurring_Ok() {
 		Customer: &billingpb.CardPayCustomer{
 			Email:  order.User.Email,
 			Ip:     order.User.Ip,
-			Id:     order.ProjectAccount,
+			Id:     order.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		RecurringData: &billingpb.CardPayCallbackRecurringData{
@@ -7270,7 +7269,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_AccountingEntries_
 		Customer: &billingpb.CardPayCustomer{
 			Email:  rsp.Item.User.Email,
 			Ip:     rsp.Item.User.Ip,
-			Id:     rsp.Item.ProjectAccount,
+			Id:     rsp.Item.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
@@ -7375,7 +7374,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Error() {
 		Customer: &billingpb.CardPayCustomer{
 			Email:  order.User.Email,
 			Ip:     order.User.Ip,
-			Id:     order.ProjectAccount,
+			Id:     order.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
@@ -8048,7 +8047,7 @@ func (suite *OrderTestSuite) TestOrder_DeclineOrder_Ok() {
 		Customer: &billingpb.CardPayCustomer{
 			Email:  order.User.Email,
 			Ip:     order.User.Ip,
-			Id:     order.ProjectAccount,
+			Id:     order.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
@@ -8177,7 +8176,7 @@ func (suite *OrderTestSuite) TestOrder_SuccessOrderCentrifugoPaymentSystemError_
 		Customer: &billingpb.CardPayCustomer{
 			Email:  order.User.Email,
 			Ip:     order.User.Ip,
-			Id:     order.ProjectAccount,
+			Id:     order.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
@@ -8961,7 +8960,7 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		Customer: &billingpb.CardPayCustomer{
 			Email:  rsp.Item.User.Email,
 			Ip:     rsp.Item.User.Ip,
-			Id:     rsp.Item.ProjectAccount,
+			Id:     rsp.Item.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{

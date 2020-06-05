@@ -53,7 +53,6 @@ type MgoOrder struct {
 	Metadata                    map[string]string                        `bson:"metadata"`
 	PrivateMetadata             map[string]string                        `bson:"private_metadata"`
 	Project                     *MgoOrderProject                         `bson:"project"`
-	ProjectAccount              string                                   `bson:"project_account"`
 	ProjectLastRequestedAt      time.Time                                `bson:"project_last_requested_at"`
 	ProjectParams               map[string]string                        `bson:"project_params"`
 	PaymentMethodOrderClosedAt  time.Time                                `bson:"pm_order_close_date"`
@@ -158,7 +157,6 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 			MerchantRoyaltyCurrency: m.Project.MerchantRoyaltyCurrency,
 			RedirectSettings:        m.Project.RedirectSettings,
 		},
-		ProjectAccount:              m.ProjectAccount,
 		ProjectParams:               m.ProjectParams,
 		IsJsonRequest:               m.IsJsonRequest,
 		OrderAmount:                 m.OrderAmount,
@@ -492,7 +490,6 @@ func (o *orderMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 		}
 	}
 
-	m.ProjectAccount = decoded.ProjectAccount
 	m.ProjectParams = decoded.ProjectParams
 	m.IsJsonRequest = decoded.IsJsonRequest
 	m.OrderAmount = decoded.OrderAmount

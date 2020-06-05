@@ -973,7 +973,7 @@ func HelperPayOrder(
 		Customer: &billingpb.CardPayCustomer{
 			Email:  order.User.Email,
 			Ip:     order.User.Ip,
-			Id:     order.ProjectAccount,
+			Id:     order.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
@@ -1306,7 +1306,7 @@ func HelperCreateAndPayOrder2(
 		Customer: &billingpb.CardPayCustomer{
 			Email:  rsp.Item.User.Email,
 			Ip:     rsp.Item.User.Ip,
-			Id:     rsp.Item.ProjectAccount,
+			Id:     rsp.Item.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{

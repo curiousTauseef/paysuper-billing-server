@@ -817,7 +817,7 @@ func (s *Service) fillPaymentFormJsonData(order *billingpb.Order, rsp *billingpb
 	expire := time.Now().Add(time.Minute * 30).Unix()
 
 	rsp.Item.Id = order.Uuid
-	rsp.Item.Account = order.ProjectAccount
+	rsp.Item.Account = order.User.ExternalId
 	rsp.Item.Description = order.Description
 	rsp.Item.HasVat = order.Tax.Amount > 0
 	rsp.Item.Vat = order.Tax.Amount
@@ -2106,11 +2106,10 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			MerchantRoyaltyCurrency: v.checked.merchant.GetPayoutCurrency(),
 			RedirectSettings:        v.checked.project.RedirectSettings,
 		},
-		Description:    fmt.Sprintf(orderDefaultDescription, id),
-		ProjectAccount: v.request.Account,
-		PrivateStatus:  recurringpb.OrderStatusNew,
-		CreatedAt:      ptypes.TimestampNow(),
-		IsJsonRequest:  v.request.IsJson,
+		Description:   fmt.Sprintf(orderDefaultDescription, id),
+		PrivateStatus: recurringpb.OrderStatusNew,
+		CreatedAt:     ptypes.TimestampNow(),
+		IsJsonRequest: v.request.IsJson,
 
 		Uuid:               uuid.New().String(),
 		ReceiptId:          uuid.New().String(),
@@ -2180,6 +2179,8 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			}
 		}
 	}
+
+	order.User.ExternalId = v.request.Account
 
 	if v.request.Description != "" {
 		order.Description = v.request.Description
@@ -3163,10 +3164,6 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 	v.checked.project = processor.checked.project
 	v.checked.paymentMethod = pm
 	v.checked.order = order
-
-	if order.ProjectAccount == "" {
-		order.ProjectAccount = order.User.Email
-	}
 
 	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault &&
 		v.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
