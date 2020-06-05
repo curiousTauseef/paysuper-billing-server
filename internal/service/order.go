@@ -2160,7 +2160,8 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 
 	if order.User == nil {
 		order.User = &billingpb.OrderUser{
-			Object: pkg.ObjectTypeUser,
+			Object:     pkg.ObjectTypeUser,
+			ExternalId: v.request.Account,
 		}
 	} else {
 		if order.User.Address != nil {
@@ -2179,8 +2180,6 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			}
 		}
 	}
-
-	order.User.ExternalId = v.request.Account
 
 	if v.request.Description != "" {
 		order.Description = v.request.Description
