@@ -29,4 +29,7 @@ type PaymentChannelCostMerchantRepositoryInterface interface {
 
 	// Find returns the payment channel costs by merchant id, name, payout currency, region, country and mcc code.
 	Find(context.Context, string, string, string, string, string, string) ([]*internalPkg.PaymentChannelCostMerchantSet, error)
+
+	// Update all merchant's tariffs
+	DeleteAndInsertMany(ctx context.Context, merchantId string, tariffs []*billingpb.PaymentChannelCostMerchant) error
 }

@@ -285,7 +285,7 @@ func (r *paymentChannelCostMerchantRepository) Find(
 		return nil, err
 	}
 
-	var mgo = []*internalPkg.MgoPaymentChannelCostMerchantSet{}
+	mgo := make([]*internalPkg.MgoPaymentChannelCostMerchantSet, 0)
 	err = cursor.All(ctx, &mgo)
 
 	if err != nil {
@@ -298,7 +298,7 @@ func (r *paymentChannelCostMerchantRepository) Find(
 		return nil, err
 	}
 
-	var list = []*billingpb.PaymentChannelCostMerchant{}
+	list := make([]*billingpb.PaymentChannelCostMerchant, 0)
 
 	for _, objs := range mgo {
 		list = nil
@@ -381,7 +381,7 @@ func (r *paymentChannelCostMerchantRepository) GetAllForMerchant(
 	ctx context.Context,
 	merchantId string,
 ) ([]*billingpb.PaymentChannelCostMerchant, error) {
-	c := []*billingpb.PaymentChannelCostMerchant{}
+	c := make([]*billingpb.PaymentChannelCostMerchant, 0)
 	key := fmt.Sprintf(cachePaymentChannelCostMerchantAll, merchantId)
 	err := r.cache.Get(key, &c)
 
@@ -515,4 +515,37 @@ func (r *paymentChannelCostMerchantRepository) updateCaches(obj *billingpb.Payme
 	}
 
 	return
+}
+
+func (r *paymentChannelCostMerchantRepository) DeleteAndInsertMany(
+	ctx context.Context,
+	merchantId string,
+	tariffs []*billingpb.PaymentChannelCostMerchant,
+) error {
+	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentChannelCostMerchant),
+			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+		)
+		return err
+	}
+
+	filter := bson.M{"merchant_id": merchantOid, "is_active": true}
+	_, err = r.db.Collection(collectionPaymentChannelCostMerchant).DeleteMany(ctx, filter)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentChannelCostMerchant),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+		)
+		return err
+	}
+
+	return r.MultipleInsert(ctx, tariffs)
 }

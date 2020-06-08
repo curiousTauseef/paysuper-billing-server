@@ -240,8 +240,12 @@ func (s *Service) ChangeMerchant(
 
 	if merchant == nil {
 		merchant = &billingpb.Merchant{
-			Id:                 primitive.NewObjectID().Hex(),
-			User:               req.User,
+			Id:   primitive.NewObjectID().Hex(),
+			User: req.User,
+			Banking: &billingpb.MerchantBanking{
+				Currency:                  pkg.DefaultMerchantBankingCurrency,
+				ProcessingDefaultCurrency: pkg.DefaultMerchantBankingCurrency,
+			},
 			MinimalPayoutLimit: pkg.MerchantMinimalPayoutLimit,
 			Status:             billingpb.MerchantStatusDraft,
 			CreatedAt:          ptypes.TimestampNow(),
@@ -1197,16 +1201,6 @@ func (s *Service) SetMerchantTariffRates(
 	req *billingpb.SetMerchantTariffRatesRequest,
 	rsp *billingpb.CheckProjectRequestSignatureResponse,
 ) error {
-	mccCode, err := getMccByOperationsType(req.MerchantOperationsType)
-	if err != nil {
-		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-			rsp.Status = billingpb.ResponseStatusBadData
-			rsp.Message = e
-			return nil
-		}
-		return err
-	}
-
 	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
 
 	if err != nil {
@@ -1243,161 +1237,7 @@ func (s *Service) SetMerchantTariffRates(
 		return nil
 	}
 
-	query := &billingpb.GetMerchantTariffRatesRequest{
-		HomeRegion:             req.HomeRegion,
-		MerchantOperationsType: req.MerchantOperationsType,
-	}
-	tariffs, err := s.getMerchantTariffRates(ctx, query)
-
-	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorUnknown
-
-		return nil
-	}
-
-	payoutTariff, ok := tariffs.Payout[merchantPayoutCurrency]
-	if !ok {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorNoTariffsInPayoutCurrency
-
-		return nil
-	}
-
-	minimalPayoutLimit, ok := tariffs.MinimalPayout[merchantPayoutCurrency]
-	if !ok {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorNoTariffsInPayoutCurrency
-
-		return nil
-	}
-
-	timestampNow := ptypes.TimestampNow()
-
-	merchant.MerchantOperationsType = req.MerchantOperationsType
-	merchant.Tariff = &billingpb.MerchantTariff{
-		Payment:       tariffs.Payment,
-		Payout:        payoutTariff,
-		HomeRegion:    req.HomeRegion,
-		Chargeback:    tariffs.Chargeback,
-		Refund:        tariffs.Refund,
-		MinimalPayout: tariffs.MinimalPayout,
-	}
-
-	merchant.MinimalPayoutLimit = minimalPayoutLimit
-
-	if len(tariffs.Payment) > 0 {
-		var costs []*billingpb.PaymentChannelCostMerchant
-
-		for _, v := range tariffs.Payment {
-			cost := &billingpb.PaymentChannelCostMerchant{
-				Id:                      primitive.NewObjectID().Hex(),
-				MerchantId:              req.MerchantId,
-				Name:                    strings.ToUpper(v.MethodName),
-				PayoutCurrency:          merchantPayoutCurrency,
-				MinAmount:               v.MinAmount,
-				Region:                  v.PayerRegion,
-				MethodPercent:           v.MethodPercentFee,
-				MethodFixAmount:         v.MethodFixedFee,
-				MethodFixAmountCurrency: v.MethodFixedFeeCurrency,
-				PsPercent:               v.PsPercentFee,
-				PsFixedFee:              v.PsFixedFee,
-				PsFixedFeeCurrency:      v.PsFixedFeeCurrency,
-				CreatedAt:               timestampNow,
-				UpdatedAt:               timestampNow,
-				IsActive:                true,
-				MccCode:                 mccCode,
-			}
-
-			costs = append(costs, cost)
-		}
-
-		if len(costs) <= 0 {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-
-		err = s.paymentChannelCostMerchantRepository.MultipleInsert(ctx, costs)
-
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-	}
-
-	regions, err := s.country.GetAll(ctx)
-
-	if err != nil || len(regions.Countries) <= 0 {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorUnknown
-		return nil
-	}
-
-	var (
-		cost  *billingpb.MoneyBackCostMerchant
-		costs []*billingpb.MoneyBackCostMerchant
-	)
-
-	for _, tariffRegion := range pkg.SupportedTariffRegions {
-		for _, v := range tariffs.Refund {
-			cost = &billingpb.MoneyBackCostMerchant{
-				Id:                primitive.NewObjectID().Hex(),
-				MerchantId:        req.MerchantId,
-				Name:              strings.ToUpper(v.MethodName),
-				PayoutCurrency:    merchantPayoutCurrency,
-				UndoReason:        pkg.UndoReasonReversal,
-				Region:            tariffRegion,
-				Country:           "",
-				DaysFrom:          0,
-				PaymentStage:      1,
-				Percent:           v.MethodPercentFee,
-				FixAmount:         v.MethodFixedFee,
-				FixAmountCurrency: v.MethodFixedFeeCurrency,
-				IsPaidByMerchant:  v.IsPaidByMerchant,
-				CreatedAt:         timestampNow,
-				UpdatedAt:         timestampNow,
-				IsActive:          true,
-				MccCode:           mccCode,
-			}
-			costs = append(costs, cost)
-		}
-		for _, v := range tariffs.Chargeback {
-			cost = &billingpb.MoneyBackCostMerchant{
-				Id:                primitive.NewObjectID().Hex(),
-				MerchantId:        req.MerchantId,
-				Name:              strings.ToUpper(v.MethodName),
-				PayoutCurrency:    merchantPayoutCurrency,
-				UndoReason:        pkg.UndoReasonChargeback,
-				Region:            tariffRegion,
-				Country:           "",
-				DaysFrom:          0,
-				PaymentStage:      1,
-				Percent:           v.MethodPercentFee,
-				FixAmount:         v.MethodFixedFee,
-				FixAmountCurrency: v.MethodFixedFeeCurrency,
-				IsPaidByMerchant:  v.IsPaidByMerchant,
-				CreatedAt:         timestampNow,
-				UpdatedAt:         timestampNow,
-				IsActive:          true,
-				MccCode:           mccCode,
-			}
-			costs = append(costs, cost)
-		}
-	}
-
-	if len(costs) > 0 {
-		err = s.moneyBackCostMerchantRepository.MultipleInsert(ctx, costs)
-
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-	}
-
-	merchant.MccCode = mccCode
+	//////////////////////////////
 
 	if merchant.Steps == nil {
 		merchant.Steps = &billingpb.MerchantCompletedSteps{}

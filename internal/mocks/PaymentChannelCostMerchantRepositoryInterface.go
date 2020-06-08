@@ -26,6 +26,20 @@ func (_m *PaymentChannelCostMerchantRepositoryInterface) Delete(ctx context.Cont
 	return r0
 }
 
+// DeleteAndInsertMany provides a mock function with given fields: ctx, merchantId, tariffs
+func (_m *PaymentChannelCostMerchantRepositoryInterface) DeleteAndInsertMany(ctx context.Context, merchantId string, tariffs []*billingpb.PaymentChannelCostMerchant) error {
+	ret := _m.Called(ctx, merchantId, tariffs)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*billingpb.PaymentChannelCostMerchant) error); ok {
+		r0 = rf(ctx, merchantId, tariffs)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // Find provides a mock function with given fields: _a0, _a1, _a2, _a3, _a4, _a5, _a6
 func (_m *PaymentChannelCostMerchantRepositoryInterface) Find(_a0 context.Context, _a1 string, _a2 string, _a3 string, _a4 string, _a5 string, _a6 string) ([]*pkg.PaymentChannelCostMerchantSet, error) {
 	ret := _m.Called(_a0, _a1, _a2, _a3, _a4, _a5, _a6)
