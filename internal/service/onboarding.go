@@ -356,37 +356,55 @@ func (s *Service) ChangeMerchant(
 		return nil
 	}
 
-	if isNewMerchant == true {
-		err = s.userRoleRepository.AddMerchantUser(
-			ctx,
-			&billingpb.UserRole{
-				Id:         primitive.NewObjectID().Hex(),
-				MerchantId: merchant.Id,
-				Status:     pkg.UserRoleStatusAccepted,
-				Role:       billingpb.RoleMerchantOwner,
-				UserId:     merchant.User.Id,
-				Email:      merchant.User.Email,
-				FirstName:  merchant.User.FirstName,
-				LastName:   merchant.User.LastName,
-			},
-		)
+	merchant.CentrifugoToken = s.centrifugoDashboard.GetChannelToken(merchant.Id, time.Now().Add(time.Hour*3).Unix())
 
-		if err == nil {
-			_, err = s.casbinService.AddRoleForUser(ctx, &casbinProto.UserRoleRequest{
-				User: fmt.Sprintf(pkg.CasbinMerchantUserMask, merchant.Id, merchant.User.Id),
-				Role: billingpb.RoleMerchantOwner,
-			})
-		}
+	if !isNewMerchant {
+		rsp.Status = billingpb.ResponseStatusOk
+		rsp.Item = merchant
+		return nil
 	}
+
+	err = s.userRoleRepository.AddMerchantUser(
+		ctx,
+		&billingpb.UserRole{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: merchant.Id,
+			Status:     pkg.UserRoleStatusAccepted,
+			Role:       billingpb.RoleMerchantOwner,
+			UserId:     merchant.User.Id,
+			Email:      merchant.User.Email,
+			FirstName:  merchant.User.FirstName,
+			LastName:   merchant.User.LastName,
+		},
+	)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = merchantUnableToAddMerchantUserRole
-
 		return nil
 	}
 
-	merchant.CentrifugoToken = s.centrifugoDashboard.GetChannelToken(merchant.Id, time.Now().Add(time.Hour*3).Unix())
+	_, err = s.casbinService.AddRoleForUser(
+		ctx,
+		&casbinProto.UserRoleRequest{
+			User: fmt.Sprintf(pkg.CasbinMerchantUserMask, merchant.Id, merchant.User.Id),
+			Role: billingpb.RoleMerchantOwner,
+		},
+	)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = merchantUnableToAddMerchantUserRole
+		return nil
+	}
+
+	merchant, err = s.setMerchantTariffRates(ctx, merchant, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = err.(*billingpb.ResponseErrorMessage)
+		return nil
+	}
 
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Item = merchant
@@ -1229,15 +1247,13 @@ func (s *Service) SetMerchantTariffRates(
 		return nil
 	}
 
-	merchantPayoutCurrency := merchant.GetPayoutCurrency()
-	if merchantPayoutCurrency == "" {
-		rsp.Status = billingpb.ResponseStatusBadData
-		rsp.Message = merchantErrorCurrencyNotSet
+	merchant, err = s.setMerchantTariffRates(ctx, merchant, req.HomeRegion, req.MerchantOperationsType)
 
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = err.(*billingpb.ResponseErrorMessage)
 		return nil
 	}
-
-	//////////////////////////////
 
 	if merchant.Steps == nil {
 		merchant.Steps = &billingpb.MerchantCompletedSteps{}

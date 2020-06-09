@@ -50,15 +50,30 @@ func (s *Service) getMerchantTariffRates(
 func (s *Service) setMerchantTariffRates(
 	ctx context.Context,
 	merchant *billingpb.Merchant,
-	tariffs *billingpb.GetMerchantTariffRatesResponseItems,
+	merchantHomeRegion, merchantOperationsType string,
 ) (*billingpb.Merchant, error) {
-	mccCode, err := getMccByOperationsType(merchant.MerchantOperationsType)
+	mccCode, err := getMccByOperationsType(merchantOperationsType)
 
 	if err != nil {
 		return nil, err
 	}
 
+	query := &billingpb.GetMerchantTariffRatesRequest{
+		HomeRegion:             merchantHomeRegion,
+		MerchantOperationsType: merchantOperationsType,
+	}
+	tariffs, err := s.getMerchantTariffRates(ctx, query)
+
+	if err != nil {
+		return nil, merchantErrorUnknown
+	}
+
 	merchantPayoutCurrency := merchant.GetPayoutCurrency()
+
+	if merchantPayoutCurrency == "" {
+		return nil, merchantErrorCurrencyNotSet
+	}
+
 	payoutTariff, ok := tariffs.Payout[merchantPayoutCurrency]
 
 	if !ok {
@@ -74,13 +89,14 @@ func (s *Service) setMerchantTariffRates(
 	merchant.Tariff = &billingpb.MerchantTariff{
 		Payment:       tariffs.Payment,
 		Payout:        payoutTariff,
-		HomeRegion:    merchant.Tariff.HomeRegion,
+		HomeRegion:    merchantHomeRegion,
 		Chargeback:    tariffs.Chargeback,
 		Refund:        tariffs.Refund,
 		MinimalPayout: tariffs.MinimalPayout,
 	}
 	merchant.MccCode = mccCode
 	merchant.MinimalPayoutLimit = minimalPayoutLimit
+	merchant.MerchantOperationsType = merchantOperationsType
 
 	paymentTariffs, refundTariffs, chargebackTariffs := s.transformMerchantTariffRates(merchant, tariffs)
 	refundTariffs = append(refundTariffs, chargebackTariffs...)
