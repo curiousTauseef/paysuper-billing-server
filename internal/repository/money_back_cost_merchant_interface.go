@@ -30,4 +30,7 @@ type MoneyBackCostMerchantRepositoryInterface interface {
 
 	// GetAllForMerchant returns the list of merchant cost in money back by merchant id.
 	GetAllForMerchant(context.Context, string) (*billingpb.MoneyBackCostMerchantList, error)
+
+	// Update all merchant's tariffs
+	DeleteAndInsertMany(ctx context.Context, merchantId string, tariffs []*billingpb.MoneyBackCostMerchant) error
 }

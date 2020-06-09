@@ -250,6 +250,10 @@ const (
 	ProjectRedirectModeSuccessful = "successful"
 	ProjectRedirectModeFail       = "fail"
 	ProjectRedirectUsageAny       = "any"
+
+	DefaultMerchantBankingCurrency = "EUR"
+	DefaultMerchantTariffsRegion   = billingpb.TariffRegionEurope
+	DefaultMerchantOperationType   = MerchantOperationTypeLowRisk
 )
 
 var (

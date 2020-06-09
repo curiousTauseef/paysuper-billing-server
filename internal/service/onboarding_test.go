@@ -30,6 +30,48 @@ import (
 	"time"
 )
 
+var (
+	dummyMerchantReq = &billingpb.OnboardingRequest{
+		User: &billingpb.MerchantUser{
+			Id:    primitive.NewObjectID().Hex(),
+			Email: "test@unit.test",
+		},
+		Company: &billingpb.MerchantCompanyInfo{
+			Name:               "merchant1",
+			AlternativeName:    "merchant1",
+			Country:            "RU",
+			Zip:                "190000",
+			City:               "St.Petersburg",
+			Website:            "http://localhost",
+			State:              "RU",
+			Address:            "address",
+			AddressAdditional:  "additional address",
+			RegistrationNumber: "0000000000000000001",
+		},
+		Contacts: &billingpb.MerchantContact{
+			Authorized: &billingpb.MerchantContactAuthorized{
+				Name:     "Unit Test",
+				Email:    "test@unit.test",
+				Phone:    "1234567890",
+				Position: "Unit Test",
+			},
+			Technical: &billingpb.MerchantContactTechnical{
+				Name:  "Unit Test",
+				Email: "test@unit.test",
+				Phone: "1234567890",
+			},
+		},
+		Banking: &billingpb.MerchantBanking{
+			Currency:      "RUB",
+			Name:          "Bank name",
+			Address:       "Unknown",
+			AccountNumber: "1234567890",
+			Swift:         "TEST",
+			Details:       "",
+		},
+	}
+)
+
 type OnboardingTestSuite struct {
 	suite.Suite
 	service *Service
@@ -2547,7 +2589,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_GetMerchantOnboardingCompleteDa
 	assert.True(suite.T(), rsp1.Item.Steps.Contacts)
 	assert.True(suite.T(), rsp1.Item.Steps.Tariff)
 	assert.Equal(suite.T(), int32(4), rsp1.Item.CompleteStepsCount)
-	assert.Equal(suite.T(), "life", rsp1.Item.Status)
+	assert.Equal(suite.T(), "live", rsp1.Item.Status)
 }
 
 func (suite *OnboardingTestSuite) TestOnboarding_GetMerchantOnboardingCompleteData_MerchantNotFound_Error() {
@@ -2910,16 +2952,26 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Ok() {
 	assert.NotNil(suite.T(), merchant.Banking)
 	assert.NotZero(suite.T(), merchant.Banking.Currency)
 
+	tariffs, err := suite.service.getMerchantTariffRates(
+		ctx,
+		&billingpb.GetMerchantTariffRatesRequest{
+			HomeRegion:             pkg.DefaultMerchantTariffsRegion,
+			MerchantOperationsType: pkg.DefaultMerchantOperationType,
+		},
+	)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), tariffs)
+
 	paymentCosts, err := suite.service.paymentChannelCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), paymentCosts, 0)
+	assert.Len(suite.T(), paymentCosts, len(tariffs.Payment))
 
 	moneyBackCosts, err := suite.service.moneyBackCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), moneyBackCosts.Items, 0)
+	assert.Len(suite.T(), moneyBackCosts.Items, (len(tariffs.Refund)+len(tariffs.Chargeback))*len(pkg.SupportedTariffRegions))
 
 	req := &billingpb.GetMerchantTariffRatesRequest{
-		HomeRegion:             "russia_and_cis",
+		HomeRegion:             billingpb.TariffRegionRussiaAndCis,
 		MerchantOperationsType: pkg.MerchantOperationTypeLowRisk,
 	}
 	rsp := &billingpb.GetMerchantTariffRatesResponse{}
@@ -2931,7 +2983,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Ok() {
 
 	req1 := &billingpb.SetMerchantTariffRatesRequest{
 		MerchantId:             rsp0.Item.Id,
-		HomeRegion:             "russia_and_cis",
+		HomeRegion:             billingpb.TariffRegionRussiaAndCis,
 		MerchantOperationsType: pkg.MerchantOperationTypeLowRisk,
 	}
 	rsp1 := &billingpb.CheckProjectRequestSignatureResponse{}
@@ -2940,14 +2992,24 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.Empty(suite.T(), rsp.Message)
 
+	tariffs, err = suite.service.getMerchantTariffRates(
+		ctx,
+		&billingpb.GetMerchantTariffRatesRequest{
+			HomeRegion:             billingpb.TariffRegionRussiaAndCis,
+			MerchantOperationsType: pkg.MerchantOperationTypeLowRisk,
+		},
+	)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), tariffs)
+
 	paymentCosts, err = suite.service.paymentChannelCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), paymentCosts, 3)
+	assert.Len(suite.T(), paymentCosts, len(tariffs.Payment))
 
 	moneyBackCosts, err = suite.service.moneyBackCostMerchantRepository.GetAllForMerchant(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), moneyBackCosts.Items)
-	assert.Len(suite.T(), moneyBackCosts.Items, 15)
+	assert.Len(suite.T(), moneyBackCosts.Items, (len(tariffs.Refund)+len(tariffs.Chargeback))*len(pkg.SupportedTariffRegions))
 
 	merchant, err = suite.service.merchantRepository.GetById(context.TODO(), rsp0.Item.Id)
 	assert.NoError(suite.T(), err)
@@ -3001,7 +3063,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_GetBy_Er
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_InsertPaymentCosts_Error() {
 	rep := &mocks.PaymentChannelCostMerchantRepositoryInterface{}
-	rep.On("MultipleInsert", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
+	rep.On("DeleteAndInsertMany", mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
 	suite.service.paymentChannelCostMerchantRepository = rep
 
 	req := &billingpb.SetMerchantTariffRatesRequest{
@@ -3018,7 +3080,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_InsertPa
 
 func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantTariffRates_InsertMoneyBackCosts_Error() {
 	rep := &mocks.MoneyBackCostMerchantRepositoryInterface{}
-	rep.On("MultipleInsert", mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
+	rep.On("DeleteAndInsertMany", mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
 	suite.service.moneyBackCostMerchantRepository = rep
 
 	req := &billingpb.SetMerchantTariffRatesRequest{
@@ -3903,4 +3965,106 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchantData_SignedPublis
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
 	assert.Equal(suite.T(), rsp1.Message, merchantErrorUnknown)
+}
+
+func (suite *OnboardingTestSuite) TestMerchantTariffRates_SetMerchantTariffRates_GetMccByOperationsType_Error() {
+	_, err := suite.service.setMerchantTariffRates(context.TODO(), suite.merchant, pkg.DefaultMerchantTariffsRegion, "unknown")
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), merchantErrorOperationsTypeNotSupported, err)
+}
+
+func (suite *OnboardingTestSuite) TestMerchantTariffRates_SetMerchantTariffRates_GetPayoutCurrency_Error() {
+	_, err := suite.service.setMerchantTariffRates(context.TODO(), &billingpb.Merchant{}, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), merchantErrorCurrencyNotSet, err)
+}
+
+func (suite *OnboardingTestSuite) TestMerchantTariffRates_SetMerchantTariffRates_PayoutTariffNotFound_Error() {
+	_, err := suite.service.setMerchantTariffRates(
+		context.TODO(),
+		&billingpb.Merchant{
+			Banking: &billingpb.MerchantBanking{
+				Currency: "AUD",
+			},
+		},
+		pkg.DefaultMerchantTariffsRegion,
+		pkg.DefaultMerchantOperationType,
+	)
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), merchantErrorNoTariffsInPayoutCurrency, err)
+}
+
+func (suite *OnboardingTestSuite) TestMerchantTariffRates_SetMerchantTariffRates_MinimalPayoutNotFound_Error() {
+	merchantTariffsSettingsRepositoryMock := &mocks.MerchantTariffsSettingsInterface{}
+	merchantTariffsSettingsRepositoryMock.On("GetByMccCode", mock2.Anything, mock2.Anything).
+		Return(
+			&billingpb.MerchantTariffRatesSettings{
+				Payout: map[string]*billingpb.MerchantTariffRatesSettingsItem{
+					"USD": {},
+				},
+				MinimalPayout: map[string]float32{},
+			},
+			nil,
+		)
+	suite.service.merchantTariffsSettingsRepository = merchantTariffsSettingsRepositoryMock
+
+	_, err := suite.service.setMerchantTariffRates(
+		context.TODO(),
+		&billingpb.Merchant{
+			Banking: &billingpb.MerchantBanking{
+				Currency: "USD",
+			},
+		},
+		pkg.DefaultMerchantTariffsRegion,
+		pkg.DefaultMerchantOperationType,
+	)
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), merchantErrorNoTariffsInPayoutCurrency, err)
+}
+
+func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_UserRoleRepository_AddMerchantUser_Error() {
+	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
+	userRoleRepositoryMock.On("AddMerchantUser", mock2.Anything, mock2.Anything).
+		Return(errors.New("UserRoleRepository_AddMerchantUser_Error"))
+	suite.service.userRoleRepository = userRoleRepositoryMock
+
+	rsp := &billingpb.ChangeMerchantResponse{}
+	err := suite.service.ChangeMerchant(context.TODO(), dummyMerchantReq, rsp)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), merchantUnableToAddMerchantUserRole, rsp.Message)
+}
+
+func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_CasbinService_AddRoleForUser_Error() {
+	casbinMock := &casbinMocks.CasbinService{}
+	casbinMock.On("AddRoleForUser", mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(nil, errors.New("CasbinService_AddRoleForUser_Error"))
+	suite.service.casbinService = casbinMock
+
+	rsp := &billingpb.ChangeMerchantResponse{}
+	err := suite.service.ChangeMerchant(context.TODO(), dummyMerchantReq, rsp)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), merchantUnableToAddMerchantUserRole, rsp.Message)
+}
+
+func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_SetMerchantTariffRates_Error() {
+	merchantTariffsSettingsRepositoryMock := &mocks.MerchantTariffsSettingsInterface{}
+	merchantTariffsSettingsRepositoryMock.On("GetByMccCode", mock2.Anything, mock2.Anything).
+		Return(
+			&billingpb.MerchantTariffRatesSettings{
+				Payout: map[string]*billingpb.MerchantTariffRatesSettingsItem{
+					"USD": {},
+				},
+				MinimalPayout: map[string]float32{},
+			},
+			nil,
+		)
+	suite.service.merchantTariffsSettingsRepository = merchantTariffsSettingsRepositoryMock
+
+	rsp := &billingpb.ChangeMerchantResponse{}
+	err := suite.service.ChangeMerchant(context.TODO(), dummyMerchantReq, rsp)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), merchantErrorNoTariffsInPayoutCurrency, rsp.Message)
 }

@@ -301,7 +301,7 @@ func (r *moneyBackCostMerchantRepository) Find(
 	mccCode string,
 	paymentStage int32,
 ) ([]*internalPkg.MoneyBackCostMerchantSet, error) {
-	c := []*internalPkg.MoneyBackCostMerchantSet{}
+	c := make([]*internalPkg.MoneyBackCostMerchantSet, 0)
 	key := fmt.Sprintf(cacheMoneyBackCostMerchantKey, merchantId, name, payoutCurrency, undoReason, region, country, paymentStage, mccCode)
 
 	if err := r.cache.Get(key, &c); err == nil {
@@ -370,7 +370,7 @@ func (r *moneyBackCostMerchantRepository) Find(
 		return nil, err
 	}
 
-	var mgo = []*internalPkg.MgoMoneyBackCostMerchantSet{}
+	mgo := make([]*internalPkg.MgoMoneyBackCostMerchantSet, 0)
 	err = cursor.All(ctx, &mgo)
 
 	if err != nil {
@@ -383,7 +383,7 @@ func (r *moneyBackCostMerchantRepository) Find(
 		return nil, err
 	}
 
-	var list = []*billingpb.MoneyBackCostMerchant{}
+	list := make([]*billingpb.MoneyBackCostMerchant, 0)
 
 	for _, objs := range mgo {
 		list = nil
@@ -507,4 +507,37 @@ func (r *moneyBackCostMerchantRepository) updateCaches(obj *billingpb.MoneyBackC
 	}
 
 	return nil
+}
+
+func (r *moneyBackCostMerchantRepository) DeleteAndInsertMany(
+	ctx context.Context,
+	merchantId string,
+	tariffs []*billingpb.MoneyBackCostMerchant,
+) error {
+	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMoneyBackCostMerchant),
+			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+		)
+		return err
+	}
+
+	filter := bson.M{"merchant_id": merchantOid, "is_active": true}
+	_, err = r.db.Collection(collectionMoneyBackCostMerchant).DeleteMany(ctx, filter)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMoneyBackCostMerchant),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+		)
+		return err
+	}
+
+	return r.MultipleInsert(ctx, tariffs)
 }
