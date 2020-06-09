@@ -32,6 +32,7 @@ var (
 	projectErrorButtonCaptionAllowedOnlyForAfterRedirect         = newBillingServerErrorMsg("pr000018", "caption for redirect button can't be set with non zero delay for auto redirect")
 	projectErrorRedirectModeIsRequired                           = newBillingServerErrorMsg("pr000019", "redirect mode must be selected")
 	projectErrorRedirectUsageIsRequired                          = newBillingServerErrorMsg("pr000020", "type of redirect usage must be selected")
+	projectErrorChangeStatusToProductionNotAllowed               = newBillingServerErrorMsg("pr000021", "project status change to production not allowed, because project's merchant onboarding not complete")
 )
 
 func (s *Service) ChangeProject(
@@ -40,13 +41,11 @@ func (s *Service) ChangeProject(
 	rsp *billingpb.ChangeProjectResponse,
 ) error {
 	var project *billingpb.Project
-	var err error
+	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
 
-	var merchant = &billingpb.Merchant{}
-	if merchant, err = s.merchantRepository.GetById(ctx, req.MerchantId); err != nil {
+	if err != nil {
 		rsp.Status = billingpb.ResponseStatusNotFound
 		rsp.Message = merchantErrorNotFound
-
 		return nil
 	}
 
@@ -164,6 +163,12 @@ func (s *Service) ChangeProject(
 				Usage: pkg.ProjectRedirectUsageAny,
 			}
 		}
+	}
+
+	if req.Status == billingpb.ProjectStatusInProduction && (!merchant.IsDataComplete() || !merchant.IsSigned) {
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = projectErrorChangeStatusToProductionNotAllowed
+		return nil
 	}
 
 	if project == nil {
