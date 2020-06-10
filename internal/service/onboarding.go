@@ -251,6 +251,15 @@ func (s *Service) ChangeMerchant(
 			CreatedAt:          ptypes.TimestampNow(),
 		}
 		merchant.AgreementNumber = s.getMerchantAgreementNumber(merchant.Id)
+		operatingCompany, err := s.operatingCompanyRepository.GetByPaymentCountry(ctx, "")
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
+
+		merchant.OperatingCompanyId = operatingCompany.Id
 		merchant, err = s.setMerchantTariffRates(ctx, merchant, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
 
 		if err != nil {

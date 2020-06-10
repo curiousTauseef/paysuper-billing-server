@@ -4068,3 +4068,16 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_SetM
 	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
 	assert.Equal(suite.T(), merchantErrorNoTariffsInPayoutCurrency, rsp.Message)
 }
+
+func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_OperatingCompanyRepository_GetByPaymentCountry_Error() {
+	operatingCompanyRepositoryMock := &mocks.OperatingCompanyRepositoryInterface{}
+	operatingCompanyRepositoryMock.On("GetByPaymentCountry", mock2.Anything, mock2.Anything).
+		Return(nil, errors.New("OperatingCompanyRepository_GetByPaymentCountry_Error"))
+	suite.service.operatingCompanyRepository = operatingCompanyRepositoryMock
+
+	rsp := &billingpb.ChangeMerchantResponse{}
+	err := suite.service.ChangeMerchant(context.TODO(), dummyMerchantReq, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), merchantErrorUnknown, rsp.Message)
+}
