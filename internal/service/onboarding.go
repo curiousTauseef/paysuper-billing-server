@@ -1239,7 +1239,7 @@ func (s *Service) SetMerchantTariffRates(
 		return nil
 	}
 
-	if merchant.HasTariff() {
+	if merchant.HasTariff() && merchant.Steps != nil && merchant.Steps.Tariff {
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = merchantErrorOnboardingTariffAlreadyExist
 
