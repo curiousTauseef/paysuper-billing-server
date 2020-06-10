@@ -23,6 +23,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"mime"
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -1056,7 +1057,7 @@ func (s *Service) RoyaltyReportFinanceDone(
 	attachment := &postmarkpb.PayloadAttachment{
 		Name:        req.FileName,
 		Content:     base64.StdEncoding.EncodeToString(req.FileContent),
-		ContentType: mime.TypeByExtension(filepath.Ext(req.FileName)),
+		ContentType: http.DetectContentType(req.FileContent),
 	}
 	attachments, err := s.royaltyReportRepository.SetRoyaltyReportFinanceItem(royaltyReport.Id, attachment)
 
