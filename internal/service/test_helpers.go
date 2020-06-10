@@ -472,13 +472,18 @@ func HelperCreateMerchant(
 		ItemMinCostCurrency:    "",
 		CentrifugoToken:        "",
 		AgreementSignatureData: nil,
-		Steps:                  nil,
-		AgreementTemplate:      "",
-		ReceivedDate:           nil,
-		StatusLastUpdatedAt:    nil,
-		HasProjects:            false,
-		AgreementNumber:        service.getMerchantAgreementNumber(id),
-		MinimalPayoutLimit:     0,
+		Steps: &billingpb.MerchantCompletedSteps{
+			Company:  true,
+			Contacts: true,
+			Banking:  true,
+			Tariff:   true,
+		},
+		AgreementTemplate:   "",
+		ReceivedDate:        nil,
+		StatusLastUpdatedAt: nil,
+		HasProjects:         false,
+		AgreementNumber:     service.getMerchantAgreementNumber(id),
+		MinimalPayoutLimit:  0,
 		Tariff: &billingpb.MerchantTariff{
 			Payment: []*billingpb.MerchantTariffRatesPayment{
 				{
