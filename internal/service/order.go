@@ -2234,8 +2234,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 }
 
 func (v *OrderCreateRequestProcessor) processMerchant() error {
-	if v.checked.merchant.Banking == nil || v.checked.merchant.Banking.Currency == "" ||
-		v.checked.merchant.Banking.ProcessingDefaultCurrency == "" {
+	if v.checked.merchant.Banking == nil || v.checked.merchant.Banking.Currency == "" {
 		return orderErrorMerchantDoNotHaveBanking
 	}
 
