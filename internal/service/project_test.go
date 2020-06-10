@@ -108,6 +108,12 @@ var (
 				"USD": 0,
 			},
 		},
+		Steps: &billingpb.MerchantCompletedSteps{
+			Company:  true,
+			Contacts: true,
+			Banking:  true,
+			Tariff:   true,
+		},
 	}
 
 	projectMock = &billingpb.Project{
