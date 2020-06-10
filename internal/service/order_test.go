@@ -799,6 +799,12 @@ func (suite *OrderTestSuite) SetupTest() {
 		MccCode:            billingpb.MccCodeLowRisk,
 		OperatingCompanyId: suite.operatingCompany.Id,
 		DontChargeVat:      false,
+		Steps: &billingpb.MerchantCompletedSteps{
+			Company:  true,
+			Contacts: true,
+			Banking:  true,
+			Tariff:   true,
+		},
 	}
 
 	merchantAgreement := &billingpb.Merchant{
@@ -885,6 +891,12 @@ func (suite *OrderTestSuite) SetupTest() {
 		MccCode:            billingpb.MccCodeLowRisk,
 		OperatingCompanyId: suite.operatingCompany.Id,
 		DontChargeVat:      false,
+		Steps: &billingpb.MerchantCompletedSteps{
+			Company:  true,
+			Contacts: true,
+			Banking:  true,
+			Tariff:   true,
+		},
 	}
 	merchant1 := &billingpb.Merchant{
 		Id: primitive.NewObjectID().Hex(),
@@ -970,6 +982,12 @@ func (suite *OrderTestSuite) SetupTest() {
 		MccCode:            billingpb.MccCodeLowRisk,
 		OperatingCompanyId: suite.operatingCompany.Id,
 		DontChargeVat:      false,
+		Steps: &billingpb.MerchantCompletedSteps{
+			Company:  true,
+			Contacts: true,
+			Banking:  true,
+			Tariff:   true,
+		},
 	}
 
 	project := &billingpb.Project{
