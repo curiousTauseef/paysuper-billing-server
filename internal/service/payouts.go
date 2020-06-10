@@ -16,6 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"mime"
+	"net/http"
 	"path/filepath"
 	"sort"
 	"time"
@@ -732,7 +733,7 @@ func (s *Service) PayoutFinanceDone(
 			{
 				Name:        req.FileName,
 				Content:     base64.StdEncoding.EncodeToString(req.FileContent),
-				ContentType: mime.TypeByExtension(filepath.Ext(req.FileName)),
+				ContentType: http.DetectContentType(req.FileContent),
 			},
 		},
 	}
