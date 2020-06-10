@@ -251,6 +251,20 @@ func (s *Service) ChangeMerchant(
 			CreatedAt:          ptypes.TimestampNow(),
 		}
 		merchant.AgreementNumber = s.getMerchantAgreementNumber(merchant.Id)
+		merchant, err = s.setMerchantTariffRates(ctx, merchant, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
+		}
+
+		if merchant == nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
+
 		isNewMerchant = true
 	}
 
@@ -395,14 +409,6 @@ func (s *Service) ChangeMerchant(
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = merchantUnableToAddMerchantUserRole
-		return nil
-	}
-
-	merchant, err = s.setMerchantTariffRates(ctx, merchant, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
-
-	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
 		return nil
 	}
 
