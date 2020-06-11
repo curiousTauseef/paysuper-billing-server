@@ -516,14 +516,12 @@ func (s *Service) ListRoyaltyReportOrders(
 	from, _ := ptypes.Timestamp(report.PeriodFrom)
 	to, _ := ptypes.Timestamp(report.PeriodTo)
 
-	royaltyReportOid, _ := primitive.ObjectIDFromHex(report.Id)
 	merchantOid, _ := primitive.ObjectIDFromHex(report.MerchantId)
 	match := bson.M{
 		"merchant_id":         merchantOid,
 		"pm_order_close_date": bson.M{"$gte": from, "$lte": to},
 		"status":              bson.M{"$in": orderStatusForRoyaltyReports},
 		"is_production":       true,
-		"royalty_report_id":   bson.M{"$exists": true, "$eq": royaltyReportOid},
 	}
 
 	ts, err := s.orderViewRepository.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
