@@ -251,29 +251,6 @@ func (s *Service) ChangeMerchant(
 			CreatedAt:          ptypes.TimestampNow(),
 		}
 		merchant.AgreementNumber = s.getMerchantAgreementNumber(merchant.Id)
-		operatingCompany, err := s.operatingCompanyRepository.GetByPaymentCountry(ctx, "")
-
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-
-		merchant.OperatingCompanyId = operatingCompany.Id
-		merchant, err = s.setMerchantTariffRates(ctx, merchant, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
-
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = err.(*billingpb.ResponseErrorMessage)
-			return nil
-		}
-
-		if merchant == nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-
 		isNewMerchant = true
 	}
 
@@ -322,25 +299,16 @@ func (s *Service) ChangeMerchant(
 	}
 
 	if merchant.IsDataComplete() {
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationMerchant, merchant.GetAuthorizedEmail())
+		err = s.onMerchantOnboardingComplete(ctx, merchant)
+
 		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
 		}
 
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationAdmin, s.cfg.EmailOnboardingAdminRecipient)
-		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
+		merchant.Status = billingpb.MerchantStatusPending
+		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
 	}
 
 	merchant.UpdatedAt = ptypes.TimestampNow()
@@ -352,6 +320,31 @@ func (s *Service) ChangeMerchant(
 	merchant.Steps.Company = merchant.IsCompanyComplete()
 	merchant.Steps.Contacts = merchant.IsContactsComplete()
 	merchant.Steps.Banking = merchant.IsBankingComplete()
+
+	if isNewMerchant {
+		operatingCompany, err := s.operatingCompanyRepository.GetByPaymentCountry(ctx, "")
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
+
+		merchant.OperatingCompanyId = operatingCompany.Id
+		merchant, err = s.setMerchantTariffRates(ctx, merchant, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
+		}
+
+		if merchant == nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
+	}
 
 	if !merchant.HasPrimaryOnboardingUserName() {
 		profile, _ := s.userProfileRepository.GetByUserId(ctx, req.User.Id)
@@ -1277,47 +1270,16 @@ func (s *Service) SetMerchantTariffRates(
 	merchant.Steps.Tariff = true
 
 	if merchant.IsDataComplete() {
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationMerchant, merchant.GetAuthorizedEmail())
-		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
-
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationAdmin, s.cfg.EmailOnboardingAdminRecipient)
-		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
-
-		statusChange := &billingpb.SystemNotificationStatuses{From: billingpb.MerchantStatusDraft, To: billingpb.MerchantStatusPending}
-
-		merchant.Status = billingpb.MerchantStatusPending
-		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
-		message, ok := merchantStatusChangesMessages[merchant.Status]
-
-		if !ok {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantNotificationSettingNotFound
-
-			return nil
-		}
-
-		_, err = s.addNotification(ctx, message, merchant.Id, "", statusChange)
+		err = s.onMerchantOnboardingComplete(ctx, merchant)
 
 		if err != nil {
 			rsp.Status = billingpb.ResponseStatusSystemError
 			rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
 			return nil
 		}
+
+		merchant.Status = billingpb.MerchantStatusPending
+		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
 	}
 
 	err = s.merchantRepository.Update(ctx, merchant)
@@ -1479,5 +1441,32 @@ func (s *Service) sendLicenseAgreementSignedEmail(merchant *billingpb.Merchant) 
 		)
 	}
 
+	return err
+}
+
+func (s *Service) onMerchantOnboardingComplete(ctx context.Context, merchant *billingpb.Merchant) error {
+	err := s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationMerchant, merchant.GetAuthorizedEmail())
+
+	if err != nil {
+		return merchantErrorUnknown
+	}
+
+	err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationAdmin, s.cfg.EmailOnboardingAdminRecipient)
+
+	if err != nil {
+		return merchantErrorUnknown
+	}
+
+	statusChange := &billingpb.SystemNotificationStatuses{
+		From: merchant.Status,
+		To:   billingpb.MerchantStatusPending,
+	}
+	message, ok := merchantStatusChangesMessages[billingpb.MerchantStatusPending]
+
+	if !ok {
+		return merchantNotificationSettingNotFound
+	}
+
+	_, err = s.addNotification(ctx, message, merchant.Id, "", statusChange)
 	return err
 }
