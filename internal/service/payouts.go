@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
+	"math"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -122,50 +123,55 @@ func (s *Service) createPayoutDocument(
 
 	pd.Currency = reports[0].Currency
 
-	var times []time.Time
-	payoutAmountMoney := tools.New()
-	correctionAmountMoney := tools.New()
-	rollingReserveAmountMoney := tools.New()
+	times := make([]time.Time, 0)
+	grossTotalAmountMoney := tools.New()
+	totalFeesMoney := tools.New()
+	totalVatMoney := tools.New()
+
+	totalFeesAmount := float64(0)
+	balanceAmount := float64(0)
 
 	for _, r := range reports {
-		payoutAmount, err := payoutAmountMoney.Round(r.Totals.PayoutAmount, 2)
+		grossTotalAmount, err := grossTotalAmountMoney.Round(r.Summary.ProductsTotal.GrossTotalAmount, 2)
 
 		if err != nil {
 			zap.L().Error(
 				billingpb.ErrorUnableRound,
 				zap.Error(err),
-				zap.String(billingpb.ErrorFieldKey, "payout_amount"),
+				zap.String(billingpb.ErrorFieldKey, "gross_total_amount"),
 				zap.Float64(billingpb.ErrorFieldValue, r.Totals.PayoutAmount),
 			)
 			return err
 		}
 
-		correctionAmount, err := correctionAmountMoney.Round(r.Totals.CorrectionAmount, 2)
+		totalFees, err := totalFeesMoney.Round(r.Summary.ProductsTotal.TotalFees, 2)
 
 		if err != nil {
 			zap.L().Error(
 				billingpb.ErrorUnableRound,
 				zap.Error(err),
-				zap.String(billingpb.ErrorFieldKey, "correction_amount"),
-				zap.Float64(billingpb.ErrorFieldValue, r.Totals.CorrectionAmount),
+				zap.String(billingpb.ErrorFieldKey, "total_fees"),
+				zap.Float64(billingpb.ErrorFieldValue, r.Totals.PayoutAmount),
 			)
 			return err
 		}
 
-		rollingReserveAmount, err := rollingReserveAmountMoney.Round(r.Totals.RollingReserveAmount, 2)
+		totalVat, err := totalVatMoney.Round(r.Summary.ProductsTotal.TotalVat, 2)
 
 		if err != nil {
 			zap.L().Error(
 				billingpb.ErrorUnableRound,
 				zap.Error(err),
-				zap.String(billingpb.ErrorFieldKey, "rolling_reserve_amount"),
-				zap.Float64(billingpb.ErrorFieldValue, r.Totals.RollingReserveAmount),
+				zap.String(billingpb.ErrorFieldKey, "total_vat"),
+				zap.Float64(billingpb.ErrorFieldValue, r.Totals.PayoutAmount),
 			)
 			return err
 		}
 
-		pd.TotalFees += payoutAmount - correctionAmount
-		pd.Balance += payoutAmount - correctionAmount - rollingReserveAmount
+		payoutAmount := grossTotalAmount - totalFees - totalVat
+		totalFeesAmount += payoutAmount - r.Totals.CorrectionAmount
+		balanceAmount += payoutAmount - r.Totals.CorrectionAmount - r.Totals.RollingReserveAmount
+
 		pd.TotalTransactions += r.Totals.TransactionsCount
 		pd.SourceId = append(pd.SourceId, r.Id)
 
@@ -189,6 +195,9 @@ func (s *Service) createPayoutDocument(
 		}
 		times = append(times, from, to)
 	}
+
+	pd.TotalFees = math.Round(totalFeesAmount*100) / 100
+	pd.Balance = math.Round(balanceAmount*100) / 100
 
 	if pd.Balance <= 0 {
 		res.Status = billingpb.ResponseStatusBadData
