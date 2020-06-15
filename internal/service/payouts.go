@@ -89,7 +89,6 @@ func (s *Service) createPayoutDocument(
 	req *billingpb.CreatePayoutDocumentRequest,
 	res *billingpb.CreatePayoutDocumentResponse,
 ) error {
-
 	arrivalDate, err := ptypes.TimestampProto(now.EndOfDay().Add(time.Hour * 24 * payoutArrivalInDays))
 	if err != nil {
 		return err
@@ -124,10 +123,49 @@ func (s *Service) createPayoutDocument(
 	pd.Currency = reports[0].Currency
 
 	var times []time.Time
+	payoutAmountMoney := tools.New()
+	correctionAmountMoney := tools.New()
+	rollingReserveAmountMoney := tools.New()
 
 	for _, r := range reports {
-		pd.TotalFees += r.Totals.PayoutAmount - r.Totals.CorrectionAmount
-		pd.Balance += r.Totals.PayoutAmount - r.Totals.CorrectionAmount - r.Totals.RollingReserveAmount
+		payoutAmount, err := payoutAmountMoney.Round(r.Totals.PayoutAmount, 2)
+
+		if err != nil {
+			zap.L().Error(
+				billingpb.ErrorUnableRound,
+				zap.Error(err),
+				zap.String(billingpb.ErrorFieldKey, "payout_amount"),
+				zap.Float64(billingpb.ErrorFieldValue, r.Totals.PayoutAmount),
+			)
+			return err
+		}
+
+		correctionAmount, err := correctionAmountMoney.Round(r.Totals.CorrectionAmount, 2)
+
+		if err != nil {
+			zap.L().Error(
+				billingpb.ErrorUnableRound,
+				zap.Error(err),
+				zap.String(billingpb.ErrorFieldKey, "correction_amount"),
+				zap.Float64(billingpb.ErrorFieldValue, r.Totals.CorrectionAmount),
+			)
+			return err
+		}
+
+		rollingReserveAmount, err := rollingReserveAmountMoney.Round(r.Totals.RollingReserveAmount, 2)
+
+		if err != nil {
+			zap.L().Error(
+				billingpb.ErrorUnableRound,
+				zap.Error(err),
+				zap.String(billingpb.ErrorFieldKey, "rolling_reserve_amount"),
+				zap.Float64(billingpb.ErrorFieldValue, r.Totals.RollingReserveAmount),
+			)
+			return err
+		}
+
+		pd.TotalFees += payoutAmount - correctionAmount
+		pd.Balance += payoutAmount - correctionAmount - rollingReserveAmount
 		pd.TotalTransactions += r.Totals.TransactionsCount
 		pd.SourceId = append(pd.SourceId, r.Id)
 

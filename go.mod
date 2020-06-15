@@ -26,7 +26,7 @@ require (
 	github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
-	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200610095412-e1c09f524650
+	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200615114514-bc5639bebbed
 	github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200303091345-2cee0f7f84c1
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200302133127-ba8bd156664b
@@ -35,7 +35,7 @@ require (
 	github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200604071945-7744c0e9efc7
 	github.com/paysuper/paysuper-proto/go/taxpb v0.0.0-20200302133127-ba8bd156664b
-	github.com/paysuper/paysuper-tools v0.0.0-20200117101901-522574ce4d1c
+	github.com/paysuper/paysuper-tools v0.0.0-20200615100217-a4fcd1148ac0
 	github.com/prometheus/client_golang v1.3.0
 	github.com/stoewer/go-strcase v1.1.0
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
