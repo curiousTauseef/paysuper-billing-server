@@ -270,19 +270,6 @@ func (s *Service) createPayoutDocument(
 		return err
 	}
 
-	_, err = s.updateMerchantBalance(ctx, merchant.Id)
-	if err != nil {
-		e, ok := err.(*billingpb.ResponseErrorMessage)
-
-		if !ok {
-			e = merchantErrorUnknown
-		}
-
-		res.Status = billingpb.ResponseStatusSystemError
-		res.Message = e
-		return nil
-	}
-
 	err = s.renderPayoutDocument(ctx, pd, merchant)
 	if err != nil {
 		return err
