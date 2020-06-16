@@ -215,6 +215,7 @@ func (s *Service) createPayoutDocument(
 	balanceNet := tools.ToPrecise(balance.Debit - balance.Credit)
 
 	if pd.Balance > balanceNet {
+		zap.L().Info("debug_balance", zap.Float64("pd.Balance", pd.Balance), zap.Float64("balanceNet", balanceNet))
 		res.Status = billingpb.ResponseStatusBadData
 		res.Message = errorPayoutNotEnoughBalance
 		return nil
