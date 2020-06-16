@@ -810,6 +810,8 @@ func (s *Service) TaskRebuildPayouts() error {
 		return err
 	}
 
+	merchantsIds := make(map[string]bool)
+
 	for _, payout := range payouts {
 		royaltyReports, err := s.royaltyReportRepository.GetByPayoutId(ctx, payout.Id)
 
@@ -856,6 +858,12 @@ func (s *Service) TaskRebuildPayouts() error {
 		if err != nil {
 			return err
 		}
+
+		merchantsIds[payout.MerchantId] = true
+	}
+
+	for k := range merchantsIds {
+		_, _ = s.updateMerchantBalance(ctx, k)
 	}
 
 	return nil
