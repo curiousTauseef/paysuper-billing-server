@@ -584,3 +584,50 @@ func (r *payoutRepository) onPayoutDocumentChange(
 
 	return nil
 }
+
+func (r *payoutRepository) FindAllNotPaid(
+	ctx context.Context,
+) ([]*billingpb.PayoutDocument, error) {
+	query := bson.M{"status": bson.M{"$in": []string{"pending", "skip"}}}
+	cursor, err := r.db.Collection(collectionPayoutDocuments).Find(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	mgoPayoutDocuments := make([]*models.MgoPayoutDocument, 0)
+	err = cursor.All(ctx, &mgoPayoutDocuments)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	objs := make([]*billingpb.PayoutDocument, len(mgoPayoutDocuments))
+
+	for i, obj := range mgoPayoutDocuments {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.PayoutDocument)
+	}
+
+	return objs, nil
+}

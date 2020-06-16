@@ -270,6 +270,19 @@ func (s *Service) createPayoutDocument(
 		return err
 	}
 
+	_, err = s.updateMerchantBalance(ctx, merchant.Id)
+	if err != nil {
+		e, ok := err.(*billingpb.ResponseErrorMessage)
+
+		if !ok {
+			e = merchantErrorUnknown
+		}
+
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = e
+		return nil
+	}
+
 	err = s.renderPayoutDocument(ctx, pd, merchant)
 	if err != nil {
 		return err
@@ -799,5 +812,72 @@ func (s *Service) PayoutFinanceDone(
 	}
 
 	res.Status = billingpb.ResponseStatusOk
+	return nil
+}
+
+func (s *Service) TaskRebuildPayouts() error {
+	ctx := context.Background()
+	payouts, err := s.payoutRepository.FindAllNotPaid(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	merchantsIds := make(map[string]bool)
+
+	for _, payout := range payouts {
+		royaltyReports, err := s.royaltyReportRepository.GetByPayoutId(ctx, payout.Id)
+
+		if err != nil {
+			return err
+		}
+
+		grossTotalAmountMoney := tools.New()
+		totalFeesMoney := tools.New()
+		totalVatMoney := tools.New()
+
+		totalFeesAmount := float64(0)
+		balanceAmount := float64(0)
+
+		for _, royaltyReport := range royaltyReports {
+			grossTotalAmount, err := grossTotalAmountMoney.Round(royaltyReport.Summary.ProductsTotal.GrossTotalAmount, 2)
+
+			if err != nil {
+				return err
+			}
+
+			totalFees, err := totalFeesMoney.Round(royaltyReport.Summary.ProductsTotal.TotalFees, 2)
+
+			if err != nil {
+				return err
+			}
+
+			totalVat, err := totalVatMoney.Round(royaltyReport.Summary.ProductsTotal.TotalVat, 2)
+
+			if err != nil {
+				return err
+			}
+
+			payoutAmount := grossTotalAmount - totalFees - totalVat
+			totalFeesAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount
+			balanceAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount - royaltyReport.Totals.RollingReserveAmount
+		}
+
+		payout.TotalFees = math.Round(totalFeesAmount*100) / 100
+		payout.Balance = math.Round(balanceAmount*100) / 100
+
+		err = s.payoutRepository.Update(ctx, payout, "0.0.0.0", "auto")
+
+		if err != nil {
+			return err
+		}
+
+		merchantsIds[payout.MerchantId] = true
+	}
+
+	for k := range merchantsIds {
+		_, _ = s.updateMerchantBalance(ctx, k)
+	}
+
 	return nil
 }

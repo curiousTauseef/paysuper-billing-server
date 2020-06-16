@@ -400,6 +400,10 @@ func (app *Application) TaskFixTaxes() error {
 	return app.svc.FixTaxes(context.TODO())
 }
 
+func (app *Application) TaskRebuildPayouts() error {
+	return app.svc.TaskRebuildPayouts()
+}
+
 func (app *Application) KeyDaemonStart() {
 	zap.L().Info("Key daemon started", zap.Int64("RestartInterval", app.cfg.KeyDaemonRestartInterval))
 
