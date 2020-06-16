@@ -801,3 +801,62 @@ func (s *Service) PayoutFinanceDone(
 	res.Status = billingpb.ResponseStatusOk
 	return nil
 }
+
+func (s *Service) TaskRebuildPayouts() error {
+	ctx := context.Background()
+	payouts, err := s.payoutRepository.FindAllNotPaid(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	for _, payout := range payouts {
+		royaltyReports, err := s.royaltyReportRepository.GetByPayoutId(ctx, payout.Id)
+
+		if err != nil {
+			return err
+		}
+
+		grossTotalAmountMoney := tools.New()
+		totalFeesMoney := tools.New()
+		totalVatMoney := tools.New()
+
+		totalFeesAmount := float64(0)
+		balanceAmount := float64(0)
+
+		for _, royaltyReport := range royaltyReports {
+			grossTotalAmount, err := grossTotalAmountMoney.Round(royaltyReport.Summary.ProductsTotal.GrossTotalAmount, 2)
+
+			if err != nil {
+				return err
+			}
+
+			totalFees, err := totalFeesMoney.Round(royaltyReport.Summary.ProductsTotal.TotalFees, 2)
+
+			if err != nil {
+				return err
+			}
+
+			totalVat, err := totalVatMoney.Round(royaltyReport.Summary.ProductsTotal.TotalVat, 2)
+
+			if err != nil {
+				return err
+			}
+
+			payoutAmount := grossTotalAmount - totalFees - totalVat
+			totalFeesAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount
+			balanceAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount - royaltyReport.Totals.RollingReserveAmount
+		}
+
+		payout.TotalFees = math.Round(totalFeesAmount*100) / 100
+		payout.Balance = math.Round(balanceAmount*100) / 100
+
+		err = s.payoutRepository.Update(ctx, payout, "0.0.0.0", "auto")
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
