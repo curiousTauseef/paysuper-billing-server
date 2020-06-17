@@ -571,6 +571,10 @@ func (r *royaltyReportRepository) GetBalanceAmount(ctx context.Context, merchant
 		return 0, err
 	}
 
+	if len(result) <= 0 {
+		return 0, nil
+	}
+
 	grossTotalAmountMoney := helper.NewMoney()
 	totalFeesMoney := helper.NewMoney()
 	totalVatMoney := helper.NewMoney()
