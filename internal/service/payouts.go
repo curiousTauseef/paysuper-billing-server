@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -124,47 +125,30 @@ func (s *Service) createPayoutDocument(
 	pd.Currency = reports[0].Currency
 
 	times := make([]time.Time, 0)
-	grossTotalAmountMoney := tools.New()
-	totalFeesMoney := tools.New()
-	totalVatMoney := tools.New()
+	grossTotalAmountMoney := helper.NewMoney()
+	totalFeesMoney := helper.NewMoney()
+	totalVatMoney := helper.NewMoney()
 
 	totalFeesAmount := float64(0)
 	balanceAmount := float64(0)
 
 	for _, r := range reports {
-		grossTotalAmount, err := grossTotalAmountMoney.Round(r.Summary.ProductsTotal.GrossTotalAmount, 2)
+		grossTotalAmount, err := grossTotalAmountMoney.Round(r.Summary.ProductsTotal.GrossTotalAmount)
 
 		if err != nil {
-			zap.L().Error(
-				billingpb.ErrorUnableRound,
-				zap.Error(err),
-				zap.String(billingpb.ErrorFieldKey, "gross_total_amount"),
-				zap.Float64(billingpb.ErrorFieldValue, r.Totals.PayoutAmount),
-			)
 			return err
 		}
 
-		totalFees, err := totalFeesMoney.Round(r.Summary.ProductsTotal.TotalFees, 2)
+		totalFees, err := totalFeesMoney.Round(r.Summary.ProductsTotal.TotalFees)
 
 		if err != nil {
-			zap.L().Error(
-				billingpb.ErrorUnableRound,
-				zap.Error(err),
-				zap.String(billingpb.ErrorFieldKey, "total_fees"),
-				zap.Float64(billingpb.ErrorFieldValue, r.Totals.PayoutAmount),
-			)
 			return err
 		}
 
-		totalVat, err := totalVatMoney.Round(r.Summary.ProductsTotal.TotalVat, 2)
+		totalVat, err := totalVatMoney.Round(r.Summary.ProductsTotal.TotalVat)
 
 		if err != nil {
-			zap.L().Error(
-				billingpb.ErrorUnableRound,
-				zap.Error(err),
-				zap.String(billingpb.ErrorFieldKey, "total_vat"),
-				zap.Float64(billingpb.ErrorFieldValue, r.Totals.PayoutAmount),
-			)
+
 			return err
 		}
 
@@ -215,7 +199,6 @@ func (s *Service) createPayoutDocument(
 	balanceNet := tools.ToPrecise(balance.Debit - balance.Credit)
 
 	if pd.Balance > balanceNet {
-		zap.L().Info("debug_balance", zap.Float64("pd.Balance", pd.Balance), zap.Float64("balanceNet", balanceNet))
 		res.Status = billingpb.ResponseStatusBadData
 		res.Message = errorPayoutNotEnoughBalance
 		return nil

@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
@@ -23,4 +24,6 @@ var (
 	KeyErrorCanceled       = newBillingServerErrorMsg("ks000004", "unable to cancel key")
 	KeyErrorFinish         = newBillingServerErrorMsg("ks000005", "unable to finish key")
 	KeyErrorReserve        = newBillingServerErrorMsg("ks000006", "unable to reserve key")
+
+	ErrBalanceHasMoreOneCurrency = errors.New("merchant balance has more one currency")
 )

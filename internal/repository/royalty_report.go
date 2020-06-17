@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	billErr "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,6 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"math"
 	"time"
 )
 
@@ -532,16 +535,13 @@ func (r *royaltyReportRepository) GetBalanceAmount(ctx context.Context, merchant
 			},
 		},
 		{
-			"$group": bson.M{
-				"_id":               "currency",
-				"payout_amount":     bson.M{"$sum": "$totals.payout_amount"},
-				"correction_amount": bson.M{"$sum": "$totals.correction_amount"},
-			},
-		},
-		{
 			"$project": bson.M{
-				"_id":    0,
-				"amount": bson.M{"$subtract": []interface{}{"$payout_amount", "$correction_amount"}},
+				"currency":                     "$currency",
+				"gross_total_amount":           "$summary.products_total.gross_total_amount",
+				"total_fees":                   "$summary.products_total.total_fees",
+				"total_vat":                    "$summary.products_total.total_vat",
+				"correction_amount":            "$totals.correction_amount",
+				"rolling_reserve_total_amount": "$totals.rolling_reserve_total_amount",
 			},
 		},
 	}
@@ -558,33 +558,73 @@ func (r *royaltyReportRepository) GetBalanceAmount(ctx context.Context, merchant
 		return 0, err
 	}
 
-	res := &pkg2.BalanceQueryResItem{}
+	result := make([]*pkg2.BalanceQueryResult, 0)
+	err = cursor.All(ctx, &result)
 
-	defer func() {
-		err := cursor.Close(ctx)
-		if err != nil {
-			zap.L().Error(
-				pkg.ErrorQueryCursorCloseFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, CollectionRoyaltyReport),
-			)
-		}
-	}()
-
-	if cursor.Next(ctx) {
-		err = cursor.Decode(&res)
-		if err != nil {
-			zap.L().Error(
-				pkg.ErrorQueryCursorExecutionFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, CollectionRoyaltyReport),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-			return 0, err
-		}
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionRoyaltyReport),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return 0, err
 	}
 
-	return res.Amount, nil
+	if len(result) <= 0 {
+		return 0, nil
+	}
+
+	grossTotalAmountMoney := helper.NewMoney()
+	totalFeesMoney := helper.NewMoney()
+	totalVatMoney := helper.NewMoney()
+	correctionAmountMoney := helper.NewMoney()
+	rollingReserveAmountMoney := helper.NewMoney()
+
+	balance := make(map[string]float64)
+
+	for _, val := range result {
+		grossTotalAmount, err := grossTotalAmountMoney.Round(val.GrossTotalAmount)
+
+		if err != nil {
+			return 0, err
+		}
+
+		totalFees, err := totalFeesMoney.Round(val.TotalFees)
+
+		if err != nil {
+			return 0, err
+		}
+
+		totalVat, err := totalVatMoney.Round(val.TotalVat)
+
+		if err != nil {
+			return 0, err
+		}
+
+		correctionAmount, err := correctionAmountMoney.Round(val.CorrectionAmount)
+
+		if err != nil {
+			return 0, err
+		}
+
+		rollingReserveAmount, err := rollingReserveAmountMoney.Round(val.CorrectionAmount)
+
+		if err != nil {
+			return 0, err
+		}
+
+		payoutAmount := grossTotalAmount - totalFees - totalVat
+		balance[val.Currency] += payoutAmount - correctionAmount - rollingReserveAmount
+	}
+
+	if len(balance) > 1 {
+		return 0, billErr.ErrBalanceHasMoreOneCurrency
+	}
+
+	amount := math.Round(balance[result[0].Currency]*100) / 100
+
+	return amount, nil
 }
 
 func (r *royaltyReportRepository) GetReportExists(
