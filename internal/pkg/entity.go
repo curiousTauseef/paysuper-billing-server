@@ -60,10 +60,6 @@ type BinData struct {
 	BankPhone          string             `bson:"bank_phone"`
 }
 
-type BalanceQueryResItem struct {
-	Amount float64 `bson:"amount"`
-}
-
 type ReserveQueryResItem struct {
 	Type   string  `bson:"_id"`
 	Amount float64 `bson:"amount"`

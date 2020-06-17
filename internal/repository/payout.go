@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	billErr "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -18,6 +20,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"math"
 	"time"
 )
 
@@ -262,14 +265,14 @@ func (r *payoutRepository) GetBalanceAmount(ctx context.Context, merchantId, cur
 			},
 		},
 		{
-			"$group": bson.M{
-				"_id":    "$currency",
-				"amount": bson.M{"$sum": "$total_fees"},
+			"$project": bson.M{
+				"currency":   "$currency",
+				"total_fees": "$total_fees",
 			},
 		},
 	}
 
-	res := &pkg2.BalanceQueryResItem{}
+	result := make([]*pkg2.BalanceQueryResult, 0)
 	cursor, err := r.db.Collection(collectionPayoutDocuments).Aggregate(ctx, query)
 
 	if err != nil {
@@ -284,30 +287,42 @@ func (r *payoutRepository) GetBalanceAmount(ctx context.Context, merchantId, cur
 		return 0, err
 	}
 
-	defer func() {
-		if err := cursor.Close(ctx); err != nil {
-			zap.L().Error(
-				pkg.ErrorQueryCursorCloseFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			)
-		}
-	}()
+	err = cursor.All(ctx, &result)
 
-	if cursor.Next(ctx) {
-		err = cursor.Decode(&res)
-		if err != nil {
-			zap.L().Error(
-				pkg.ErrorQueryCursorExecutionFailed,
-				zap.Error(err),
-				zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			)
-			return 0, err
-		}
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return 0, err
 	}
 
-	return res.Amount, nil
+	if len(result) <= 0 {
+		return 0, nil
+	}
+
+	totalFeesMoney := helper.NewMoney()
+	balance := make(map[string]float64)
+
+	for _, val := range result {
+		totalFees, err := totalFeesMoney.Round(val.TotalFees)
+
+		if err != nil {
+			return 0, err
+		}
+
+		balance[val.Currency] += totalFees
+	}
+
+	if len(balance) > 1 {
+		return 0, billErr.ErrBalanceHasMoreOneCurrency
+	}
+
+	amount := math.Round(balance[result[0].Currency]*100) / 100
+
+	return amount, nil
 }
 
 func (r *payoutRepository) GetLast(ctx context.Context, merchantId, currency string) (*billingpb.PayoutDocument, error) {
