@@ -109,3 +109,12 @@ type TotalTransactionsAndArpuReports struct {
 	TotalTransactions *billingpb.DashboardMainReportTotalTransactions `bson:"total_transactions"`
 	Arpu              *billingpb.DashboardAmountItemWithChart         `bson:"arpu"`
 }
+
+type BalanceQueryResult struct {
+	Currency             string  `bson:"currency"`
+	GrossTotalAmount     float64 `bson:"gross_total_amount"`
+	TotalFees            float64 `bson:"total_fees"`
+	TotalVat             float64 `bson:"total_vat"`
+	CorrectionAmount     float64 `bson:"correction_amount"`
+	RollingReserveAmount float64 `bson:"rolling_reserve_total_amount"`
+}
