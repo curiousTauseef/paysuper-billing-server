@@ -1343,7 +1343,7 @@ func (s *Service) generateMerchantAgreement(ctx context.Context, merchant *billi
 		UserId:           merchant.User.Id,
 		MerchantId:       merchant.Id,
 		ReportType:       reporterpb.ReportTypeAgreement,
-		FileType:         reporterpb.OutputExtensionPdf,
+		FileType:         "html",
 		Params:           b,
 		SendNotification: false,
 	}

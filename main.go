@@ -43,6 +43,9 @@ func main() {
 		case "rebuild_payouts":
 			err = app.TaskRebuildPayouts()
 			break
+		case "generate_agreement":
+			err = app.TaskGenerateAgreement()
+			break
 		}
 
 		if err != nil {

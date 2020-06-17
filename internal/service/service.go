@@ -358,3 +358,14 @@ func (s *Service) reporterServiceCreateFile(ctx context.Context, req *reporterpb
 
 	return err
 }
+
+func (s *Service) GenerateAgreement(merchantId string) error {
+	ctx := context.Background()
+	merchant, err := s.merchantRepository.GetById(ctx, merchantId)
+
+	if err != nil {
+		return err
+	}
+
+	return s.generateMerchantAgreement(ctx, merchant)
+}

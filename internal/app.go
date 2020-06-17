@@ -404,6 +404,10 @@ func (app *Application) TaskRebuildPayouts() error {
 	return app.svc.TaskRebuildPayouts()
 }
 
+func (app *Application) TaskGenerateAgreement() error {
+	return app.svc.GenerateAgreement("5ee8ad11be53ea4c996d954f")
+}
+
 func (app *Application) KeyDaemonStart() {
 	zap.L().Info("Key daemon started", zap.Int64("RestartInterval", app.cfg.KeyDaemonRestartInterval))
 
