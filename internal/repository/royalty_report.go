@@ -608,7 +608,7 @@ func (r *royaltyReportRepository) GetBalanceAmount(ctx context.Context, merchant
 			return 0, err
 		}
 
-		rollingReserveAmount, err := rollingReserveAmountMoney.Round(val.CorrectionAmount)
+		rollingReserveAmount, err := rollingReserveAmountMoney.Round(val.RollingReserveAmount)
 
 		if err != nil {
 			return 0, err

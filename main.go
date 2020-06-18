@@ -43,6 +43,10 @@ func main() {
 		case "rebuild_payouts":
 			err = app.TaskRebuildPayouts()
 			break
+
+		case "create_payout":
+			err = app.TaskCreatePayout()
+			break
 		}
 
 		if err != nil {
