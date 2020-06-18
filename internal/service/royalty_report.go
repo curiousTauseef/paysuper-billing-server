@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -648,6 +649,70 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 			RollingReserves: reserves,
 		},
 	}
+
+	totalEndUserFeesMoney := helper.NewMoney()
+	returnsAmountMoney := helper.NewMoney()
+	endUserFeesMoney := helper.NewMoney()
+	vatOnEndUserSalesMoney := helper.NewMoney()
+	licenseRevenueShareMoney := helper.NewMoney()
+
+	totalGrossSalesAmount := float64(0)
+	totalGrossReturnsAmount := float64(0)
+	totalGrossTotalAmount := float64(0)
+	totalVat := float64(0)
+	totalFees := float64(0)
+	totalPayoutAmount := float64(0)
+
+	for _, item := range summaryItems {
+		grossSalesAmount, err := totalEndUserFeesMoney.Round(item.GrossSalesAmount)
+
+		if err != nil {
+			return err
+		}
+
+		grossReturnsAmount, err := returnsAmountMoney.Round(item.GrossReturnsAmount)
+
+		if err != nil {
+			return err
+		}
+
+		grossTotalAmount, err := endUserFeesMoney.Round(item.GrossTotalAmount)
+
+		if err != nil {
+			return err
+		}
+
+		vat, err := vatOnEndUserSalesMoney.Round(item.TotalVat)
+
+		if err != nil {
+			return err
+		}
+
+		fees, err := licenseRevenueShareMoney.Round(item.TotalFees)
+
+		if err != nil {
+			return err
+		}
+
+		payoutAmount := grossTotalAmount - vat - fees
+
+		totalGrossSalesAmount += grossSalesAmount
+		totalGrossReturnsAmount += grossReturnsAmount
+		totalGrossTotalAmount += grossTotalAmount
+		totalVat += vat
+		totalFees += fees
+		totalPayoutAmount += payoutAmount
+	}
+
+	newReport.Totals.FeeAmount = totalFees
+	newReport.Totals.VatAmount = totalVat
+	newReport.Totals.PayoutAmount = totalPayoutAmount
+	newReport.Summary.ProductsTotal.GrossSalesAmount = totalGrossSalesAmount
+	newReport.Summary.ProductsTotal.GrossReturnsAmount = totalGrossReturnsAmount
+	newReport.Summary.ProductsTotal.GrossTotalAmount = totalGrossTotalAmount
+	newReport.Summary.ProductsTotal.TotalVat = totalVat
+	newReport.Summary.ProductsTotal.TotalFees = totalFees
+	newReport.Summary.ProductsTotal.PayoutAmount = totalPayoutAmount
 
 	newReport.PeriodFrom, err = ptypes.TimestampProto(h.from)
 	if err != nil {

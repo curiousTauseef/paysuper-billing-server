@@ -799,9 +799,9 @@ func (s *Service) PayoutFinanceDone(
 	return nil
 }
 
-func (s *Service) TaskRebuildPayouts() error {
+func (s *Service) TaskRebuildPayoutsRoyalties() error {
 	ctx := context.Background()
-	payouts, err := s.payoutRepository.FindAllNotPaid(ctx)
+	payouts, err := s.payoutRepository.FindAll(ctx)
 
 	if err != nil {
 		return err

@@ -34,8 +34,8 @@ func (_m *PayoutRepositoryInterface) Find(ctx context.Context, merchantId string
 	return r0, r1
 }
 
-// FindAllNotPaid provides a mock function with given fields: ctx
-func (_m *PayoutRepositoryInterface) FindAllNotPaid(ctx context.Context) ([]*billingpb.PayoutDocument, error) {
+// FindAll provides a mock function with given fields: ctx
+func (_m *PayoutRepositoryInterface) FindAll(ctx context.Context) ([]*billingpb.PayoutDocument, error) {
 	ret := _m.Called(ctx)
 
 	var r0 []*billingpb.PayoutDocument

@@ -600,10 +600,10 @@ func (r *payoutRepository) onPayoutDocumentChange(
 	return nil
 }
 
-func (r *payoutRepository) FindAllNotPaid(
+func (r *payoutRepository) FindAll(
 	ctx context.Context,
 ) ([]*billingpb.PayoutDocument, error) {
-	query := bson.M{"status": bson.M{"$in": []string{"pending", "skip"}}}
+	query := bson.M{}
 	cursor, err := r.db.Collection(collectionPayoutDocuments).Find(ctx, query)
 
 	if err != nil {
