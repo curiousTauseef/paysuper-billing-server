@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -22,6 +23,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
+	"math"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -648,6 +650,70 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 			RollingReserves: reserves,
 		},
 	}
+
+	totalEndUserFeesMoney := helper.NewMoney()
+	returnsAmountMoney := helper.NewMoney()
+	endUserFeesMoney := helper.NewMoney()
+	vatOnEndUserSalesMoney := helper.NewMoney()
+	licenseRevenueShareMoney := helper.NewMoney()
+
+	totalGrossSalesAmount := float64(0)
+	totalGrossReturnsAmount := float64(0)
+	totalGrossTotalAmount := float64(0)
+	totalVat := float64(0)
+	totalFees := float64(0)
+	totalPayoutAmount := float64(0)
+
+	for _, item := range summaryItems {
+		grossSalesAmount, err := totalEndUserFeesMoney.Round(item.GrossSalesAmount)
+
+		if err != nil {
+			return err
+		}
+
+		grossReturnsAmount, err := returnsAmountMoney.Round(item.GrossReturnsAmount)
+
+		if err != nil {
+			return err
+		}
+
+		grossTotalAmount, err := endUserFeesMoney.Round(item.GrossTotalAmount)
+
+		if err != nil {
+			return err
+		}
+
+		vat, err := vatOnEndUserSalesMoney.Round(item.TotalVat)
+
+		if err != nil {
+			return err
+		}
+
+		fees, err := licenseRevenueShareMoney.Round(item.TotalFees)
+
+		if err != nil {
+			return err
+		}
+
+		payoutAmount := grossTotalAmount - vat - fees
+
+		totalGrossSalesAmount += grossSalesAmount
+		totalGrossReturnsAmount += grossReturnsAmount
+		totalGrossTotalAmount += grossTotalAmount
+		totalVat += vat
+		totalFees += fees
+		totalPayoutAmount += payoutAmount
+	}
+
+	newReport.Totals.FeeAmount = math.Round(totalFees*100) / 100
+	newReport.Totals.VatAmount = math.Round(totalVat*100) / 100
+	newReport.Totals.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
+	newReport.Summary.ProductsTotal.GrossSalesAmount = math.Round(totalGrossSalesAmount*100) / 100
+	newReport.Summary.ProductsTotal.GrossReturnsAmount = math.Round(totalGrossReturnsAmount*100) / 100
+	newReport.Summary.ProductsTotal.GrossTotalAmount = math.Round(totalGrossTotalAmount*100) / 100
+	newReport.Summary.ProductsTotal.TotalVat = math.Round(totalVat*100) / 100
+	newReport.Summary.ProductsTotal.TotalFees = math.Round(totalFees*100) / 100
+	newReport.Summary.ProductsTotal.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
 
 	newReport.PeriodFrom, err = ptypes.TimestampProto(h.from)
 	if err != nil {

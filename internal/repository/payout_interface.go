@@ -32,5 +32,5 @@ type PayoutRepositoryInterface interface {
 	FindCount(ctx context.Context, merchantId string, statuses []string, dateFrom, dateTo string) (int64, error)
 
 	// Return all not paid payout invoices
-	FindAllNotPaid(ctx context.Context) ([]*billingpb.PayoutDocument, error)
+	FindAll(ctx context.Context) ([]*billingpb.PayoutDocument, error)
 }
