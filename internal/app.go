@@ -404,6 +404,28 @@ func (app *Application) TaskRebuildPayouts() error {
 	return app.svc.TaskRebuildPayouts()
 }
 
+func (app *Application) TaskCreatePayout() error {
+	rsp := &billingpb.CreatePayoutDocumentResponse{}
+	err := app.svc.CreatePayoutDocument(
+		context.Background(),
+		&billingpb.CreatePayoutDocumentRequest{
+			MerchantId: "5dbac7bb120a810001a8fe80",
+			Ip:         "127.0.0.1",
+		},
+		rsp,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if rsp.Status != billingpb.ResponseStatusOk {
+		return rsp.Message
+	}
+
+	return nil
+}
+
 func (app *Application) KeyDaemonStart() {
 	zap.L().Info("Key daemon started", zap.Int64("RestartInterval", app.cfg.KeyDaemonRestartInterval))
 

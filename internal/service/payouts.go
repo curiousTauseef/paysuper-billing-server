@@ -816,27 +816,27 @@ func (s *Service) TaskRebuildPayouts() error {
 			return err
 		}
 
-		grossTotalAmountMoney := tools.New()
-		totalFeesMoney := tools.New()
-		totalVatMoney := tools.New()
+		grossTotalAmountMoney := helper.NewMoney()
+		totalFeesMoney := helper.NewMoney()
+		totalVatMoney := helper.NewMoney()
 
 		totalFeesAmount := float64(0)
 		balanceAmount := float64(0)
 
 		for _, royaltyReport := range royaltyReports {
-			grossTotalAmount, err := grossTotalAmountMoney.Round(royaltyReport.Summary.ProductsTotal.GrossTotalAmount, 2)
+			grossTotalAmount, err := grossTotalAmountMoney.Round(royaltyReport.Summary.ProductsTotal.GrossTotalAmount)
 
 			if err != nil {
 				return err
 			}
 
-			totalFees, err := totalFeesMoney.Round(royaltyReport.Summary.ProductsTotal.TotalFees, 2)
+			totalFees, err := totalFeesMoney.Round(royaltyReport.Summary.ProductsTotal.TotalFees)
 
 			if err != nil {
 				return err
 			}
 
-			totalVat, err := totalVatMoney.Round(royaltyReport.Summary.ProductsTotal.TotalVat, 2)
+			totalVat, err := totalVatMoney.Round(royaltyReport.Summary.ProductsTotal.TotalVat)
 
 			if err != nil {
 				return err
@@ -845,6 +845,12 @@ func (s *Service) TaskRebuildPayouts() error {
 			payoutAmount := grossTotalAmount - totalFees - totalVat
 			totalFeesAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount
 			balanceAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount - royaltyReport.Totals.RollingReserveAmount
+
+			royaltyReport.Summary.ProductsTotal.GrossTotalAmount = grossTotalAmount
+			royaltyReport.Summary.ProductsTotal.TotalFees = totalFees
+			royaltyReport.Summary.ProductsTotal.TotalVat = totalVat
+
+			_ = s.royaltyReportRepository.Update(ctx, royaltyReport, "0.0.0.0", "auto")
 		}
 
 		payout.TotalFees = math.Round(totalFeesAmount*100) / 100
