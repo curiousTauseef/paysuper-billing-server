@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jinzhu/now"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -16,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"math"
 	"strings"
 	"time"
 )
@@ -95,9 +97,15 @@ func (r *orderViewRepository) GetTransactionsPublic(
 		return nil, err
 	}
 
+	grossRevenueAmountMoney := helper.NewMoney()
+	vatMoney := helper.NewMoney()
+	feeMoney := helper.NewMoney()
+
 	result := make([]*billingpb.OrderViewPublic, len(mgoResult))
+
 	for i, mgo := range mgoResult {
 		obj, err := r.publicOrderMapper.MapMgoToObject(mgo)
+
 		if err != nil {
 			zap.L().Error(
 				pkg.ErrorMapModelFailed,
@@ -106,7 +114,33 @@ func (r *orderViewRepository) GetTransactionsPublic(
 			)
 			return nil, err
 		}
-		result[i] = obj.(*billingpb.OrderViewPublic)
+
+		typedObj := obj.(*billingpb.OrderViewPublic)
+		grossRevenueAmount, err := grossRevenueAmountMoney.Round(typedObj.GrossRevenue.Amount)
+
+		if err != nil {
+			return nil, err
+		}
+
+		vat, err := vatMoney.Round(typedObj.TaxFee.Amount)
+
+		if err != nil {
+			return nil, err
+		}
+
+		fee, err := feeMoney.Round(typedObj.FeesTotal.Amount)
+
+		if err != nil {
+			return nil, err
+		}
+
+		payoutAmount := grossRevenueAmount - vat - fee
+
+		typedObj.GrossRevenue.Amount = math.Round(grossRevenueAmount*100) / 100
+		typedObj.TaxFee.Amount = math.Round(vat*100) / 100
+		typedObj.FeesTotal.Amount = math.Round(fee*100) / 100
+		typedObj.NetRevenue.Amount = math.Round(payoutAmount*100) / 100
+		result[i] = typedObj
 	}
 
 	return result, nil
