@@ -401,7 +401,7 @@ func (app *Application) TaskFixTaxes() error {
 }
 
 func (app *Application) TaskRebuildPayouts() error {
-	return app.svc.TaskRebuildPayouts()
+	return app.svc.TaskRebuildPayoutsRoyalties()
 }
 
 func (app *Application) TaskCreatePayout() error {

@@ -807,8 +807,6 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 		return err
 	}
 
-	merchantsIds := make(map[string]bool)
-
 	for _, payout := range payouts {
 		royaltyReports, err := s.royaltyReportRepository.GetByPayoutId(ctx, payout.Id)
 
@@ -845,12 +843,6 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 			payoutAmount := grossTotalAmount - totalFees - totalVat
 			totalFeesAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount
 			balanceAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount - royaltyReport.Totals.RollingReserveAmount
-
-			royaltyReport.Summary.ProductsTotal.GrossTotalAmount = grossTotalAmount
-			royaltyReport.Summary.ProductsTotal.TotalFees = totalFees
-			royaltyReport.Summary.ProductsTotal.TotalVat = totalVat
-
-			_ = s.royaltyReportRepository.Update(ctx, royaltyReport, "0.0.0.0", "auto")
 		}
 
 		payout.TotalFees = math.Round(totalFeesAmount*100) / 100
@@ -861,12 +853,81 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 		if err != nil {
 			return err
 		}
-
-		merchantsIds[payout.MerchantId] = true
 	}
 
-	for k := range merchantsIds {
-		_, _ = s.updateMerchantBalance(ctx, k)
+	royalties, err := s.royaltyReportRepository.GetAll(ctx)
+
+	for _, royalty := range royalties {
+		totalEndUserFeesMoney := helper.NewMoney()
+		returnsAmountMoney := helper.NewMoney()
+		endUserFeesMoney := helper.NewMoney()
+		vatOnEndUserSalesMoney := helper.NewMoney()
+		licenseRevenueShareMoney := helper.NewMoney()
+
+		totalGrossSalesAmount := float64(0)
+		totalGrossReturnsAmount := float64(0)
+		totalGrossTotalAmount := float64(0)
+		totalVat := float64(0)
+		totalFees := float64(0)
+		totalPayoutAmount := float64(0)
+
+		for _, item := range royalty.Summary.ProductsItems {
+			grossSalesAmount, err := totalEndUserFeesMoney.Round(item.GrossSalesAmount)
+
+			if err != nil {
+				return err
+			}
+
+			grossReturnsAmount, err := returnsAmountMoney.Round(item.GrossReturnsAmount)
+
+			if err != nil {
+				return err
+			}
+
+			grossTotalAmount, err := endUserFeesMoney.Round(item.GrossTotalAmount)
+
+			if err != nil {
+				return err
+			}
+
+			vat, err := vatOnEndUserSalesMoney.Round(item.TotalVat)
+
+			if err != nil {
+				return err
+			}
+
+			fees, err := licenseRevenueShareMoney.Round(item.TotalFees)
+
+			if err != nil {
+				return err
+			}
+
+			payoutAmount := grossTotalAmount - vat - fees
+
+			totalGrossSalesAmount += grossSalesAmount
+			totalGrossReturnsAmount += grossReturnsAmount
+			totalGrossTotalAmount += grossTotalAmount
+			totalVat += vat
+			totalFees += fees
+			totalPayoutAmount += payoutAmount
+		}
+
+		royalty.Totals.FeeAmount = math.Round(totalFees*100) / 100
+		royalty.Totals.VatAmount = math.Round(totalVat*100) / 100
+		royalty.Totals.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
+		royalty.Summary.ProductsTotal.GrossSalesAmount = math.Round(totalGrossSalesAmount*100) / 100
+		royalty.Summary.ProductsTotal.GrossReturnsAmount = math.Round(totalGrossReturnsAmount*100) / 100
+		royalty.Summary.ProductsTotal.GrossTotalAmount = math.Round(totalGrossTotalAmount*100) / 100
+		royalty.Summary.ProductsTotal.TotalVat = math.Round(totalVat*100) / 100
+		royalty.Summary.ProductsTotal.TotalFees = math.Round(totalFees*100) / 100
+		royalty.Summary.ProductsTotal.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
+		_ = s.royaltyReportRepository.Update(ctx, royalty, "0.0.0.0", "auto")
+	}
+
+	merchants, err := s.merchantRepository.GetAll(ctx)
+
+	for _, item := range merchants {
+		_, _ = s.updateMerchantBalance(ctx, item.Id)
 	}
 
 	return nil

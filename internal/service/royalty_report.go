@@ -23,6 +23,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
+	"math"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -704,15 +705,15 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		totalPayoutAmount += payoutAmount
 	}
 
-	newReport.Totals.FeeAmount = totalFees
-	newReport.Totals.VatAmount = totalVat
-	newReport.Totals.PayoutAmount = totalPayoutAmount
-	newReport.Summary.ProductsTotal.GrossSalesAmount = totalGrossSalesAmount
-	newReport.Summary.ProductsTotal.GrossReturnsAmount = totalGrossReturnsAmount
-	newReport.Summary.ProductsTotal.GrossTotalAmount = totalGrossTotalAmount
-	newReport.Summary.ProductsTotal.TotalVat = totalVat
-	newReport.Summary.ProductsTotal.TotalFees = totalFees
-	newReport.Summary.ProductsTotal.PayoutAmount = totalPayoutAmount
+	newReport.Totals.FeeAmount = math.Round(totalFees*100) / 100
+	newReport.Totals.VatAmount = math.Round(totalVat*100) / 100
+	newReport.Totals.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
+	newReport.Summary.ProductsTotal.GrossSalesAmount = math.Round(totalGrossSalesAmount*100) / 100
+	newReport.Summary.ProductsTotal.GrossReturnsAmount = math.Round(totalGrossReturnsAmount*100) / 100
+	newReport.Summary.ProductsTotal.GrossTotalAmount = math.Round(totalGrossTotalAmount*100) / 100
+	newReport.Summary.ProductsTotal.TotalVat = math.Round(totalVat*100) / 100
+	newReport.Summary.ProductsTotal.TotalFees = math.Round(totalFees*100) / 100
+	newReport.Summary.ProductsTotal.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
 
 	newReport.PeriodFrom, err = ptypes.TimestampProto(h.from)
 	if err != nil {
