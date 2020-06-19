@@ -524,6 +524,7 @@ func (s *Service) ListRoyaltyReportOrders(
 		"pm_order_close_date": bson.M{"$gte": from, "$lte": to},
 		"status":              bson.M{"$in": orderStatusForRoyaltyReports},
 		"is_production":       true,
+		"royalty_report_id":   report.Id,
 	}
 
 	ts, err := s.orderViewRepository.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)

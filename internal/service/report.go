@@ -256,8 +256,7 @@ func (s *Service) getOrdersList(
 		}
 
 		if req.RoyaltyReportId != "" {
-			royaltyReportOid, _ := primitive.ObjectIDFromHex(req.RoyaltyReportId)
-			query["royalty_report_id"] = bson.M{"$exists": true, "$eq": royaltyReportOid}
+			query["royalty_report_id"] = req.RoyaltyReportId
 		}
 	}
 
