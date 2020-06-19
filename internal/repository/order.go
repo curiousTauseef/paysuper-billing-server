@@ -3313,3 +3313,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 
 	return nil
 }
+
+func (h *orderRepository) IncludeToRoyaltyReport(
+	ctx context.Context,
+	ordersIds []primitive.ObjectID,
+	royaltyReportId string,
+) error {
+	filter := bson.M{"_id": bson.M{"$in": ordersIds}}
+	update := bson.M{"$set": bson.M{"royalty_report_id": royaltyReportId}}
+	_, err := h.db.Collection(CollectionOrder).UpdateMany(ctx, filter, update)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+			zap.Any(pkg.ErrorDatabaseFieldSet, update),
+		)
+	}
+
+	return err
+}

@@ -776,7 +776,12 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 			return err
 		}
 
-		err = h.orderViewRepository.MarkIncludedToRoyaltyReport(ctx, ordersIds, newReport.Id)
+		err = h.orderRepository.IncludeToRoyaltyReport(ctx, ordersIds, newReport.Id)
+		if err != nil {
+			return err
+		}
+
+		err = h.orderViewRepository.IncludeToRoyaltyReport(ctx, ordersIds, newReport.Id)
 		if err != nil {
 			return err
 		}
