@@ -298,7 +298,7 @@ func (s *Service) ChangeMerchant(
 		merchant.Contacts = req.Contacts
 	}
 
-	if merchant.IsDataComplete() {
+	if merchant.IsDataComplete() && merchant.Steps != nil && merchant.Steps.Tariff {
 		err = s.onMerchantOnboardingComplete(ctx, merchant)
 
 		if err != nil {
