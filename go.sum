@@ -226,6 +226,9 @@ github.com/golang/protobuf v1.4.0-rc.1.0.20200221234624-67d41d38c208/go.mod h1:x
 github.com/golang/protobuf v1.4.0-rc.2/go.mod h1:LlEzMj4AhA7rCAGe4KMBDvJI+AwstrUpVNzEA03Pprs=
 github.com/golang/protobuf v1.4.0-rc.4.0.20200313231945-b860323f09d0 h1:aRz0NBceriICVtjhCgKkDvl+RudKu1CT6h0ZvUTrNfE=
 github.com/golang/protobuf v1.4.0-rc.4.0.20200313231945-b860323f09d0/go.mod h1:WU3c8KckQ9AFe+yFwt9sWVRKCVIyN9cPHBJSNnbL67w=
+github.com/golang/protobuf v1.4.0/go.mod h1:jodUvKwWbYaEsadDk5Fwe5c77LiNKVO9IDvqG2KuDX0=
+github.com/golang/protobuf v1.4.2 h1:+Z5KGCizgyZCbGh1KZqA0fcLLkwbsjIzS4aV2v7wJX0=
+github.com/golang/protobuf v1.4.2/go.mod h1:oDoupMAO8OvCJWAcko0GGGIgR6R6ocIYbsSw735rRwI=
 github.com/golang/snappy v0.0.0-20170215233205-553a64147049/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/golang/snappy v0.0.1 h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
@@ -538,6 +541,8 @@ github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200610095412-e1c09f5246
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200610095412-e1c09f524650/go.mod h1:Y/B0wGyIqdo+HDanWshp9CTfzVUP/IJz1ooKcksG3F0=
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200615114514-bc5639bebbed h1:ilXnPd82ZSGzeZTw2fZ6taKZg+n8JQtc0l63/3eCTfs=
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200615114514-bc5639bebbed/go.mod h1:Y/B0wGyIqdo+HDanWshp9CTfzVUP/IJz1ooKcksG3F0=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200622151053-f2fa29a70868 h1:tc+i0MZTe+LmbrRvnpxbj82ll7EviiH2KwVFX1uqVyw=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200622151053-f2fa29a70868/go.mod h1:/NHMpK6XInPltWv2n1//b47rOi2oRxV/vlubnLu+hSE=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b h1:s61VyrEMY6uw95yLCIoL5addjUbEyQ8mFpc33dDG/6w=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:sdQKpEC56et7ND0Otfqwf2HZAMsIm+5NkznUaC4HSqk=
 github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200303091345-2cee0f7f84c1 h1:siF07NAo6pO+L63lx2QHBiS3PRPVxB2x/4ocHKsjFR4=
@@ -564,6 +569,8 @@ github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200420125503-1fcfbf8df
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200420125503-1fcfbf8df43b/go.mod h1:///aFif3Zhj5vT7zZCyQjIsDTtpk8F850f9VR9QOaHo=
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200420143651-ac34d0bbe5e1 h1:uHvN8f/EUPLifzFp2z+uxR0nRNIqRFRSxYJT6KkuQZs=
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200420143651-ac34d0bbe5e1/go.mod h1:///aFif3Zhj5vT7zZCyQjIsDTtpk8F850f9VR9QOaHo=
+github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200622151400-1714a8ed580b h1:Ezchi6AvyiHRgtvBbA472kcpe4f4KjoYKZu5j7+Xk0Q=
+github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200622151400-1714a8ed580b/go.mod h1:c3rl5iNgrvw2lNceLDBMvBuKR54pSs7MsNYqpl70pts=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200302121221-60194355f1cc/go.mod h1:u48GCpSgBmO9VhSSRiAzv3dReqvB7pKjFmFHkvpB8wM=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200302133127-ba8bd156664b h1:mu9kWzPoKJxYNJCdEZNunjyAYN+5NQxQuxCgDB3XU1U=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:u48GCpSgBmO9VhSSRiAzv3dReqvB7pKjFmFHkvpB8wM=
@@ -842,6 +849,8 @@ google.golang.org/protobuf v0.0.0-20200228230310-ab0ca4ff8a60/go.mod h1:cfTl7dwQ
 google.golang.org/protobuf v1.20.1-0.20200309200217-e05f789c0967/go.mod h1:A+miEFZTKqfCUM6K7xSMQL9OKL/b6hQv+e19PK+JZNE=
 google.golang.org/protobuf v1.21.0 h1:qdOKuR/EIArgaWNjetjgTzgVTAZ+S/WXVrq9HW9zimw=
 google.golang.org/protobuf v1.21.0/go.mod h1:47Nbq4nVaFHyn7ilMalzfO3qCViNmqZ2kzikPIcrTAo=
+google.golang.org/protobuf v1.23.0 h1:4MY060fB1DLGMB/7MBTLnwQUY6+F09GEiz6SsrNqyzM=
+google.golang.org/protobuf v1.23.0/go.mod h1:EGpADcykh3NcUnDUJcl1+ZksZNG86OlYog2l/sGQquU=
 gopkg.in/Clever/pathio.v3 v3.7.1 h1:MsdX/A9if2S5FyEbFSgZDCtLh30GaJDHExw9a7q7CzY=
 gopkg.in/Clever/pathio.v3 v3.7.1/go.mod h1:RKnXQ6Qmr/SRuZ4xXMNhlAoTKjW5A93AP7EC+3+WNFA=
 gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0 h1:FVCohIoYO7IJoDDVpV2pdq7SgrMH6wHnuTyrdrxJNoY=

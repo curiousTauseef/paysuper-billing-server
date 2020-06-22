@@ -1918,19 +1918,24 @@ func (s *Service) getPayloadForReceipt(ctx context.Context, order *billingpb.Ord
 		To:            order.ReceiptEmail,
 	}
 
-	payload.TemplateObjectModel = &structpb.Struct{
-		Fields: map[string]*structpb.Value{
-			"items": {
-				Kind: &structpb.Value_ListValue{ListValue: &structpb.ListValue{
-					Values: items,
-				}},
-			},
-			"vat":      vat,
-			"subTotal": subTotal,
-			"showSummary": {
-				Kind: &structpb.Value_BoolValue{BoolValue: receipt.Items != nil && len(receipt.Items) > 1},
-			},
+	fields := map[string]*structpb.Value{
+		"items": {
+			Kind: &structpb.Value_ListValue{ListValue: &structpb.ListValue{
+				Values: items,
+			}},
 		},
+		"vat": vat,
+		"showSummary": {
+			Kind: &structpb.Value_BoolValue{BoolValue: receipt.Items != nil && len(receipt.Items) > 1},
+		},
+	}
+
+	if subTotal != nil {
+		fields["subTotal"] = subTotal
+	}
+
+	payload.TemplateObjectModel = &structpb.Struct{
+		Fields: fields,
 	}
 
 	return payload, nil
