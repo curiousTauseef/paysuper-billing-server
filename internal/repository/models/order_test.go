@@ -8,7 +8,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"log"
 	"testing"
 )
 
@@ -60,9 +59,6 @@ func (suite *OrderTestSuite) Test_MapToMgo_Ok() {
 	marshaler := &jsonpb.Marshaler{}
 	err = marshaler.Marshal(buf1, original)
 	err = marshaler.Marshal(buf2, obj.(*billingpb.Order))
-
-	log.Println(string(buf1.Bytes()))
-	log.Println(string(buf2.Bytes()))
 
 	assert.NoError(suite.T(), marshaler.Marshal(buf1, original))
 	assert.NoError(suite.T(), marshaler.Marshal(buf2, obj.(*billingpb.Order)))
