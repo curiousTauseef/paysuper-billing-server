@@ -4260,7 +4260,7 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 		TransactionId:       order.Uuid,
 		TransactionDate:     date,
 		ProjectName:         order.Project.Name[DefaultLanguage],
-		MerchantName:        merchant.Company.Name,
+		MerchantName:        merchant.GetCompanyName(),
 		Items:               items,
 		OrderType:           order.Type,
 		PlatformName:        platformName,
