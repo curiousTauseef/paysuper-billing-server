@@ -6,6 +6,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	internalPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	tools "github.com/paysuper/paysuper-tools/number"
@@ -16,21 +17,40 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionMoneyBackCostMerchant = "money_back_cost_merchant"
+
+	cacheMoneyBackCostMerchantKey   = "pucm:m:%s:n:%s:pc:%s:ur:%s:r:%s:c:%s:ps:%d:mcc:%s"
+	cacheMoneyBackCostMerchantKeyId = "pucm:id:%s"
+	cacheMoneyBackCostMerchantAll   = "pucm:all:m:%s"
+)
+
 type moneyBackCostMerchantRepository repository
 
 // NewMoneyBackCostMerchantRepository create and return an object for working with the cost of merchant for money back.
 // The returned object implements the MoneyBackCostMerchantRepositoryInterface interface.
 func NewMoneyBackCostMerchantRepository(db mongodb.SourceInterface, cache database.CacheInterface) MoneyBackCostMerchantRepositoryInterface {
-	s := &moneyBackCostMerchantRepository{db: db, cache: cache}
+	s := &moneyBackCostMerchantRepository{db: db, cache: cache, mapper: models.NewMoneyBackCostMerchantMapper()}
 	return s
 }
 
-func (r moneyBackCostMerchantRepository) Insert(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) (err error) {
+func (r *moneyBackCostMerchantRepository) Insert(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) (err error) {
 	obj.FixAmount = tools.FormatAmount(obj.FixAmount)
 	obj.Percent = tools.ToPrecise(obj.Percent)
 	obj.IsActive = true
 
-	_, err = r.db.Collection(collectionMoneyBackCostMerchant).InsertOne(ctx, obj)
+	mgo, err := r.mapper.MapObjectToMgo(obj)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionMoneyBackCostMerchant).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -48,7 +68,7 @@ func (r moneyBackCostMerchantRepository) Insert(ctx context.Context, obj *billin
 	return nil
 }
 
-func (r moneyBackCostMerchantRepository) MultipleInsert(ctx context.Context, objs []*billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) MultipleInsert(ctx context.Context, objs []*billingpb.MoneyBackCostMerchant) error {
 	c := make([]interface{}, len(objs))
 
 	for i, v := range objs {
@@ -59,7 +79,18 @@ func (r moneyBackCostMerchantRepository) MultipleInsert(ctx context.Context, obj
 		v.FixAmount = tools.FormatAmount(v.FixAmount)
 		v.Percent = tools.ToPrecise(v.Percent)
 		v.IsActive = true
-		c[i] = v
+
+		mgo, err := r.mapper.MapObjectToMgo(v)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, v),
+			)
+		}
+
+		c[i] = mgo
 	}
 
 	_, err := r.db.Collection(collectionMoneyBackCostMerchant).InsertMany(ctx, c)
@@ -82,7 +113,7 @@ func (r moneyBackCostMerchantRepository) MultipleInsert(ctx context.Context, obj
 	return nil
 }
 
-func (r moneyBackCostMerchantRepository) Update(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) Update(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
 	oid, err := primitive.ObjectIDFromHex(obj.Id)
 
 	if err != nil {
@@ -99,8 +130,19 @@ func (r moneyBackCostMerchantRepository) Update(ctx context.Context, obj *billin
 	obj.Percent = tools.ToPrecise(obj.Percent)
 	obj.IsActive = true
 
+	mgo, err := r.mapper.MapObjectToMgo(obj)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionMoneyBackCostMerchant).ReplaceOne(ctx, filter, obj)
+	_, err = r.db.Collection(collectionMoneyBackCostMerchant).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -116,12 +158,12 @@ func (r moneyBackCostMerchantRepository) Update(ctx context.Context, obj *billin
 	return r.updateCaches(obj)
 }
 
-func (r moneyBackCostMerchantRepository) GetById(ctx context.Context, id string) (*billingpb.MoneyBackCostMerchant, error) {
-	obj := billingpb.MoneyBackCostMerchant{}
+func (r *moneyBackCostMerchantRepository) GetById(ctx context.Context, id string) (*billingpb.MoneyBackCostMerchant, error) {
+	obj := &billingpb.MoneyBackCostMerchant{}
 	key := fmt.Sprintf(cacheMoneyBackCostMerchantKeyId, id)
 
-	if err := r.cache.Get(key, &obj); err == nil {
-		return &obj, nil
+	if err := r.cache.Get(key, obj); err == nil {
+		return obj, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -136,8 +178,9 @@ func (r moneyBackCostMerchantRepository) GetById(ctx context.Context, id string)
 		return nil, err
 	}
 
+	var mgo = models.MgoMoneyBackCostMerchant{}
 	query := bson.M{"_id": oid, "is_active": true}
-	err = r.db.Collection(collectionMoneyBackCostMerchant).FindOne(ctx, query).Decode(&obj)
+	err = r.db.Collection(collectionMoneyBackCostMerchant).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -149,12 +192,25 @@ func (r moneyBackCostMerchantRepository) GetById(ctx context.Context, id string)
 		return nil, err
 	}
 
+	o, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	obj = o.(*billingpb.MoneyBackCostMerchant)
+
 	_ = r.cache.Set(key, obj, 0)
 
-	return &obj, nil
+	return obj, nil
 }
 
-func (r moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, merchantId string) (*billingpb.MoneyBackCostMerchantList, error) {
+func (r *moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, merchantId string) (*billingpb.MoneyBackCostMerchantList, error) {
 	item := billingpb.MoneyBackCostMerchantList{}
 	key := fmt.Sprintf(cacheMoneyBackCostMerchantAll, merchantId)
 
@@ -189,7 +245,8 @@ func (r moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, 
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &item.Items)
+	var list []*models.MgoMoneyBackCostMerchant
+	err = cursor.All(ctx, &list)
 
 	if err != nil {
 		zap.L().Error(
@@ -200,6 +257,23 @@ func (r moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, 
 		)
 		return nil, err
 	}
+
+	objs := make([]*billingpb.MoneyBackCostMerchant, len(list))
+
+	for i, obj := range list {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.MoneyBackCostMerchant)
+	}
+
+	item.Items = objs
 
 	err = r.cache.Set(key, &item, 0)
 
@@ -216,7 +290,7 @@ func (r moneyBackCostMerchantRepository) GetAllForMerchant(ctx context.Context, 
 	return &item, nil
 }
 
-func (r moneyBackCostMerchantRepository) Find(
+func (r *moneyBackCostMerchantRepository) Find(
 	ctx context.Context,
 	merchantId string,
 	name string,
@@ -227,7 +301,7 @@ func (r moneyBackCostMerchantRepository) Find(
 	mccCode string,
 	paymentStage int32,
 ) ([]*internalPkg.MoneyBackCostMerchantSet, error) {
-	c := []*internalPkg.MoneyBackCostMerchantSet{}
+	c := make([]*internalPkg.MoneyBackCostMerchantSet, 0)
 	key := fmt.Sprintf(cacheMoneyBackCostMerchantKey, merchantId, name, payoutCurrency, undoReason, region, country, paymentStage, mccCode)
 
 	if err := r.cache.Get(key, &c); err == nil {
@@ -296,7 +370,8 @@ func (r moneyBackCostMerchantRepository) Find(
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &c)
+	mgo := make([]*internalPkg.MgoMoneyBackCostMerchantSet, 0)
+	err = cursor.All(ctx, &mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -306,6 +381,29 @@ func (r moneyBackCostMerchantRepository) Find(
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return nil, err
+	}
+
+	list := make([]*billingpb.MoneyBackCostMerchant, 0)
+
+	for _, objs := range mgo {
+		list = nil
+
+		for _, obj := range objs.Set {
+			v, err := r.mapper.MapMgoToObject(obj)
+
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorDatabaseMapModelFailed,
+					zap.Error(err),
+					zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+				)
+				return nil, err
+			}
+
+			list = append(list, v.(*billingpb.MoneyBackCostMerchant))
+		}
+
+		c = append(c, &internalPkg.MoneyBackCostMerchantSet{Id: objs.Id, Set: list})
 	}
 
 	if err = r.cache.Set(key, c, 0); err != nil {
@@ -321,7 +419,7 @@ func (r moneyBackCostMerchantRepository) Find(
 	return c, nil
 }
 
-func (r moneyBackCostMerchantRepository) Delete(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) Delete(ctx context.Context, obj *billingpb.MoneyBackCostMerchant) error {
 	oid, err := primitive.ObjectIDFromHex(obj.Id)
 
 	if err != nil {
@@ -337,8 +435,19 @@ func (r moneyBackCostMerchantRepository) Delete(ctx context.Context, obj *billin
 	obj.UpdatedAt = ptypes.TimestampNow()
 	obj.IsActive = false
 
+	mgo, err := r.mapper.MapObjectToMgo(obj)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionMoneyBackCostMerchant).ReplaceOne(ctx, filter, obj)
+	_, err = r.db.Collection(collectionMoneyBackCostMerchant).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -353,7 +462,7 @@ func (r moneyBackCostMerchantRepository) Delete(ctx context.Context, obj *billin
 	return r.updateCaches(obj)
 }
 
-func (r moneyBackCostMerchantRepository) updateCaches(obj *billingpb.MoneyBackCostMerchant) error {
+func (r *moneyBackCostMerchantRepository) updateCaches(obj *billingpb.MoneyBackCostMerchant) error {
 	groupKeys := []string{
 		fmt.Sprintf(cacheMoneyBackCostMerchantKey, obj.MerchantId, obj.Name, obj.PayoutCurrency, obj.UndoReason, obj.Region, obj.Country, obj.PaymentStage, obj.MccCode),
 		fmt.Sprintf(cacheMoneyBackCostMerchantKey, obj.MerchantId, obj.Name, obj.PayoutCurrency, obj.UndoReason, obj.Region, "", obj.PaymentStage, obj.MccCode),
@@ -398,4 +507,37 @@ func (r moneyBackCostMerchantRepository) updateCaches(obj *billingpb.MoneyBackCo
 	}
 
 	return nil
+}
+
+func (r *moneyBackCostMerchantRepository) DeleteAndInsertMany(
+	ctx context.Context,
+	merchantId string,
+	tariffs []*billingpb.MoneyBackCostMerchant,
+) error {
+	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMoneyBackCostMerchant),
+			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+		)
+		return err
+	}
+
+	filter := bson.M{"merchant_id": merchantOid, "is_active": true}
+	_, err = r.db.Collection(collectionMoneyBackCostMerchant).DeleteMany(ctx, filter)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMoneyBackCostMerchant),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+		)
+		return err
+	}
+
+	return r.MultipleInsert(ctx, tariffs)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,17 +14,34 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	CollectionMerchant = "merchant"
+
+	cacheMerchantId       = "merchant:id:%s"
+	cacheMerchantCommonId = "merchant:common:id:%s"
+)
+
 type merchantRepository repository
 
 // NewMerchantRepository create and return an object for working with the merchant repository.
 // The returned object implements the MerchantRepositoryInterface interface.
 func NewMerchantRepository(db mongodb.SourceInterface, cache database.CacheInterface) MerchantRepositoryInterface {
-	s := &merchantRepository{db: db, cache: cache}
+	s := &merchantRepository{db: db, cache: cache, mapper: models.NewMerchantMapper()}
 	return s
 }
 
 func (h *merchantRepository) Insert(ctx context.Context, merchant *billingpb.Merchant) error {
-	_, err := h.db.Collection(CollectionMerchant).InsertOne(ctx, merchant)
+	mgo, err := h.mapper.MapObjectToMgo(merchant)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+		)
+		return err
+	}
+
+	_, err = h.db.Collection(CollectionMerchant).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -56,7 +74,17 @@ func (h *merchantRepository) Insert(ctx context.Context, merchant *billingpb.Mer
 func (h *merchantRepository) MultipleInsert(ctx context.Context, merchants []*billingpb.Merchant) error {
 	m := make([]interface{}, len(merchants))
 	for i, v := range merchants {
-		m[i] = v
+		mgo, err := h.mapper.MapObjectToMgo(v)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, v),
+			)
+			return err
+		}
+
+		m[i] = mgo
 	}
 
 	_, err := h.db.Collection(CollectionMerchant).InsertMany(ctx, m)
@@ -88,8 +116,18 @@ func (h *merchantRepository) Update(ctx context.Context, merchant *billingpb.Mer
 		return err
 	}
 
+	mgo, err := h.mapper.MapObjectToMgo(merchant)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
-	_, err = h.db.Collection(CollectionMerchant).ReplaceOne(ctx, filter, merchant)
+	_, err = h.db.Collection(CollectionMerchant).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -131,9 +169,19 @@ func (h *merchantRepository) Upsert(ctx context.Context, merchant *billingpb.Mer
 		return err
 	}
 
+	mgo, err := h.mapper.MapObjectToMgo(merchant)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+		)
+		return err
+	}
+
 	filter := bson.M{"_id": oid}
 	opts := options.Replace().SetUpsert(true)
-	_, err = h.db.Collection(CollectionMerchant).ReplaceOne(ctx, filter, merchant, opts)
+	_, err = h.db.Collection(CollectionMerchant).ReplaceOne(ctx, filter, mgo, opts)
 
 	if err != nil {
 		zap.L().Error(
@@ -177,12 +225,16 @@ func (h *merchantRepository) UpdateTariffs(ctx context.Context, merchantId strin
 	}
 
 	query := bson.M{
-		"_id":                                      oid,
-		"tariff.payment.method_name":               tariff.Name,
-		"tariff.payment.payer_region":              tariff.Region,
-		"tariff.payment.mcc_code":                  tariff.MccCode,
-		"tariff.payment.method_fixed_fee_currency": tariff.MethodFixAmountCurrency,
-		"tariff.payment.ps_fixed_fee_currency":     tariff.PsFixedFeeCurrency,
+		"_id": oid,
+		"tariff.payment": bson.M{
+			"$elemMatch": bson.M{
+				"method_name":               primitive.Regex{Pattern: tariff.Name, Options: "i"},
+				"payer_region":              tariff.Region,
+				"mcc_code":                  tariff.MccCode,
+				"method_fixed_fee_currency": tariff.MethodFixAmountCurrency,
+				"ps_fixed_fee_currency":     tariff.PsFixedFeeCurrency,
+			},
+		},
 	}
 
 	set["$set"] = bson.M{
@@ -194,7 +246,9 @@ func (h *merchantRepository) UpdateTariffs(ctx context.Context, merchantId strin
 		"tariff.payment.$.is_active":          tariff.IsActive,
 	}
 
-	if _, err := h.db.Collection(CollectionMerchant).UpdateOne(ctx, query, set); err != nil {
+	_, err = h.db.Collection(CollectionMerchant).UpdateOne(ctx, query, set)
+
+	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
@@ -237,7 +291,8 @@ func (h *merchantRepository) GetMerchantsWithAutoPayouts(ctx context.Context) (m
 		return
 	}
 
-	err = cursor.All(ctx, &merchants)
+	var mgoMerchants []*models.MgoMerchant
+	err = cursor.All(ctx, &mgoMerchants)
 
 	if err != nil {
 		zap.L().Error(
@@ -249,15 +304,29 @@ func (h *merchantRepository) GetMerchantsWithAutoPayouts(ctx context.Context) (m
 		return
 	}
 
-	return
+	merchants = make([]*billingpb.Merchant, len(mgoMerchants))
+	for i, merchant := range mgoMerchants {
+		obj, err := h.mapper.MapMgoToObject(merchant)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+			)
+			return nil, err
+		}
+		merchants[i] = obj.(*billingpb.Merchant)
+	}
+
+	return merchants, nil
 }
 
 func (h *merchantRepository) GetById(ctx context.Context, id string) (*billingpb.Merchant, error) {
-	var c billingpb.Merchant
+	merchant := &billingpb.Merchant{}
 	key := fmt.Sprintf(cacheMerchantId, id)
 
-	if err := h.cache.Get(key, c); err == nil {
-		return &c, nil
+	if err := h.cache.Get(key, merchant); err == nil {
+		return merchant, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -273,7 +342,8 @@ func (h *merchantRepository) GetById(ctx context.Context, id string) (*billingpb
 	}
 
 	query := bson.M{"_id": oid}
-	err = h.db.Collection(CollectionMerchant).FindOne(ctx, query).Decode(&c)
+	mgo := &models.MgoMerchant{}
+	err = h.db.Collection(CollectionMerchant).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -285,24 +355,37 @@ func (h *merchantRepository) GetById(ctx context.Context, id string) (*billingpb
 		return nil, err
 	}
 
-	if err := h.cache.Set(key, c, 0); err != nil {
+	obj, err := h.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+		)
+		return nil, err
+	}
+
+	merchant = obj.(*billingpb.Merchant)
+
+	if err := h.cache.Set(key, merchant, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, c),
+			zap.Any(pkg.ErrorCacheFieldData, merchant),
 		)
 	}
 
-	return &c, nil
+	return merchant, nil
 }
 
 func (h *merchantRepository) GetByUserId(ctx context.Context, userId string) (*billingpb.Merchant, error) {
-	var c billingpb.Merchant
+	merchant := &billingpb.Merchant{}
 
+	mgo := &models.MgoMerchant{}
 	query := bson.M{"user.id": userId}
-	err := h.db.Collection(CollectionMerchant).FindOne(ctx, query).Decode(&c)
+	err := h.db.Collection(CollectionMerchant).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -314,15 +397,27 @@ func (h *merchantRepository) GetByUserId(ctx context.Context, userId string) (*b
 		return nil, err
 	}
 
-	return &c, nil
+	obj, err := h.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+		)
+		return nil, err
+	}
+
+	merchant = obj.(*billingpb.Merchant)
+
+	return merchant, nil
 }
 
 func (h *merchantRepository) GetCommonById(ctx context.Context, id string) (*billingpb.MerchantCommon, error) {
-	var c billingpb.MerchantCommon
+	merchant := &billingpb.MerchantCommon{}
 	key := fmt.Sprintf(cacheMerchantCommonId, id)
 
-	if err := h.cache.Get(key, c); err == nil {
-		return &c, nil
+	if err := h.cache.Get(key, merchant); err == nil {
+		return merchant, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -337,8 +432,9 @@ func (h *merchantRepository) GetCommonById(ctx context.Context, id string) (*bil
 		return nil, err
 	}
 
+	mgo := &models.MgoMerchantCommon{}
 	query := bson.M{"_id": oid}
-	err = h.db.Collection(CollectionMerchant).FindOne(ctx, query).Decode(&c)
+	err = h.db.Collection(CollectionMerchant).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -350,22 +446,33 @@ func (h *merchantRepository) GetCommonById(ctx context.Context, id string) (*bil
 		return nil, err
 	}
 
-	if err := h.cache.Set(key, c, 0); err != nil {
+	m := models.NewCommonMerchantMapper()
+	obj, err := m.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	merchant = obj.(*billingpb.MerchantCommon)
+
+	if err := h.cache.Set(key, merchant, 0); err != nil {
 		zap.L().Error(
 			pkg.ErrorCacheQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorCacheFieldData, c),
+			zap.Any(pkg.ErrorCacheFieldData, merchant),
 		)
 	}
 
-	return &c, nil
+	return merchant, nil
 }
 
 func (h *merchantRepository) GetAll(ctx context.Context) ([]*billingpb.Merchant, error) {
-	c := []*billingpb.Merchant{}
-
 	cursor, err := h.db.Collection(CollectionMerchant).Find(ctx, bson.D{})
 
 	if err != nil {
@@ -377,7 +484,8 @@ func (h *merchantRepository) GetAll(ctx context.Context) ([]*billingpb.Merchant,
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &c)
+	var mgoMerchants []*models.MgoMerchant
+	err = cursor.All(ctx, &mgoMerchants)
 
 	if err != nil {
 		zap.L().Error(
@@ -388,12 +496,24 @@ func (h *merchantRepository) GetAll(ctx context.Context) ([]*billingpb.Merchant,
 		return nil, err
 	}
 
-	return c, nil
+	merchants := make([]*billingpb.Merchant, len(mgoMerchants))
+	for i, merchant := range mgoMerchants {
+		obj, err := h.mapper.MapMgoToObject(merchant)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+			)
+			return nil, err
+		}
+		merchants[i] = obj.(*billingpb.Merchant)
+	}
+
+	return merchants, nil
 }
 
 func (h *merchantRepository) Find(ctx context.Context, query bson.M, sort []string, offset, limit int64) ([]*billingpb.Merchant, error) {
-	var data []*billingpb.Merchant
-
 	opts := options.Find().
 		SetSort(mongodb.ToSortOption(sort)).
 		SetLimit(limit).
@@ -410,7 +530,8 @@ func (h *merchantRepository) Find(ctx context.Context, query bson.M, sort []stri
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &data)
+	var mgoMerchants []*models.MgoMerchant
+	err = cursor.All(ctx, &mgoMerchants)
 
 	if err != nil {
 		zap.L().Error(
@@ -422,7 +543,21 @@ func (h *merchantRepository) Find(ctx context.Context, query bson.M, sort []stri
 		return nil, err
 	}
 
-	return data, nil
+	merchants := make([]*billingpb.Merchant, len(mgoMerchants))
+	for i, merchant := range mgoMerchants {
+		obj, err := h.mapper.MapMgoToObject(merchant)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, merchant),
+			)
+			return nil, err
+		}
+		merchants[i] = obj.(*billingpb.Merchant)
+	}
+
+	return merchants, nil
 }
 
 func (h *merchantRepository) FindCount(ctx context.Context, query bson.M) (int64, error) {

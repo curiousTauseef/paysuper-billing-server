@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
@@ -18,7 +20,6 @@ import (
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
@@ -75,9 +76,9 @@ func (suite *RefundTestSuite) SetupTest() {
 		PaymentCountries:   []string{},
 	}
 
-	keyRubVisa := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
-	keyRubBitcoin := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
-	keyRubQiwi := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
+	keyRubVisa := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Visa")
+	keyRubBitcoin := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Bitcoin")
+	keyRubQiwi := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, suite.operatingCompany.Id, "Qiwi")
 
 	countryRu := &billingpb.Country{
 		IsoCodeA2:       "RU",
@@ -449,6 +450,11 @@ func (suite *RefundTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -464,18 +470,20 @@ func (suite *RefundTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	limits := []interface{}{paymentMinLimitSystem1}
-	_, err = suite.service.db.Collection(collectionPaymentMinLimitSystem).InsertMany(context.TODO(), limits)
+	limits := []*billingpb.PaymentMinLimitSystem{paymentMinLimitSystem1}
+	err = suite.service.paymentMinLimitSystemRepository.MultipleInsert(context.TODO(), limits)
 	assert.NoError(suite.T(), err)
 
 	pms := []*billingpb.PaymentMethod{pmBankCard, pmQiwi, pmBitcoin}
-	if err := suite.service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := suite.service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
@@ -495,7 +503,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		suite.FailNow("Insert country test data failed", "%v", err)
 	}
 
-	if err := suite.service.paymentSystem.MultipleInsert(context.TODO(), []*billingpb.PaymentSystem{suite.paySys, psErr}); err != nil {
+	if err := suite.service.paymentSystemRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentSystem{suite.paySys, psErr}); err != nil {
 		suite.FailNow("Insert payment system test data failed", "%v", err)
 	}
 
@@ -525,7 +533,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		OperatingCompanyId: merchant.OperatingCompanyId,
 	}
 
-	err = suite.service.paymentChannelCostSystem.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostSystem{sysCost, sysCost1})
+	err = suite.service.paymentChannelCostSystemRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostSystem{sysCost, sysCost1})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostSystem test data failed", "%v", err)
@@ -587,7 +595,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
-	err = suite.service.paymentChannelCostMerchant.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{merCost, merCost1, merCost2})
+	err = suite.service.paymentChannelCostMerchantRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{merCost, merCost1, merCost2})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostMerchant test data failed", "%v", err)
@@ -775,8 +783,8 @@ func (suite *RefundTestSuite) SetupTest() {
 		suite.FailNow("Insert MoneyBackCostMerchant test data failed", "%v", err)
 	}
 
-	bins := []interface{}{
-		&BinData{
+	bins := []*intPkg.BinData{
+		{
 			Id:                 primitive.NewObjectID(),
 			CardBin:            400000,
 			CardBrand:          "VISA",
@@ -786,7 +794,7 @@ func (suite *RefundTestSuite) SetupTest() {
 			BankCountryName:    "UKRAINE",
 			BankCountryIsoCode: "UA",
 		},
-		&BinData{
+		{
 			Id:                 primitive.NewObjectID(),
 			CardBin:            500000,
 			CardBrand:          "JCB",
@@ -798,7 +806,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		},
 	}
 
-	_, err = db.Collection(collectionBinData).InsertMany(context.TODO(), bins)
+	err = suite.service.bankBinRepository.MultipleInsert(context.TODO(), bins)
 
 	if err != nil {
 		suite.FailNow("Insert BIN test data failed", "%v", err)
@@ -836,7 +844,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -881,6 +888,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_Ok() {
 		Currency: "RUB",
 	}
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -913,7 +921,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemNotExists_Err
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -953,6 +960,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemNotExists_Err
 	order.PrivateStatus = recurringpb.OrderStatusPaymentSystemComplete
 	order.PaymentMethod.Handler = "not_exist_payment_system"
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -977,7 +985,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemReturnError_E
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1017,6 +1024,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemReturnError_E
 	order.PrivateStatus = recurringpb.OrderStatusPaymentSystemComplete
 	order.PaymentMethod.Handler = "mock_error"
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -1061,7 +1069,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_RefundNotAllowed_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1119,7 +1126,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_WasRefunded_Error() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1158,6 +1164,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_WasRefunded_Error() {
 
 	order.PrivateStatus = recurringpb.OrderStatusRefund
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:   rsp.Uuid,
@@ -1180,7 +1187,6 @@ func (suite *RefundTestSuite) TestRefund_ListRefunds_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1219,6 +1225,7 @@ func (suite *RefundTestSuite) TestRefund_ListRefunds_Ok() {
 
 	order.PrivateStatus = recurringpb.OrderStatusProjectComplete
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -1272,7 +1279,6 @@ func (suite *RefundTestSuite) TestRefund_GetRefund_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1311,6 +1317,7 @@ func (suite *RefundTestSuite) TestRefund_GetRefund_Ok() {
 
 	order.PrivateStatus = recurringpb.OrderStatusProjectComplete
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -1360,7 +1367,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1407,6 +1413,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 	order.PaymentMethod.Params.Currency = "USD"
 	order.PaymentMethodOrderClosedAt, _ = ptypes.TimestampProto(time.Now().Add(-30 * time.Minute))
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	ae := &billingpb.AccountingEntry{
 		Id:     primitive.NewObjectID().Hex(),
@@ -1453,8 +1460,8 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 		Currency:   order.GetMerchantRoyaltyCurrency(),
 	}
 
-	accountingEntries := []interface{}{ae, ae2, ae3}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).InsertMany(context.TODO(), accountingEntries)
+	accountingEntries := []*billingpb.AccountingEntry{ae, ae2, ae3}
+	err = suite.service.accountingRepository.MultipleInsert(context.TODO(), accountingEntries)
 	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
@@ -1470,6 +1477,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 	assert.Empty(suite.T(), rsp2.Message)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	refundReq := &billingpb.CardPayRefundCallback{
 		MerchantOrder: &billingpb.CardPayMerchantOrder{
@@ -1520,13 +1528,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 	assert.Equal(suite.T(), pkg.RefundStatusCompleted, refund.Status)
 	assert.False(suite.T(), refund.IsChargeback)
 
-	oid, err := primitive.ObjectIDFromHex(refund.CreatedOrderId)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"source.id": oid, "source.type": repository.CollectionRefund}
-
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &accountingEntries)
+	accountingEntries, err = suite.service.accountingRepository.FindBySource(ctx, refund.CreatedOrderId, repository.CollectionRefund)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), accountingEntries)
 
@@ -1547,13 +1549,8 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 	assert.NotNil(suite.T(), originalOrder)
 	assert.False(suite.T(), originalOrder.IsRefundAllowed)
 
-	oid, err = primitive.ObjectIDFromHex(refund.OriginalOrder.Id)
-	assert.NoError(suite.T(), err)
-	filter = bson.M{"_id": oid}
-
 	// check RefundAllowed flag for original order has correct value on order view
-	originalOrderViewPublic := new(billingpb.OrderViewPublic)
-	err = suite.service.db.Collection(collectionOrderView).FindOne(context.TODO(), filter).Decode(&originalOrderViewPublic)
+	originalOrderViewPublic, err := suite.service.orderViewRepository.GetById(context.TODO(), refund.OriginalOrder.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), originalOrder)
 	assert.False(suite.T(), originalOrderViewPublic.RefundAllowed)
@@ -1577,7 +1574,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() 
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1622,6 +1618,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() 
 		Currency: "RUB",
 	}
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -1637,6 +1634,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() 
 	assert.Empty(suite.T(), rsp2.Message)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	refundReq := `{"some_field": "some_value"}`
 
@@ -1663,7 +1661,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownHandler_Er
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1708,6 +1705,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownHandler_Er
 		Currency: "RUB",
 	}
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -1723,6 +1721,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownHandler_Er
 	assert.Empty(suite.T(), rsp2.Message)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	refundReq := &billingpb.CardPayRefundCallback{
 		MerchantOrder: &billingpb.CardPayMerchantOrder{
@@ -1776,7 +1775,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_RefundNotFound_Er
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1821,6 +1819,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_RefundNotFound_Er
 		Currency: "RUB",
 	}
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -1836,6 +1835,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_RefundNotFound_Er
 	assert.Empty(suite.T(), rsp2.Message)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	refundReq := &billingpb.CardPayRefundCallback{
 		MerchantOrder: &billingpb.CardPayMerchantOrder{
@@ -1889,7 +1889,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -1934,6 +1933,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 		Currency: "RUB",
 	}
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
@@ -1949,6 +1949,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 	assert.Empty(suite.T(), rsp2.Message)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	refund, err := suite.service.refundRepository.GetById(context.TODO(), rsp2.Item.Id)
 	assert.NoError(suite.T(), err)
@@ -2003,7 +2004,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 }
 
 func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownPaymentSystemHandler_Error() {
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    order.Uuid,
@@ -2074,7 +2075,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownPaymentSys
 }
 
 func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundError() {
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    order.Uuid,
@@ -2143,13 +2144,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundErro
 	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp3.Status)
 	assert.Equal(suite.T(), paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid.Error(), rsp3.Error)
 
-	var accountingEntries []*billingpb.AccountingEntry
-	oid, err := primitive.ObjectIDFromHex(rsp2.Item.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"source.id": oid, "source.type": repository.CollectionRefund}
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &accountingEntries)
+	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, rsp2.Item.Id, repository.CollectionRefund)
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), accountingEntries)
 
@@ -2159,7 +2154,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundErro
 }
 
 func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_TemporaryStatus_Ok() {
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    order.Uuid,
@@ -2240,7 +2235,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -2287,6 +2281,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 	order.PaymentMethod.Params.Currency = "USD"
 	order.PaymentMethodOrderClosedAt, _ = ptypes.TimestampProto(time.Now().Add(-30 * time.Minute))
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	ae := &billingpb.AccountingEntry{
 		Id:     primitive.NewObjectID().Hex(),
@@ -2333,8 +2328,8 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 		Currency:   order.GetMerchantRoyaltyCurrency(),
 	}
 
-	accountingEntries := []interface{}{ae, ae2, ae3}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).InsertMany(context.TODO(), accountingEntries)
+	accountingEntries := []*billingpb.AccountingEntry{ae, ae2, ae3}
+	err = suite.service.accountingRepository.MultipleInsert(context.TODO(), accountingEntries)
 	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
@@ -2351,6 +2346,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 	assert.Empty(suite.T(), rsp2.Message)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	refundReq := &billingpb.CardPayRefundCallback{
 		MerchantOrder: &billingpb.CardPayMerchantOrder{
@@ -2412,7 +2408,6 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -2459,6 +2454,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 	order.PaymentMethod.Params.Currency = "USD"
 	order.PaymentMethodOrderClosedAt, _ = ptypes.TimestampProto(time.Now().Add(-30 * time.Minute))
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	ae := &billingpb.AccountingEntry{
 		Id:     primitive.NewObjectID().Hex(),
@@ -2505,8 +2501,8 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 		Currency:   order.GetMerchantRoyaltyCurrency(),
 	}
 
-	accountingEntries := []interface{}{ae, ae2, ae3}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).InsertMany(context.TODO(), accountingEntries)
+	accountingEntries := []*billingpb.AccountingEntry{ae, ae2, ae3}
+	err = suite.service.accountingRepository.MultipleInsert(context.TODO(), accountingEntries)
 	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
@@ -2524,6 +2520,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 	assert.Empty(suite.T(), rsp2.Message)
 
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	refundReq := &billingpb.CardPayRefundCallback{
 		MerchantOrder: &billingpb.CardPayMerchantOrder{
@@ -2580,13 +2577,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 	assert.EqualValues(suite.T(), recurringpb.OrderStatusChargeback, order.PrivateStatus)
 	assert.Equal(suite.T(), refund.Amount, order.TotalPaymentAmount)
 
-	oid, err := primitive.ObjectIDFromHex(refund.CreatedOrderId)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"source.id": oid, "source.type": repository.CollectionRefund}
-
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).Find(context.TODO(), filter)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &accountingEntries)
+	accountingEntries, err = suite.service.accountingRepository.FindBySource(ctx, refund.CreatedOrderId, repository.CollectionRefund)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), accountingEntries)
 }
@@ -2599,7 +2590,6 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_NotHasCostsRates() {
 		Amount:      100,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "some_email@unit.com",
 			Ip:    "127.0.0.1",
@@ -2644,6 +2634,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_NotHasCostsRates() {
 		Currency: "RUB",
 	}
 	err = suite.service.updateOrder(context.TODO(), order)
+	assert.NoError(suite.T(), err)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:   rsp.Uuid,
@@ -2664,14 +2655,14 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 	orders := make([]*billingpb.Order, 0)
 
 	for _, v := range orderAmounts {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, v, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, v, "RUB", "RU", suite.project, suite.pmBankCard)
 		assert.NotNil(suite.T(), order)
 
 		orders = append(orders, order)
 	}
 
 	for _, v1 := range orders {
-		_ = helperMakeRefund(suite.Suite, suite.service, v1, v1.ChargeAmount, false)
+		_ = HelperMakeRefund(suite.Suite, suite.service, v1, v1.ChargeAmount, false)
 	}
 
 	for _, v := range orders {

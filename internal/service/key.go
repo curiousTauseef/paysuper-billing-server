@@ -6,15 +6,9 @@ import (
 	"context"
 	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
-	"time"
 )
-
-const collectionKey = "key"
 
 func (s *Service) UploadKeysFile(
 	ctx context.Context,
@@ -126,15 +120,8 @@ func (s *Service) ReserveKeyForOrder(
 ) error {
 	zap.S().Infow("[ReserveKeyForOrder] called", "order_id", req.OrderId, "platform_id", req.PlatformId, "KeyProductId", req.KeyProductId)
 	key, err := s.keyRepository.ReserveKey(ctx, req.KeyProductId, req.PlatformId, req.OrderId, req.Ttl)
+
 	if err != nil {
-		zap.S().Errorf(
-			errors.KeyErrorReserve.Message,
-			"err", err,
-			"keyProductId", req.KeyProductId,
-			"platformId", req.PlatformId,
-			"orderId", req.OrderId,
-			"ttl", req.Ttl,
-		)
 		res.Status = billingpb.ResponseStatusBadData
 		res.Message = errors.KeyErrorReserve
 		return nil
@@ -156,7 +143,6 @@ func (s *Service) FinishRedeemKeyForOrder(
 	key, err := s.keyRepository.FinishRedeemById(ctx, req.KeyId)
 
 	if err != nil {
-		zap.S().Errorf(errors.KeyErrorFinish.Message, "err", err, "keyId", req.KeyId)
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errors.KeyErrorFinish
 		return nil
@@ -176,7 +162,6 @@ func (s *Service) CancelRedeemKeyForOrder(
 	_, err := s.keyRepository.CancelById(ctx, req.KeyId)
 
 	if err != nil {
-		zap.S().Errorf(errors.KeyErrorCanceled.Message, "err", err, "keyId", req.KeyId)
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errors.KeyErrorCanceled
 		return nil
@@ -199,7 +184,6 @@ func (s *Service) KeyDaemonProcess(ctx context.Context) (int, error) {
 		_, err = s.keyRepository.CancelById(ctx, key.Id)
 
 		if err != nil {
-			zap.S().Errorf(errors.KeyErrorCanceled.Message, "err", err, "keyId", key.Id)
 			continue
 		}
 
@@ -207,170 +191,4 @@ func (s *Service) KeyDaemonProcess(ctx context.Context) (int, error) {
 	}
 
 	return counter, nil
-}
-
-type KeyRepositoryInterface interface {
-	Insert(context.Context, *billingpb.Key) error
-	GetById(context.Context, string) (*billingpb.Key, error)
-	ReserveKey(context.Context, string, string, string, int32) (*billingpb.Key, error)
-	CancelById(context.Context, string) (*billingpb.Key, error)
-	FinishRedeemById(context.Context, string) (*billingpb.Key, error)
-	CountKeysByProductPlatform(context.Context, string, string) (int64, error)
-	FindUnfinished(context.Context) ([]*billingpb.Key, error)
-}
-
-func newKeyRepository(svc *Service) *Key {
-	s := &Key{svc: svc}
-	return s
-}
-
-func (h *Key) Insert(ctx context.Context, key *billingpb.Key) error {
-	_, err := h.svc.db.Collection(collectionKey).InsertOne(ctx, key)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *Key) GetById(ctx context.Context, id string) (*billingpb.Key, error) {
-	key := &billingpb.Key{}
-	oid, _ := primitive.ObjectIDFromHex(id)
-	filter := bson.M{"_id": oid}
-	err := h.svc.db.Collection(collectionKey).FindOne(ctx, filter).Decode(key)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return key, nil
-}
-
-func (h *Key) ReserveKey(
-	ctx context.Context,
-	keyProductId string,
-	platformId string,
-	orderId string,
-	ttl int32,
-) (*billingpb.Key, error) {
-	var key *billingpb.Key
-	duration := time.Second * time.Duration(ttl)
-	oid, _ := primitive.ObjectIDFromHex(keyProductId)
-	orderOid, _ := primitive.ObjectIDFromHex(orderId)
-
-	query := bson.M{
-		"key_product_id": oid,
-		"platform_id":    platformId,
-		"order_id":       nil,
-	}
-	update := bson.M{
-		"$set": bson.M{
-			"reserved_to": time.Now().UTC().Add(duration),
-			"order_id":    orderOid,
-		},
-	}
-
-	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err := h.svc.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(&key)
-
-	if err == mongo.ErrNoDocuments {
-		return nil, errors.KeyErrorNotFound
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	if key == nil {
-		return nil, errors.KeyErrorNotFound
-	}
-
-	return key, nil
-}
-
-func (h *Key) CancelById(ctx context.Context, id string) (*billingpb.Key, error) {
-	var key *billingpb.Key
-	oid, _ := primitive.ObjectIDFromHex(id)
-	query := bson.M{"_id": oid}
-	update := bson.M{
-		"$set": bson.M{
-			"reserved_to": time.Time{},
-			"order_id":    nil,
-		},
-	}
-
-	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err := h.svc.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(&key)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if key == nil {
-		return nil, errors.KeyErrorNotFound
-	}
-
-	return key, nil
-}
-
-func (h *Key) FinishRedeemById(ctx context.Context, id string) (*billingpb.Key, error) {
-	var key *billingpb.Key
-	oid, _ := primitive.ObjectIDFromHex(id)
-	query := bson.M{"_id": oid}
-	update := bson.M{
-		"$set": bson.M{
-			"reserved_to": time.Time{},
-			"redeemed_at": time.Now().UTC(),
-		},
-	}
-
-	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err := h.svc.db.Collection(collectionKey).FindOneAndUpdate(ctx, query, update, opts).Decode(&key)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if key == nil {
-		return nil, errors.KeyErrorNotFound
-	}
-
-	return key, nil
-}
-
-func (h *Key) CountKeysByProductPlatform(ctx context.Context, keyProductId string, platformId string) (int64, error) {
-	oid, _ := primitive.ObjectIDFromHex(keyProductId)
-	query := bson.M{
-		"key_product_id": oid,
-		"platform_id":    platformId,
-		"order_id":       nil,
-	}
-
-	return h.svc.db.Collection(collectionKey).CountDocuments(ctx, query)
-}
-
-func (h *Key) FindUnfinished(ctx context.Context) ([]*billingpb.Key, error) {
-	var keys []*billingpb.Key
-
-	query := bson.M{
-		"reserved_to": bson.M{
-			"$gt": time.Time{},
-			"$lt": time.Now().UTC(),
-		},
-	}
-
-	cursor, err := h.svc.db.Collection(collectionKey).Find(ctx, query)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = cursor.All(ctx, &keys)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return keys, nil
 }

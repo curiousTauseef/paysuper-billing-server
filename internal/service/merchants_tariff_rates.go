@@ -2,53 +2,37 @@ package service
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/json"
-	"fmt"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.uber.org/zap"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"strings"
 )
 
-const (
-	collectionMerchantsPaymentTariffs = "merchants_payment_tariffs"
-	collectionMerchantTariffsSettings = "merchant_tariffs_settings"
-
-	merchantTariffsSettingsKey         = "merchant_tariffs_settings:mcc:%s"
-	onboardingTariffRatesCacheKeyGetBy = "onboarding_tariff_rates:%x"
-)
-
-type TariffRates struct {
-	Items []*billingpb.MerchantTariffRatesPayment `json:"items"`
-}
-
-type MerchantTariffRatesInterface interface {
-	GetPaymentTariffsBy(context.Context, *billingpb.GetMerchantTariffRatesRequest) ([]*billingpb.MerchantTariffRatesPayment, error)
-	GetTariffsSettings(ctx context.Context, in *billingpb.GetMerchantTariffRatesRequest) (*billingpb.MerchantTariffRatesSettings, error)
-	GetBy(ctx context.Context, in *billingpb.GetMerchantTariffRatesRequest) (*billingpb.GetMerchantTariffRatesResponseItems, error)
-	GetCacheKeyForGetBy(*billingpb.GetMerchantTariffRatesRequest) (string, error)
-}
-
-func newMerchantsTariffRatesRepository(s *Service) *MerchantsTariffRatesRepository {
-	return &MerchantsTariffRatesRepository{svc: s}
-}
-
-func (h *MerchantsTariffRatesRepository) GetBy(
+func (s *Service) getMerchantTariffRates(
 	ctx context.Context,
 	in *billingpb.GetMerchantTariffRatesRequest,
 ) (*billingpb.GetMerchantTariffRatesResponseItems, error) {
-	payment, err := h.GetPaymentTariffsBy(ctx, in)
+	mccCode, err := getMccByOperationsType(in.MerchantOperationsType)
 
 	if err != nil {
 		return nil, err
 	}
 
-	settings, err := h.GetTariffsSettings(ctx, in)
+	payment, err := s.merchantPaymentTariffsRepository.Find(ctx, in.HomeRegion, in.PayerRegion, mccCode, in.MinAmount, in.MaxAmount)
 
 	if err != nil {
-		return nil, err
+		return nil, merchantErrorUnknown
+	}
+
+	if len(payment) <= 0 {
+		return nil, merchantTariffsNotFound
+	}
+
+	settings, err := s.merchantTariffsSettingsRepository.GetByMccCode(ctx, mccCode)
+
+	if err != nil {
+		return nil, merchantTariffsNotFound
 	}
 
 	tariffs := &billingpb.GetMerchantTariffRatesResponseItems{
@@ -63,144 +47,157 @@ func (h *MerchantsTariffRatesRepository) GetBy(
 	return tariffs, nil
 }
 
-func (h *MerchantsTariffRatesRepository) GetTariffsSettings(
+func (s *Service) setMerchantTariffRates(
 	ctx context.Context,
-	in *billingpb.GetMerchantTariffRatesRequest,
-) (*billingpb.MerchantTariffRatesSettings, error) {
-	mccCode, err := getMccByOperationsType(in.MerchantOperationsType)
-	if err != nil {
-		return nil, err
-	}
-
-	item := new(billingpb.MerchantTariffRatesSettings)
-	key := fmt.Sprintf(merchantTariffsSettingsKey, mccCode)
-	err = h.svc.cacher.Get(key, &item)
-
-	if err == nil {
-		return item, nil
-	}
-
-	query := bson.M{"mcc_code": mccCode}
-	err = h.svc.db.Collection(collectionMerchantTariffsSettings).FindOne(ctx, query).Decode(item)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchantTariffsSettings),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, merchantTariffsNotFound
-	}
-
-	err = h.svc.cacher.Set(key, item, 0)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, item),
-		)
-	}
-
-	return item, nil
-}
-
-func (h *MerchantsTariffRatesRepository) GetPaymentTariffsBy(
-	ctx context.Context,
-	in *billingpb.GetMerchantTariffRatesRequest,
-) ([]*billingpb.MerchantTariffRatesPayment, error) {
-	item := new(TariffRates)
-	key, err := h.GetCacheKeyForGetBy(in)
+	merchant *billingpb.Merchant,
+	merchantHomeRegion, merchantOperationsType string,
+) (*billingpb.Merchant, error) {
+	mccCode, err := getMccByOperationsType(merchantOperationsType)
 
 	if err != nil {
 		return nil, err
 	}
 
-	err = h.svc.cacher.Get(key, &item)
-
-	if err == nil {
-		return item.Items, nil
+	query := &billingpb.GetMerchantTariffRatesRequest{
+		HomeRegion:             merchantHomeRegion,
+		MerchantOperationsType: merchantOperationsType,
 	}
-
-	mccCode, err := getMccByOperationsType(in.MerchantOperationsType)
-	if err != nil {
-		return nil, err
-	}
-
-	query := bson.M{"merchant_home_region": in.HomeRegion, "mcc_code": mccCode, "is_active": true}
-
-	if in.PayerRegion != "" {
-		query["payer_region"] = in.PayerRegion
-	}
-
-	if in.MinAmount >= 0 && in.MaxAmount > in.MinAmount {
-		query["min_amount"] = in.MinAmount
-		query["max_amount"] = in.MaxAmount
-	}
-
-	opts := options.Find().
-		SetSort(bson.M{"min_amount": 1, "max_amount": 1, "payer_region": 1, "position": 1})
-	cursor, err := h.svc.db.Collection(collectionMerchantsPaymentTariffs).Find(ctx, query, opts)
+	tariffs, err := s.getMerchantTariffRates(ctx, query)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchantsPaymentTariffs),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
 		return nil, merchantErrorUnknown
 	}
 
-	err = cursor.All(ctx, &item.Items)
-	_ = cursor.Close(ctx)
+	merchantPayoutCurrency := merchant.GetPayoutCurrency()
 
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionMerchantsPaymentTariffs),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil, merchantErrorUnknown
+	if merchantPayoutCurrency == "" {
+		return nil, merchantErrorCurrencyNotSet
 	}
 
-	if len(item.Items) <= 0 {
-		return nil, merchantTariffsNotFound
+	payoutTariff, ok := tariffs.Payout[merchantPayoutCurrency]
+
+	if !ok {
+		return nil, merchantErrorNoTariffsInPayoutCurrency
 	}
 
-	err = h.svc.cacher.Set(key, item, 0)
+	minimalPayoutLimit, ok := tariffs.MinimalPayout[merchantPayoutCurrency]
 
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorCacheQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
-			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, item),
-		)
-
-		return nil, fmt.Errorf(errorNotFound, collectionMerchantsPaymentTariffs)
+	if !ok {
+		return nil, merchantErrorNoTariffsInPayoutCurrency
 	}
 
-	return item.Items, nil
+	merchant.Tariff = &billingpb.MerchantTariff{
+		Payment:       tariffs.Payment,
+		Payout:        payoutTariff,
+		HomeRegion:    merchantHomeRegion,
+		Chargeback:    tariffs.Chargeback,
+		Refund:        tariffs.Refund,
+		MinimalPayout: tariffs.MinimalPayout,
+	}
+	merchant.MccCode = mccCode
+	merchant.MinimalPayoutLimit = minimalPayoutLimit
+	merchant.MerchantOperationsType = merchantOperationsType
+
+	paymentTariffs, refundTariffs, chargebackTariffs := s.transformMerchantTariffRates(merchant, tariffs)
+	refundTariffs = append(refundTariffs, chargebackTariffs...)
+
+	if len(paymentTariffs) > 0 {
+		err = s.paymentChannelCostMerchantRepository.DeleteAndInsertMany(ctx, merchant.Id, paymentTariffs)
+
+		if err != nil {
+			return nil, merchantErrorUnknown
+		}
+	}
+
+	if len(refundTariffs) > 0 {
+		err = s.moneyBackCostMerchantRepository.DeleteAndInsertMany(ctx, merchant.Id, refundTariffs)
+
+		if err != nil {
+			return nil, merchantErrorUnknown
+		}
+	}
+
+	return merchant, nil
 }
 
-func (h *MerchantsTariffRatesRepository) GetCacheKeyForGetBy(req *billingpb.GetMerchantTariffRatesRequest) (string, error) {
-	b, err := json.Marshal(req)
+func (s *Service) transformMerchantTariffRates(
+	merchant *billingpb.Merchant,
+	tariffs *billingpb.GetMerchantTariffRatesResponseItems,
+) ([]*billingpb.PaymentChannelCostMerchant, []*billingpb.MoneyBackCostMerchant, []*billingpb.MoneyBackCostMerchant) {
+	payment := make([]*billingpb.PaymentChannelCostMerchant, 0)
+	refund := make([]*billingpb.MoneyBackCostMerchant, 0)
+	chargeback := make([]*billingpb.MoneyBackCostMerchant, 0)
+	tsNow := ptypes.TimestampNow()
 
-	if err != nil {
-		zap.L().Error(
-			"Marshaling failed",
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, req),
-		)
-
-		return "", err
+	for _, v := range tariffs.Payment {
+		cost := &billingpb.PaymentChannelCostMerchant{
+			Id:                      primitive.NewObjectID().Hex(),
+			MerchantId:              merchant.Id,
+			Name:                    strings.ToUpper(v.MethodName),
+			PayoutCurrency:          merchant.GetPayoutCurrency(),
+			MinAmount:               v.MinAmount,
+			Region:                  v.PayerRegion,
+			MethodPercent:           v.MethodPercentFee,
+			MethodFixAmount:         v.MethodFixedFee,
+			MethodFixAmountCurrency: v.MethodFixedFeeCurrency,
+			PsPercent:               v.PsPercentFee,
+			PsFixedFee:              v.PsFixedFee,
+			PsFixedFeeCurrency:      v.PsFixedFeeCurrency,
+			CreatedAt:               tsNow,
+			UpdatedAt:               tsNow,
+			IsActive:                true,
+			MccCode:                 merchant.MccCode,
+		}
+		payment = append(payment, cost)
 	}
 
-	return fmt.Sprintf(onboardingTariffRatesCacheKeyGetBy, md5.Sum(b)), nil
+	for _, tariffRegion := range pkg.SupportedTariffRegions {
+		for _, v := range tariffs.Refund {
+			cost := &billingpb.MoneyBackCostMerchant{
+				Id:                primitive.NewObjectID().Hex(),
+				MerchantId:        merchant.Id,
+				Name:              strings.ToUpper(v.MethodName),
+				PayoutCurrency:    merchant.GetPayoutCurrency(),
+				UndoReason:        pkg.UndoReasonReversal,
+				Region:            tariffRegion,
+				Country:           "",
+				DaysFrom:          0,
+				PaymentStage:      1,
+				Percent:           v.MethodPercentFee,
+				FixAmount:         v.MethodFixedFee,
+				FixAmountCurrency: v.MethodFixedFeeCurrency,
+				IsPaidByMerchant:  v.IsPaidByMerchant,
+				CreatedAt:         tsNow,
+				UpdatedAt:         tsNow,
+				IsActive:          true,
+				MccCode:           merchant.MccCode,
+			}
+			refund = append(refund, cost)
+		}
+
+		for _, v := range tariffs.Chargeback {
+			cost := &billingpb.MoneyBackCostMerchant{
+				Id:                primitive.NewObjectID().Hex(),
+				MerchantId:        merchant.Id,
+				Name:              strings.ToUpper(v.MethodName),
+				PayoutCurrency:    merchant.GetPayoutCurrency(),
+				UndoReason:        pkg.UndoReasonChargeback,
+				Region:            tariffRegion,
+				Country:           "",
+				DaysFrom:          0,
+				PaymentStage:      1,
+				Percent:           v.MethodPercentFee,
+				FixAmount:         v.MethodFixedFee,
+				FixAmountCurrency: v.MethodFixedFeeCurrency,
+				IsPaidByMerchant:  v.IsPaidByMerchant,
+				CreatedAt:         tsNow,
+				UpdatedAt:         tsNow,
+				IsActive:          true,
+				MccCode:           merchant.MccCode,
+			}
+			chargeback = append(chargeback, cost)
+		}
+	}
+
+	return payment, refund, chargeback
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/ProtocolONE/geoip-service/pkg"
 	"github.com/ProtocolONE/geoip-service/pkg/proto"
-	metrics "github.com/ProtocolONE/go-micro-plugins/wrapper/monitoring/prometheus"
 	"github.com/go-redis/redis"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
@@ -19,6 +18,7 @@ import (
 	"github.com/micro/go-micro/config/source"
 	goConfigCli "github.com/micro/go-micro/config/source/cli"
 	"github.com/micro/go-plugins/client/selector/static"
+	metrics "github.com/micro/go-plugins/wrapper/monitoring/prometheus"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/service"
@@ -28,6 +28,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/casbinpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"github.com/paysuper/paysuper-proto/go/document_signerpb"
+	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
@@ -122,9 +123,16 @@ func (app *Application) Init() {
 
 	postmarkBroker.SetExchangeName(postmarkpb.PostmarkSenderTopicName)
 
+	validateUserBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
+
+	if err != nil {
+		app.logger.Fatal("Creating validate user broker failed", zap.Error(err))
+	}
+
+	validateUserBroker.SetExchangeName(notifierpb.PayOneTopicNameValidateUser)
+
 	options := []micro.Option{
 		micro.Name(billingpb.ServiceName),
-		micro.Version(billingpb.ServiceVersion),
 		micro.WrapHandler(metrics.NewHandlerWrapper()),
 		micro.AfterStop(func() error {
 			app.logger.Info("Micro service stopped")
@@ -177,6 +185,7 @@ func (app *Application) Init() {
 	documentSignerService := document_signerpb.NewDocumentSignerService(document_signerpb.ServiceName, app.service.Client())
 	reporter := reporterpb.NewReporterService(reporterpb.ServiceName, app.service.Client())
 	casbin := casbinpb.NewCasbinService(casbinpb.ServiceName, app.service.Client())
+	webHookNotifier := notifierpb.NewNotifierService(notifierpb.ServiceName, app.service.Client())
 
 	formatter, err := paysuperI18n.NewFormatter([]string{"i18n/rules"}, []string{"i18n/messages"})
 
@@ -218,6 +227,8 @@ func (app *Application) Init() {
 		formatter,
 		postmarkBroker,
 		casbin,
+		webHookNotifier,
+		validateUserBroker,
 	)
 
 	if err := app.svc.Init(); err != nil {
@@ -277,8 +288,10 @@ func (app *Application) initMetrics() {
 
 func (app *Application) Run() {
 	app.httpServer = &http.Server{
-		Addr:    ":" + app.cfg.MetricsPort,
-		Handler: app.router,
+		Addr:              ":" + app.cfg.MetricsPort,
+		Handler:           app.router,
+		ReadTimeout:       time.Duration(app.cfg.MetricsReadTimeout) * time.Second,
+		ReadHeaderTimeout: time.Duration(app.cfg.MetricsReadHeaderTimeout) * time.Second,
 	}
 
 	go func() {
@@ -385,6 +398,32 @@ func (app *Application) TaskMerchantsMigrate() error {
 
 func (app *Application) TaskFixTaxes() error {
 	return app.svc.FixTaxes(context.TODO())
+}
+
+func (app *Application) TaskRebuildPayouts() error {
+	return app.svc.TaskRebuildPayoutsRoyalties()
+}
+
+func (app *Application) TaskCreatePayout() error {
+	rsp := &billingpb.CreatePayoutDocumentResponse{}
+	err := app.svc.CreatePayoutDocument(
+		context.Background(),
+		&billingpb.CreatePayoutDocumentRequest{
+			MerchantId: "5dbac7bb120a810001a8fe80",
+			Ip:         "127.0.0.1",
+		},
+		rsp,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if rsp.Status != billingpb.ResponseStatusOk {
+		return rsp.Message
+	}
+
+	return nil
 }
 
 func (app *Application) KeyDaemonStart() {

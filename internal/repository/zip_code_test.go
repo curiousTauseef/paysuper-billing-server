@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,7 +40,7 @@ func (suite *ZipCodeTestSuite) SetupTest() {
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
 
-	suite.repository = &zipCodeRepository{db: suite.db, cache: &mocks.CacheInterface{}}
+	suite.repository = &zipCodeRepository{db: suite.db, cache: &mocks.CacheInterface{}, mapper: models.NewZipCodeMapper()}
 }
 
 func (suite *ZipCodeTestSuite) TearDownTest() {
@@ -77,7 +77,25 @@ func (suite *ZipCodeTestSuite) TestZipCode_Insert_Ok() {
 
 func (suite *ZipCodeTestSuite) TestZipCode_Insert_ErrorDb() {
 	zipCode := suite.getZipCodeTemplate()
-	zipCode.CreatedAt = &timestamp.Timestamp{Seconds: -100000000000000}
+
+	collectionMock := &mongodbMocks.CollectionInterface{}
+	collectionMock.On("InsertOne", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	dbMock := &mongodbMocks.SourceInterface{}
+	dbMock.On("Collection", mock.Anything).Return(collectionMock, nil)
+	suite.repository.db = dbMock
+
+	err := suite.repository.Insert(context.TODO(), zipCode)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *ZipCodeTestSuite) TestZipCode_Insert_MapError() {
+	zipCode := suite.getZipCodeTemplate()
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
 	err := suite.repository.Insert(context.TODO(), zipCode)
 	assert.Error(suite.T(), err)
 }
@@ -160,6 +178,30 @@ func (suite *ZipCodeTestSuite) TestZipCode_GetByZipAndCountry_SkipSetToCacheErro
 	assert.Equal(suite.T(), zipCode.Country, zipCode2.Country)
 }
 
+func (suite *ZipCodeTestSuite) TestZipCode_GetByZipAndCountry_MapError() {
+	zipCode := suite.getZipCodeTemplate()
+	key := fmt.Sprintf(cacheZipCodeByZipAndCountry, zipCode.Zip, zipCode.Country)
+
+	cache := &mocks.CacheInterface{}
+	cache.On("Set", key, zipCode, time.Duration(0)).Times(1).Return(nil)
+	cache.On("Get", key, &billingpb.ZipCode{}).Return(errors.New("error"))
+	suite.repository.cache = cache
+
+	mgo, err := suite.repository.mapper.MapObjectToMgo(zipCode)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(mgo, nil)
+	suite.repository.mapper = mapper
+
+	err = suite.repository.Insert(context.TODO(), zipCode)
+	assert.NoError(suite.T(), err)
+
+	_, err = suite.repository.GetByZipAndCountry(context.TODO(), zipCode.Zip, zipCode.Country)
+	assert.Error(suite.T(), err)
+}
+
 func (suite *ZipCodeTestSuite) TestZipCode_FindByZipAndCountry_Ok() {
 	zipCode := suite.getZipCodeTemplate()
 
@@ -175,6 +217,28 @@ func (suite *ZipCodeTestSuite) TestZipCode_FindByZipAndCountry_Ok() {
 	assert.Len(suite.T(), list, 1)
 	assert.Equal(suite.T(), zipCode.Zip, list[0].Zip)
 	assert.Equal(suite.T(), zipCode.Country, list[0].Country)
+}
+
+func (suite *ZipCodeTestSuite) TestZipCode_FindByZipAndCountry_MapError() {
+	zipCode := suite.getZipCodeTemplate()
+
+	cache := &mocks.CacheInterface{}
+	cache.On("Set", fmt.Sprintf(cacheZipCodeByZipAndCountry, zipCode.Zip, zipCode.Country), zipCode, time.Duration(0)).Return(nil)
+	suite.repository.cache = cache
+
+	mgo, err := suite.repository.mapper.MapObjectToMgo(zipCode)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(mgo, nil)
+	suite.repository.mapper = mapper
+
+	err = suite.repository.Insert(context.TODO(), zipCode)
+	assert.NoError(suite.T(), err)
+
+	_, err = suite.repository.FindByZipAndCountry(context.TODO(), "98", zipCode.Country, 0, 10)
+	assert.Error(suite.T(), err)
 }
 
 func (suite *ZipCodeTestSuite) TestZipCode_FindByZipAndCountry_EmptyByOffset() {

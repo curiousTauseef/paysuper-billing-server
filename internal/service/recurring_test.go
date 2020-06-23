@@ -34,6 +34,11 @@ func (suite *RecurringTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	cache, err := database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	casbin := &casbinMocks.CasbinService{}
 
 	suite.service = NewBillingService(
@@ -51,6 +56,8 @@ func (suite *RecurringTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		casbin,
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {

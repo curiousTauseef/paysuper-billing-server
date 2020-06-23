@@ -4,13 +4,21 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 	"strings"
+)
+
+const (
+	collectionProject = "project"
+
+	cacheProjectId = "project:id:%s"
 )
 
 type projectRepository repository
@@ -18,12 +26,22 @@ type projectRepository repository
 // NewProjectRepository create and return an object for working with the price group repository.
 // The returned object implements the ProjectRepositoryInterface interface.
 func NewProjectRepository(db mongodb.SourceInterface, cache database.CacheInterface) ProjectRepositoryInterface {
-	s := &projectRepository{db: db, cache: cache}
+	s := &projectRepository{db: db, cache: cache, mapper: models.NewProjectMapper()}
 	return s
 }
 
 func (r *projectRepository) Insert(ctx context.Context, project *billingpb.Project) error {
-	_, err := r.db.Collection(collectionProject).InsertOne(ctx, project)
+	mgo, err := r.mapper.MapObjectToMgo(project)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, project),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionProject).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -55,7 +73,16 @@ func (r *projectRepository) Insert(ctx context.Context, project *billingpb.Proje
 func (r *projectRepository) MultipleInsert(ctx context.Context, projects []*billingpb.Project) error {
 	p := make([]interface{}, len(projects))
 	for i, v := range projects {
-		p[i] = v
+		var err error
+		p[i], err = r.mapper.MapObjectToMgo(v)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, v),
+			)
+			return err
+		}
 	}
 
 	_, err := r.db.Collection(collectionProject).InsertMany(ctx, p)
@@ -88,7 +115,17 @@ func (r *projectRepository) Update(ctx context.Context, project *billingpb.Proje
 	}
 
 	filter := bson.M{"_id": oid}
-	_, err = r.db.Collection(collectionProject).ReplaceOne(ctx, filter, project)
+	mgo, err := r.mapper.MapObjectToMgo(project)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, project),
+		)
+		return err
+	}
+
+	_, err = r.db.Collection(collectionProject).ReplaceOne(ctx, filter, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -119,12 +156,12 @@ func (r *projectRepository) Update(ctx context.Context, project *billingpb.Proje
 }
 
 func (r *projectRepository) GetById(ctx context.Context, id string) (*billingpb.Project, error) {
-	var c billingpb.Project
+	project := &billingpb.Project{}
 	key := fmt.Sprintf(cacheProjectId, id)
-	err := r.cache.Get(key, c)
+	err := r.cache.Get(key, project)
 
 	if err == nil {
-		return &c, nil
+		return project, nil
 	}
 
 	oid, err := primitive.ObjectIDFromHex(id)
@@ -140,7 +177,8 @@ func (r *projectRepository) GetById(ctx context.Context, id string) (*billingpb.
 	}
 
 	query := bson.M{"_id": oid}
-	err = r.db.Collection(collectionProject).FindOne(ctx, query).Decode(&c)
+	var mgo = models.MgoProject{}
+	err = r.db.Collection(collectionProject).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -152,7 +190,18 @@ func (r *projectRepository) GetById(ctx context.Context, id string) (*billingpb.
 		return nil, err
 	}
 
-	err = r.cache.Set(key, c, 0)
+	obj, err := r.mapper.MapMgoToObject(&mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, project),
+		)
+	}
+
+	project = obj.(*billingpb.Project)
+	err = r.cache.Set(key, project, 0)
 
 	if err != nil {
 		zap.L().Error(
@@ -160,11 +209,11 @@ func (r *projectRepository) GetById(ctx context.Context, id string) (*billingpb.
 			zap.Error(err),
 			zap.String(pkg.ErrorCacheFieldCmd, "SET"),
 			zap.String(pkg.ErrorCacheFieldKey, key),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, c),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, project),
 		)
 	}
 
-	return &c, nil
+	return project, nil
 }
 
 func (r *projectRepository) CountByMerchantId(ctx context.Context, id string) (int64, error) {
@@ -226,9 +275,10 @@ func (r *projectRepository) Find(
 	}
 
 	if quickSearch != "" {
+		pattern := primitive.Regex{Pattern: regexp.QuoteMeta(quickSearch), Options: "i"}
 		query["$or"] = []bson.M{
-			{"name": bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: quickSearch, Options: "i"}}}},
-			{"id_string": primitive.Regex{Pattern: quickSearch, Options: "i"}},
+			{"name": bson.M{"$elemMatch": bson.M{"value": pattern}}},
+			{"id_string": pattern},
 		}
 	}
 
@@ -280,6 +330,7 @@ func (r *projectRepository) Find(
 				"virtual_currency":            "$virtual_currency",
 				"vat_payer":                   "$vat_payer",
 				"redirect_settings":           "$redirect_settings",
+				"webhook_mode":                "$webhook_mode",
 			},
 		},
 		{"$skip": offset},
@@ -319,9 +370,9 @@ func (r *projectRepository) Find(
 		return nil, err
 	}
 
-	var projects []*billingpb.Project
+	var mgoProjects []*models.MgoProject
 
-	err = cursor.All(ctx, &projects)
+	err = cursor.All(ctx, &mgoProjects)
 
 	if err != nil {
 		zap.L().Error(
@@ -331,6 +382,21 @@ func (r *projectRepository) Find(
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return nil, err
+	}
+
+	projects := make([]*billingpb.Project, len(mgoProjects))
+
+	for i, project := range mgoProjects {
+		obj, err := r.mapper.MapMgoToObject(project)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, project),
+			)
+			return nil, err
+		}
+		projects[i] = obj.(*billingpb.Project)
 	}
 
 	return projects, nil
@@ -357,9 +423,10 @@ func (r *projectRepository) FindCount(ctx context.Context, merchantId, quickSear
 	}
 
 	if quickSearch != "" {
+		pattern := primitive.Regex{Pattern: regexp.QuoteMeta(quickSearch), Options: "i"}
 		query["$or"] = []bson.M{
-			{"name": bson.M{"$elemMatch": bson.M{"value": primitive.Regex{Pattern: quickSearch, Options: "i"}}}},
-			{"id_string": primitive.Regex{Pattern: quickSearch, Options: "i"}},
+			{"name": bson.M{"$elemMatch": bson.M{"value": pattern}}},
+			{"id_string": pattern},
 		}
 	}
 

@@ -6,7 +6,6 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"net/http"
@@ -33,6 +32,7 @@ var (
 	projectErrorButtonCaptionAllowedOnlyForAfterRedirect         = newBillingServerErrorMsg("pr000018", "caption for redirect button can't be set with non zero delay for auto redirect")
 	projectErrorRedirectModeIsRequired                           = newBillingServerErrorMsg("pr000019", "redirect mode must be selected")
 	projectErrorRedirectUsageIsRequired                          = newBillingServerErrorMsg("pr000020", "type of redirect usage must be selected")
+	projectErrorChangeStatusToProductionNotAllowed               = newBillingServerErrorMsg("pr000021", "project status change to production not allowed, because project's merchant onboarding not complete")
 )
 
 func (s *Service) ChangeProject(
@@ -41,13 +41,11 @@ func (s *Service) ChangeProject(
 	rsp *billingpb.ChangeProjectResponse,
 ) error {
 	var project *billingpb.Project
-	var err error
+	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
 
-	var merchant = &billingpb.Merchant{}
-	if merchant, err = s.merchantRepository.GetById(ctx, req.MerchantId); err != nil {
+	if err != nil {
 		rsp.Status = billingpb.ResponseStatusNotFound
 		rsp.Message = merchantErrorNotFound
-
 		return nil
 	}
 
@@ -99,7 +97,7 @@ func (s *Service) ChangeProject(
 	}
 
 	if req.VirtualCurrency != nil {
-		payoutCurrency := merchant.GetPayoutCurrency()
+		payoutCurrency := merchant.GetProcessingDefaultCurrency()
 		err = s.validateProjectVirtualCurrency(req.VirtualCurrency, payoutCurrency)
 
 		if err != nil {
@@ -161,10 +159,16 @@ func (s *Service) ChangeProject(
 	} else {
 		if project == nil {
 			req.RedirectSettings = &billingpb.ProjectRedirectSettings{
-				Mode:  pkg.ProjectRedirectModeAny,
+				Mode:  pkg.ProjectRedirectModeDisable,
 				Usage: pkg.ProjectRedirectUsageAny,
 			}
 		}
+	}
+
+	if req.Status == billingpb.ProjectStatusInProduction && (!merchant.IsDataComplete() || !merchant.IsSigned) {
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = projectErrorChangeStatusToProductionNotAllowed
+		return nil
 	}
 
 	if project == nil {
@@ -200,7 +204,7 @@ func (s *Service) GetProject(
 		return nil
 	}
 
-	project.ProductsCount = s.getProductsCountByProject(ctx, project.Id)
+	project.ProductsCount, _ = s.productRepository.CountByProject(ctx, project.Id)
 
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Item = project
@@ -342,11 +346,6 @@ func (s *Service) updateProject(ctx context.Context, req *billingpb.Project, pro
 	project.UrlRedirectSuccess = req.UrlRedirectSuccess
 	project.Status = req.Status
 	project.UpdatedAt = ptypes.TimestampNow()
-
-	if project.NeedChangeStatusToDraft(req) == true {
-		project.Status = billingpb.ProjectStatusDraft
-	}
-
 	project.CallbackProtocol = req.CallbackProtocol
 	project.UrlCheckAccount = req.UrlCheckAccount
 	project.UrlProcessPayment = req.UrlProcessPayment
@@ -366,11 +365,15 @@ func (s *Service) updateProject(ctx context.Context, req *billingpb.Project, pro
 		project.RedirectSettings = req.RedirectSettings
 	}
 
+	if req.WebhookMode != "" {
+		project.WebhookMode = req.WebhookMode
+	}
+
 	if err := s.project.Update(ctx, project); err != nil {
 		return projectErrorUnknown
 	}
 
-	project.ProductsCount = s.getProductsCountByProject(ctx, project.Id)
+	project.ProductsCount, _ = s.productRepository.CountByProject(ctx, project.Id)
 
 	return nil
 }
@@ -447,35 +450,9 @@ func (s *Service) validateRedirectSettings(req *billingpb.Project) error {
 func (s *Service) CheckSkuAndKeyProject(ctx context.Context, req *billingpb.CheckSkuAndKeyProjectRequest, rsp *billingpb.EmptyResponseWithStatus) error {
 	rsp.Status = billingpb.ResponseStatusOk
 
-	oid, _ := primitive.ObjectIDFromHex(req.ProjectId)
-	dupQuery := bson.M{"project_id": oid, "sku": req.Sku, "deleted": false}
-	found, err := s.db.Collection(collectionKeyProduct).CountDocuments(ctx, dupQuery)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, dupQuery),
-		)
-		rsp.Status = http.StatusBadRequest
-		rsp.Message = keyProductRetrieveError
-		return nil
-	}
+	found, err := s.keyProductRepository.CountByProjectIdSku(ctx, req.ProjectId, req.Sku)
 
-	if found > 0 {
-		rsp.Status = http.StatusBadRequest
-		rsp.Message = keyProductDuplicate
-		return nil
-	}
-
-	oid, _ = primitive.ObjectIDFromHex(req.ProjectId)
-	dupQuery = bson.M{"project_id": oid, "sku": req.Sku, "deleted": false}
-	found, err = s.db.Collection(collectionProduct).CountDocuments(ctx, dupQuery)
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, dupQuery),
-		)
 		rsp.Status = http.StatusBadRequest
 		rsp.Message = keyProductRetrieveError
 		return nil

@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
@@ -26,11 +27,11 @@ import (
 	stringTools "github.com/paysuper/paysuper-tools/string"
 	"github.com/streadway/amqp"
 	"github.com/ttacon/libphonenumber"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"math"
 	"regexp"
 	"sort"
@@ -45,6 +46,7 @@ const (
 	callbackHandlerIncorrect            = "unknown callback type"
 	orderErrorPublishNotificationFailed = "publish order notification failed"
 	orderErrorUpdateOrderDataFailed     = "update order data failed"
+	brokerPublicationFailed             = "message publication to broker failed"
 
 	orderDefaultDescription = "Payment by order # %s"
 
@@ -54,7 +56,7 @@ const (
 	taxTypeVat      = "vat"
 	taxTypeSalesTax = "sales_tax"
 
-	collectionBinData = "bank_bin"
+	defaultPaymentFormOpeningMode = "embed"
 )
 
 var (
@@ -65,11 +67,10 @@ var (
 	orderErrorPaymentMethodNotAllowed                         = newBillingServerErrorMsg("fm000005", "payment Method not available for project")
 	orderErrorPaymentMethodNotFound                           = newBillingServerErrorMsg("fm000006", "payment Method with specified identifier not found")
 	orderErrorPaymentMethodInactive                           = newBillingServerErrorMsg("fm000007", "payment Method with specified identifier is inactive")
-	orderErrorConvertionCurrency                              = newBillingServerErrorMsg("fm000008", "currency convertion error")
+	orderErrorConvertionCurrency                              = newBillingServerErrorMsg("fm000008", "currency conversion error")
 	orderErrorPaymentMethodEmptySettings                      = newBillingServerErrorMsg("fm000009", "payment Method setting for project is empty")
 	orderErrorPaymentSystemInactive                           = newBillingServerErrorMsg("fm000010", "payment system for specified payment Method is inactive")
 	orderErrorPayerRegionUnknown                              = newBillingServerErrorMsg("fm000011", "payer region can't be found")
-	orderErrorProjectOrderIdIsDuplicate                       = newBillingServerErrorMsg("fm000012", "request with specified project order identifier processed early")
 	orderErrorDynamicNotifyUrlsNotAllowed                     = newBillingServerErrorMsg("fm000013", "dynamic verify url or notify url not allowed for project")
 	orderErrorDynamicRedirectUrlsNotAllowed                   = newBillingServerErrorMsg("fm000014", "dynamic payer redirect urls not allowed for project")
 	orderErrorCurrencyNotFound                                = newBillingServerErrorMsg("fm000015", "currency received from request not found")
@@ -103,7 +104,7 @@ var (
 	orderErrorCreatePaymentRequiredFieldEmailNotFound         = newBillingServerErrorMsg("fm000044", "required field \"email\" not found")
 	orderErrorCreatePaymentRequiredFieldUserCountryNotFound   = newBillingServerErrorMsg("fm000045", "user country is required")
 	orderErrorCreatePaymentRequiredFieldUserZipNotFound       = newBillingServerErrorMsg("fm000046", "user zip is required")
-	orderErrorOrderAlreadyComplete                            = newBillingServerErrorMsg("fm000047", "order with specified identifier payed early")
+	orderErrorOrderAlreadyComplete                            = newBillingServerErrorMsg("fm000047", "order with specified identifier paid early")
 	orderErrorSignatureInvalid                                = newBillingServerErrorMsg("fm000048", "request signature is invalid")
 	orderErrorProductsPrice                                   = newBillingServerErrorMsg("fm000051", "can't get product price")
 	orderErrorCheckoutWithoutProducts                         = newBillingServerErrorMsg("fm000052", "order products not specified")
@@ -114,7 +115,6 @@ var (
 	orderErrorDuringFormattingCurrency                        = newBillingServerErrorMsg("fm000058", "error during formatting currency")
 	orderErrorDuringFormattingDate                            = newBillingServerErrorMsg("fm000059", "error during formatting date")
 	orderErrorMerchantForOrderNotFound                        = newBillingServerErrorMsg("fm000060", "merchant for order not found")
-	orderErrorPaymentMethodsNotFound                          = newBillingServerErrorMsg("fm000061", "payment methods for payment with specified currency not found")
 	orderErrorNoPlatforms                                     = newBillingServerErrorMsg("fm000062", "no available platforms")
 	orderCountryPaymentRestricted                             = newBillingServerErrorMsg("fm000063", "payments from your country are not allowed")
 	orderErrorCostsRatesNotFound                              = newBillingServerErrorMsg("fm000064", "settings to calculate commissions for order not found")
@@ -122,18 +122,20 @@ var (
 	orderErrorVirtualCurrencyFracNotSupported                 = newBillingServerErrorMsg("fm000066", "fractional numbers is not supported for this virtual currency")
 	orderErrorVirtualCurrencyLimits                           = newBillingServerErrorMsg("fm000067", "amount of order is more than max amount or less than minimal amount for virtual currency")
 	orderErrorCheckoutWithProducts                            = newBillingServerErrorMsg("fm000069", "request to processing simple payment can't contain products list")
-	orderErrorMerchantDoNotHaveCompanyInfo                    = newBillingServerErrorMsg("fm000070", "merchant don't have completed company info")
 	orderErrorMerchantDoNotHaveBanking                        = newBillingServerErrorMsg("fm000071", "merchant don't have completed banking info")
-	orderErrorAmountLowerThanMinLimitSystem                   = newBillingServerErrorMsg("fm000072", "order amount is lower than min system limit")
-	orderErrorAlreadyProcessed                                = newBillingServerErrorMsg("fm000073", "order is already processed")
-	orderErrorDontHaveReceiptUrl                              = newBillingServerErrorMsg("fm000074", "processed order don't have receipt url")
-	orderErrorWrongPrivateStatus                              = newBillingServerErrorMsg("fm000075", "order has wrong private status and cannot be recreated")
-	orderCountryChangeRestrictedError                         = newBillingServerErrorMsg("fm000076", "change country is not allowed")
-	orderErrorVatPayerUnknown                                 = newBillingServerErrorMsg("fm000077", "vat payer unknown")
+	orderErrorMerchantUserAccountNotChecked                   = newBillingServerErrorMsg("fm000073", "failed to check user account")
+	orderErrorAmountLowerThanMinLimitSystem                   = newBillingServerErrorMsg("fm000074", "order amount is lower than min system limit")
+	orderErrorAlreadyProcessed                                = newBillingServerErrorMsg("fm000075", "order is already processed")
+	orderErrorDontHaveReceiptUrl                              = newBillingServerErrorMsg("fm000076", "processed order don't have receipt url")
+	orderErrorWrongPrivateStatus                              = newBillingServerErrorMsg("fm000077", "order has wrong private status and cannot be recreated")
+	orderCountryChangeRestrictedError                         = newBillingServerErrorMsg("fm000078", "change country is not allowed")
+	orderErrorVatPayerUnknown                                 = newBillingServerErrorMsg("fm000079", "vat payer unknown")
 
 	virtualCurrencyPayoutCurrencyMissed = newBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
 	paymentSystemPaymentProcessingSuccessStatus = "PAYMENT_SYSTEM_PROCESSING_SUCCESS"
+
+	possiblePaymentFormOpeningModes = map[string]bool{"embed": true, "iframe": true, "standalone": true}
 )
 
 type orderCreateRequestProcessorChecked struct {
@@ -182,25 +184,12 @@ type PaymentCreateProcessor struct {
 	}
 }
 
-type BinData struct {
-	Id                 primitive.ObjectID `bson:"_id"`
-	CardBin            int32              `bson:"card_bin"`
-	CardBrand          string             `bson:"card_brand"`
-	CardType           string             `bson:"card_type"`
-	CardCategory       string             `bson:"card_category"`
-	BankName           string             `bson:"bank_name"`
-	BankCountryName    string             `bson:"bank_country_name"`
-	BankCountryIsoCode string             `bson:"bank_country_code_a2"`
-	BankSite           string             `bson:"bank_site"`
-	BankPhone          string             `bson:"bank_phone"`
-}
-
 func (s *Service) OrderCreateByPaylink(
 	ctx context.Context,
 	req *billingpb.OrderCreateByPaylink,
 	rsp *billingpb.OrderCreateProcessResponse,
 ) error {
-	pl, err := s.paylinkService.GetById(ctx, req.PaylinkId)
+	pl, err := s.paylinkRepository.GetById(ctx, req.PaylinkId)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			rsp.Status = billingpb.ResponseStatusNotFound
@@ -424,7 +413,7 @@ func (s *Service) OrderCreateProcess(
 		}
 		break
 	case pkg.OrderTypeVirtualCurrency:
-		err := processor.processVirtualCurrency()
+		err := processor.processVirtualCurrency(ctx)
 		if err != nil {
 			zap.L().Error(
 				pkg.MethodFinishedWithError,
@@ -437,7 +426,7 @@ func (s *Service) OrderCreateProcess(
 		}
 		break
 	case pkg.OrderType_product:
-		if err := processor.processPaylinkProducts(); err != nil {
+		if err := processor.processPaylinkProducts(ctx); err != nil {
 			if pid := req.PrivateMetadata["PaylinkId"]; pid != "" {
 				s.notifyPaylinkError(ctx, pid, err, req, nil)
 			}
@@ -473,20 +462,8 @@ func (s *Service) OrderCreateProcess(
 		break
 	}
 
-	if req.OrderId != "" {
-		if err := processor.processProjectOrderId(); err != nil {
-			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusBadData
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
-	}
-
 	if req.PaymentMethod != "" {
-		pm, err := s.paymentMethod.GetByGroupAndCurrency(
+		pm, err := s.paymentMethodRepository.GetByGroupAndCurrency(
 			ctx,
 			processor.checked.project.IsProduction(),
 			req.PaymentMethod,
@@ -623,7 +600,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 	}
 
 	loc, _ := s.getCountryFromAcceptLanguage(req.Locale)
-	isIdentified := order.User.IsIdentified()
+	isIdentified := helper.IsIdentified(order.User.Id)
 	browserCustomer := &BrowserCookieCustomer{
 		Ip:             req.Ip,
 		UserAgent:      req.UserAgent,
@@ -641,10 +618,9 @@ func (s *Service) PaymentFormJsonDataProcess(
 	} else {
 		if req.Cookie != "" {
 			decryptedBrowserCustomer, err := s.decryptBrowserCookie(req.Cookie)
+			log.Println(decryptedBrowserCustomer)
 
 			if err == nil {
-				isIdentified = true
-
 				if (time.Now().Unix() - decryptedBrowserCustomer.UpdatedAt.Unix()) <= cookieCounterUpdateTime {
 					decryptedBrowserCustomer.SessionCount++
 				}
@@ -840,7 +816,7 @@ func (s *Service) fillPaymentFormJsonData(order *billingpb.Order, rsp *billingpb
 	expire := time.Now().Add(time.Minute * 30).Unix()
 
 	rsp.Item.Id = order.Uuid
-	rsp.Item.Account = order.ProjectAccount
+	rsp.Item.Account = order.User.ExternalId
 	rsp.Item.Description = order.Description
 	rsp.Item.HasVat = order.Tax.Amount > 0
 	rsp.Item.Vat = order.Tax.Amount
@@ -955,7 +931,7 @@ func (s *Service) PaymentCreateProcess(
 		}
 	}
 
-	ps, err := s.paymentSystem.GetById(ctx, processor.checked.paymentMethod.PaymentSystemId)
+	ps, err := s.paymentSystemRepository.GetById(ctx, processor.checked.paymentMethod.PaymentSystemId)
 	if err != nil {
 		rsp.Message = orderErrorPaymentSystemInactive
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -994,7 +970,7 @@ func (s *Service) PaymentCreateProcess(
 		return err
 	}
 
-	order.PaymentMethod.Params, err = s.paymentMethod.GetPaymentSettings(
+	order.PaymentMethod.Params, err = s.getPaymentSettings(
 		processor.checked.paymentMethod,
 		order.ChargeCurrency,
 		order.MccCode,
@@ -1145,7 +1121,7 @@ func (s *Service) PaymentCallbackProcess(
 
 	var data protobuf.Message
 
-	ps, err := s.paymentSystem.GetById(ctx, order.PaymentMethod.PaymentSystemId)
+	ps, err := s.paymentSystemRepository.GetById(ctx, order.PaymentMethod.PaymentSystemId)
 	if err != nil {
 		return orderErrorPaymentSystemInactive
 	}
@@ -1283,7 +1259,7 @@ func (s *Service) PaymentFormLanguageChanged(
 		return nil
 	}
 
-	if order.User.IsIdentified() == true {
+	if helper.IsIdentified(order.User.Id) == true {
 		s.updateCustomerFromRequestLocale(ctx, order, req.Ip, req.AcceptLanguage, req.UserAgent, req.Lang)
 	}
 
@@ -1346,7 +1322,7 @@ func (s *Service) PaymentFormPaymentAccountChanged(
 		return orderErrorProjectInactive
 	}
 
-	pm, err := s.paymentMethod.GetById(ctx, req.MethodId)
+	pm, err := s.paymentMethodRepository.GetById(ctx, req.MethodId)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -1354,7 +1330,7 @@ func (s *Service) PaymentFormPaymentAccountChanged(
 		return nil
 	}
 
-	ps, err := s.paymentSystem.GetById(ctx, pm.PaymentSystemId)
+	ps, err := s.paymentSystemRepository.GetById(ctx, pm.PaymentSystemId)
 	if err != nil {
 		rsp.Message = orderErrorPaymentSystemInactive
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -1446,7 +1422,7 @@ func (s *Service) PaymentFormPaymentAccountChanged(
 		return err
 	}
 
-	order.PaymentMethod.Params, err = s.paymentMethod.GetPaymentSettings(
+	order.PaymentMethod.Params, err = s.getPaymentSettings(
 		pm,
 		order.ChargeCurrency,
 		order.MccCode,
@@ -1677,18 +1653,32 @@ func (s *Service) saveRecurringCard(ctx context.Context, order *billingpb.Order,
 	_, err := s.rep.InsertSavedCard(ctx, req)
 
 	if err != nil {
-		s.logError(
-			"Call repository service to save recurring card failed",
-			[]interface{}{
-				"err", err.Error(),
-				"request", req,
-			},
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+			zap.String(errorFieldMethod, "InsertSavedCard"),
 		)
 	} else {
+		order, err := s.orderRepository.GetById(ctx, order.Id)
+
+		if err != nil {
+			zap.L().Error(
+				"Failed to refresh order data",
+				zap.Error(err),
+				zap.String("uuid", order.Uuid),
+			)
+			return
+		}
+
 		order.PaymentRequisites["saved"] = "1"
 		err = s.updateOrder(ctx, order)
+
 		if err != nil {
-			zap.S().Errorf("Failed to update order after save recurruing card", "err", err.Error())
+			zap.L().Error(
+				"Failed to update order after save recurruing card",
+				zap.Error(err),
+			)
 		}
 	}
 }
@@ -1928,28 +1918,41 @@ func (s *Service) getPayloadForReceipt(ctx context.Context, order *billingpb.Ord
 		To:            order.ReceiptEmail,
 	}
 
-	payload.TemplateObjectModel = &structpb.Struct{
-		Fields: map[string]*structpb.Value{
-			"items": {
-				Kind: &structpb.Value_ListValue{ListValue: &structpb.ListValue{
-					Values: items,
-				}},
-			},
-			"vat":      vat,
-			"subTotal": subTotal,
-			"showSummary": {
-				Kind: &structpb.Value_BoolValue{BoolValue: receipt.Items != nil && len(receipt.Items) > 1},
-			},
+	fields := map[string]*structpb.Value{
+		"items": {
+			Kind: &structpb.Value_ListValue{ListValue: &structpb.ListValue{
+				Values: items,
+			}},
 		},
+		"showSummary": {
+			Kind: &structpb.Value_BoolValue{BoolValue: receipt.Items != nil && len(receipt.Items) > 1},
+		},
+	}
+
+	if subTotal != nil {
+		fields["subTotal"] = subTotal
+	}
+
+	if vat != nil {
+		fields["vat"] = vat
+	}
+
+	payload.TemplateObjectModel = &structpb.Struct{
+		Fields: fields,
 	}
 
 	return payload, nil
 }
 
 func (s *Service) sendMailWithCode(_ context.Context, order *billingpb.Order, key *billingpb.Key) {
-	var platformIconUrl = ""
+	platformIconUrl := ""
+	activationInstructionUrl := ""
+	platformName := ""
+
 	if platform, ok := availablePlatforms[order.PlatformId]; ok {
 		platformIconUrl = platform.Icon
+		activationInstructionUrl = platform.ActivationInstructionUrl
+		platformName = platform.Name
 	}
 
 	for _, item := range order.Items {
@@ -1958,9 +1961,12 @@ func (s *Service) sendMailWithCode(_ context.Context, order *billingpb.Order, ke
 			payload := &postmarkpb.Payload{
 				TemplateAlias: s.cfg.EmailTemplates.ActivationGameKey,
 				TemplateModel: map[string]string{
-					"code":          key.Code,
-					"platform_icon": platformIconUrl,
-					"product_name":  item.Name,
+					"code":                       key.Code,
+					"platform_icon":              platformIconUrl,
+					"product_name":               item.Name,
+					"activation_instruction_url": activationInstructionUrl,
+					"platform_name":              platformName,
+					"receipt_url":                order.ReceiptUrl,
 				},
 				To: order.ReceiptEmail,
 			}
@@ -2003,7 +2009,7 @@ func (s *Service) orderNotifyMerchant(ctx context.Context, order *billingpb.Orde
 		zap.S().Debug("[orderNotifyMerchant] notification status update failed", "order_id", order.Id)
 		s.logError(orderErrorUpdateOrderDataFailed, []interface{}{"error", err.Error(), "order", order})
 	} else {
-		zap.S().Debug("[orderNotifyMerchant] notification status updated succesfully", "order_id", order.Id)
+		zap.S().Debug("[orderNotifyMerchant] notification status updated successfully", "order_id", order.Id)
 	}
 }
 
@@ -2049,7 +2055,7 @@ func (s *Service) getOrderByUuidToForm(ctx context.Context, uuid string) (*billi
 	return order, nil
 }
 
-func (s *Service) getBinData(ctx context.Context, pan string) (data *BinData) {
+func (s *Service) getBinData(ctx context.Context, pan string) (data *intPkg.BinData) {
 	if len(pan) < 6 {
 		zap.S().Errorf("Incorrect PAN to get BIN data", "pan", pan)
 		return
@@ -2062,7 +2068,7 @@ func (s *Service) getBinData(ctx context.Context, pan string) (data *BinData) {
 		return
 	}
 
-	err = s.db.Collection(collectionBinData).FindOne(ctx, bson.M{"card_bin": int32(i)}).Decode(&data)
+	data, err = s.bankBinRepository.GetByBin(ctx, int32(i))
 
 	if err != nil {
 		zap.S().Errorf("Query to get bank card BIN data failed", "error", err.Error(), "pan", pan)
@@ -2107,13 +2113,10 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			MerchantRoyaltyCurrency: v.checked.merchant.GetPayoutCurrency(),
 			RedirectSettings:        v.checked.project.RedirectSettings,
 		},
-		Description:    fmt.Sprintf(orderDefaultDescription, id),
-		ProjectOrderId: v.request.OrderId,
-		ProjectAccount: v.request.Account,
-		ProjectParams:  v.request.Other,
-		PrivateStatus:  recurringpb.OrderStatusNew,
-		CreatedAt:      ptypes.TimestampNow(),
-		IsJsonRequest:  v.request.IsJson,
+		Description:   fmt.Sprintf(orderDefaultDescription, id),
+		PrivateStatus: recurringpb.OrderStatusNew,
+		CreatedAt:     ptypes.TimestampNow(),
+		IsJsonRequest: v.request.IsJson,
 
 		Uuid:               uuid.New().String(),
 		ReceiptId:          uuid.New().String(),
@@ -2148,9 +2151,14 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 		MccCode:                 v.checked.merchant.MccCode,
 		OperatingCompanyId:      v.checked.merchant.OperatingCompanyId,
 		IsHighRisk:              v.checked.merchant.IsHighRisk(),
+		TestingCase:             v.request.TestingCase,
 		IsCurrencyPredefined:    v.checked.isCurrencyPredefined,
 		VatPayer:                v.checked.project.VatPayer,
 		IsProduction:            v.checked.project.IsProduction(),
+		MerchantInfo: &billingpb.OrderViewMerchantInfo{
+			CompanyName:     v.checked.merchant.GetCompanyName(),
+			AgreementNumber: v.checked.merchant.AgreementNumber,
+		},
 	}
 
 	if v.checked.virtualAmount > 0 {
@@ -2159,7 +2167,8 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 
 	if order.User == nil {
 		order.User = &billingpb.OrderUser{
-			Object: pkg.ObjectTypeUser,
+			Object:     pkg.ObjectTypeUser,
+			ExternalId: v.request.Account,
 		}
 	} else {
 		if order.User.Address != nil {
@@ -2192,7 +2201,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 	}
 
 	if v.checked.paymentMethod != nil {
-		ps, err := v.paymentSystem.GetById(v.ctx, v.checked.paymentMethod.PaymentSystemId)
+		ps, err := v.paymentSystemRepository.GetById(v.ctx, v.checked.paymentMethod.PaymentSystemId)
 		if err != nil {
 			return nil, err
 		}
@@ -2206,7 +2215,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 
 		methodName, err := order.GetCostPaymentMethodName()
 		if err == nil {
-			order.PaymentMethod.Params, err = v.paymentMethod.GetPaymentSettings(
+			order.PaymentMethod.Params, err = v.getPaymentSettings(
 				v.checked.paymentMethod,
 				v.checked.currency,
 				v.checked.mccCode,
@@ -2221,18 +2230,20 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 		}
 	}
 
+	order.FormMode = defaultPaymentFormOpeningMode
+
+	if _, ok := possiblePaymentFormOpeningModes[v.request.FormMode]; ok {
+		order.FormMode = v.request.FormMode
+	}
+
 	order.ExpireDateToFormInput, _ = ptypes.TimestampProto(time.Now().Add(time.Minute * defaultExpireDateToFormInput))
 
 	return order, nil
 }
 
 func (v *OrderCreateRequestProcessor) processMerchant() error {
-	if !v.checked.merchant.IsBankingComplete() {
+	if v.checked.merchant.Banking == nil || v.checked.merchant.Banking.Currency == "" {
 		return orderErrorMerchantDoNotHaveBanking
-	}
-
-	if !v.checked.merchant.IsCompanyComplete() {
-		return orderErrorMerchantDoNotHaveCompanyInfo
 	}
 
 	if v.checked.merchant.HasTariff() == false {
@@ -2307,7 +2318,7 @@ func (v *OrderCreateRequestProcessor) processCurrency(orderType string) error {
 
 	countryCode := v.getCountry()
 	if countryCode == "" {
-		v.checked.currency = v.checked.merchant.GetPayoutCurrency()
+		v.checked.currency = v.checked.merchant.GetProcessingDefaultCurrency()
 		pricegroup, err := v.priceGroupRepository.GetByRegion(v.ctx, v.checked.currency)
 		if err == nil {
 			v.checked.priceGroup = pricegroup
@@ -2317,7 +2328,7 @@ func (v *OrderCreateRequestProcessor) processCurrency(orderType string) error {
 
 	country, err := v.country.GetByIsoCodeA2(v.ctx, countryCode)
 	if err != nil {
-		v.checked.currency = v.checked.merchant.GetPayoutCurrency()
+		v.checked.currency = v.checked.merchant.GetProcessingDefaultCurrency()
 		pricegroup, err := v.priceGroupRepository.GetByRegion(v.ctx, v.checked.currency)
 		if err == nil {
 			v.checked.priceGroup = pricegroup
@@ -2327,7 +2338,7 @@ func (v *OrderCreateRequestProcessor) processCurrency(orderType string) error {
 
 	pricegroup, err := v.priceGroupRepository.GetById(v.ctx, country.PriceGroupId)
 	if err != nil {
-		v.checked.currency = v.checked.merchant.GetPayoutCurrency()
+		v.checked.currency = v.checked.merchant.GetProcessingDefaultCurrency()
 		pricegroup, err := v.priceGroupRepository.GetByRegion(v.ctx, v.checked.currency)
 		if err == nil {
 			v.checked.priceGroup = pricegroup
@@ -2367,14 +2378,13 @@ func (v *OrderCreateRequestProcessor) processPayerIp(ctx context.Context) error 
 		return err
 	}
 
-	// fully replace address, to avoid inconsistence
+	// fully replace address, to avoid inconsistency
 	v.checked.user.Address = address
 
 	return nil
 }
 
 func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
-
 	amount, priceGroup, items, _, err := v.processKeyProducts(
 		v.ctx,
 		v.checked.project.Id,
@@ -2389,7 +2399,6 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 	}
 
 	v.checked.priceGroup = priceGroup
-
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
@@ -2398,8 +2407,7 @@ func (v *OrderCreateRequestProcessor) processPaylinkKeyProducts() error {
 	return nil
 }
 
-func (v *OrderCreateRequestProcessor) processPaylinkProducts() error {
-
+func (v *OrderCreateRequestProcessor) processPaylinkProducts(_ context.Context) error {
 	amount, priceGroup, items, isBuyForVirtual, err := v.processProducts(
 		v.ctx,
 		v.checked.project.Id,
@@ -2415,25 +2423,10 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts() error {
 	}
 
 	v.checked.priceGroup = priceGroup
-
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
 	v.checked.amount = amount
 	v.checked.items = items
-
-	return nil
-}
-
-func (v *OrderCreateRequestProcessor) processProjectOrderId() error {
-	order, err := v.orderRepository.GetByProjectOrderId(v.ctx, v.checked.project.Id, v.request.OrderId)
-
-	if err != nil && err != mongo.ErrNoDocuments {
-		return orderErrorCanNotCreate
-	}
-
-	if order != nil {
-		return orderErrorProjectOrderIdIsDuplicate
-	}
 
 	return nil
 }
@@ -2443,11 +2436,11 @@ func (v *OrderCreateRequestProcessor) processPaymentMethod(pm *billingpb.Payment
 		return orderErrorPaymentMethodInactive
 	}
 
-	if _, err := v.paymentSystem.GetById(v.ctx, pm.PaymentSystemId); err != nil {
+	if _, err := v.paymentSystemRepository.GetById(v.ctx, pm.PaymentSystemId); err != nil {
 		return orderErrorPaymentSystemInactive
 	}
 
-	_, err := v.Service.paymentMethod.GetPaymentSettings(pm, v.checked.currency, v.checked.mccCode, v.checked.operatingCompanyId, "", v.checked.project.IsProduction())
+	_, err := v.Service.getPaymentSettings(pm, v.checked.currency, v.checked.mccCode, v.checked.operatingCompanyId, "", v.checked.project.IsProduction())
 
 	if err != nil {
 		return err
@@ -2461,9 +2454,9 @@ func (v *OrderCreateRequestProcessor) processPaymentMethod(pm *billingpb.Payment
 func (v *OrderCreateRequestProcessor) processLimitAmounts() (err error) {
 	amount := v.checked.amount
 
-	pmls, err := v.paymentMinLimitSystem.GetByCurrency(v.ctx, v.checked.currency)
+	pmls, err := v.paymentMinLimitSystemRepository.GetByCurrency(v.ctx, v.checked.currency)
 	if err != nil {
-		return err
+		return errorPaymentMinLimitSystemNotFound
 	}
 
 	if amount < pmls.Amount {
@@ -2723,14 +2716,14 @@ func (v *PaymentFormProcessor) processRenderFormPaymentMethods(
 ) ([]*billingpb.PaymentFormPaymentMethod, error) {
 	var projectPms []*billingpb.PaymentFormPaymentMethod
 
-	paymentMethods, err := v.service.paymentMethod.ListByOrder(
+	paymentMethods, err := v.service.paymentMethodRepository.ListByOrder(
 		ctx,
 		v.order,
 	)
 
 	if err != nil {
 		zap.S().Errorw("ListByOrder failed", "error", err, "order_id", v.order.Id, "order_uuid", v.order.Uuid)
-		return nil, err
+		return nil, orderErrorUnknown
 	}
 
 	for _, pm := range paymentMethods {
@@ -2738,7 +2731,7 @@ func (v *PaymentFormProcessor) processRenderFormPaymentMethods(
 			continue
 		}
 
-		ps, err := v.service.paymentSystem.GetById(ctx, pm.PaymentSystemId)
+		ps, err := v.service.paymentSystemRepository.GetById(ctx, pm.PaymentSystemId)
 
 		if err != nil {
 			zap.S().Errorw("GetById failed", "error", err, "order_id", v.order.Id, "order_uuid", v.order.Uuid)
@@ -2753,7 +2746,7 @@ func (v *PaymentFormProcessor) processRenderFormPaymentMethods(
 			(pm.MaxPaymentAmount > 0 && v.order.OrderAmount > pm.MaxPaymentAmount) {
 			continue
 		}
-		_, err = v.service.paymentMethod.GetPaymentSettings(pm, v.order.Currency, v.order.MccCode, v.order.OperatingCompanyId, "", v.order.IsProduction)
+		_, err = v.service.getPaymentSettings(pm, v.order.Currency, v.order.MccCode, v.order.OperatingCompanyId, "", v.order.IsProduction)
 
 		if err != nil {
 			zap.S().Errorw("GetPaymentSettings failed", "error", err, "order_id", v.order.Id, "order_uuid", v.order.Uuid)
@@ -2970,7 +2963,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 		return err
 	}
 
-	pm, err := v.service.paymentMethod.GetById(ctx, v.data[billingpb.PaymentCreateFieldPaymentMethodId])
+	pm, err := v.service.paymentMethodRepository.GetById(ctx, v.data[billingpb.PaymentCreateFieldPaymentMethodId])
 	if err != nil {
 		return orderErrorPaymentMethodNotFound
 	}
@@ -2979,7 +2972,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 		return orderErrorPaymentMethodInactive
 	}
 
-	ps, err := v.service.paymentSystem.GetById(ctx, pm.PaymentSystemId)
+	ps, err := v.service.paymentSystemRepository.GetById(ctx, pm.PaymentSystemId)
 	if err != nil {
 		return orderErrorPaymentSystemInactive
 	}
@@ -3051,7 +3044,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 		return orderCountryPaymentRestrictedError
 	}
 
-	if order.User.IsIdentified() == true {
+	if helper.IsIdentified(order.User.Id) == true {
 		customer, err := v.service.updateCustomerFromRequest(ctx, order, updCustomerReq, v.ip, v.acceptLanguage, v.userAgent)
 
 		if err != nil {
@@ -3156,7 +3149,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 
 	methodName, err := order.GetCostPaymentMethodName()
 	if err == nil {
-		order.PaymentMethod.Params, err = v.service.paymentMethod.GetPaymentSettings(
+		order.PaymentMethod.Params, err = v.service.getPaymentSettings(
 			pm,
 			processor.checked.currency,
 			processor.checked.mccCode,
@@ -3174,8 +3167,13 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 	v.checked.paymentMethod = pm
 	v.checked.order = order
 
-	if order.ProjectAccount == "" {
-		order.ProjectAccount = order.User.Email
+	if v.checked.project.CallbackProtocol == billingpb.ProjectCallbackProtocolDefault &&
+		v.checked.project.WebhookMode == pkg.ProjectWebhookPreApproval {
+		err = v.service.webhookCheckUser(order)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -3439,7 +3437,7 @@ func (s *Service) ProcessOrderVirtualCurrency(ctx context.Context, order *billin
 	)
 
 	merchant, _ := s.merchantRepository.GetById(ctx, order.Project.MerchantId)
-	defaultCurrency := merchant.GetPayoutCurrency()
+	defaultCurrency := merchant.GetProcessingDefaultCurrency()
 
 	if defaultCurrency == "" {
 		zap.S().Infow("merchant payout currency not found", "order.Uuid", order.Uuid)
@@ -3477,7 +3475,7 @@ func (s *Service) ProcessOrderVirtualCurrency(ctx context.Context, order *billin
 
 	project, err := s.project.GetById(ctx, order.GetProjectId())
 
-	if project == nil || project.VirtualCurrency == nil {
+	if err != nil || project == nil || project.VirtualCurrency == nil {
 		return orderErrorVirtualCurrencyNotFilled
 	}
 
@@ -3680,7 +3678,7 @@ func (s *Service) notifyPaylinkError(ctx context.Context, paylinkId string, err 
 		"event":     "error",
 		"paylinkId": paylinkId,
 		"message":   "Invalid paylink",
-		"error":     err,
+		"error":     err.Error(),
 		"request":   req,
 		"order":     order,
 	}
@@ -3767,12 +3765,17 @@ func (s *Service) fillPaymentDataCard(order *billingpb.Order) error {
 		first6 = pan[0:6]
 		last4 = pan[len(pan)-4:]
 	}
+
 	cardBrand, ok := order.PaymentRequisites["card_brand"]
+	if !ok {
+		cardBrand = ""
+	}
 
 	month, ok := order.PaymentRequisites["month"]
 	if !ok {
 		month = ""
 	}
+
 	year, ok := order.PaymentRequisites["year"]
 	if !ok {
 		year = ""
@@ -3859,7 +3862,7 @@ func (s *Service) SetUserNotifySales(
 		return err
 	}
 
-	if order.User.IsIdentified() == true {
+	if helper.IsIdentified(order.User.Id) == true {
 		customer, err := s.getCustomerById(ctx, order.User.Id)
 		if err != nil {
 			return err
@@ -3929,7 +3932,7 @@ func (s *Service) SetUserNotifyNewRegion(
 		return err
 	}
 
-	if order.User.IsIdentified() == true {
+	if helper.IsIdentified(order.User.Id) == true {
 		customer, err := s.getCustomerById(ctx, order.User.Id)
 		if err != nil {
 			return err
@@ -4311,7 +4314,7 @@ func (s *Service) hasPaymentCosts(ctx context.Context, order *billingpb.Order) b
 		return false
 	}
 
-	_, err = s.paymentChannelCostSystem.Get(
+	_, err = s.paymentChannelCostSystemRepository.Find(
 		ctx,
 		methodName,
 		country.PayerTariffRegion,
@@ -4321,7 +4324,6 @@ func (s *Service) hasPaymentCosts(ctx context.Context, order *billingpb.Order) b
 	)
 
 	if err != nil {
-		zap.L().Info("debug_1", zap.String("method", "paymentChannelCostSystem"))
 		return false
 	}
 
@@ -4353,7 +4355,7 @@ func (s *Service) paymentSystemPaymentCallbackComplete(ctx context.Context, orde
 	return s.centrifugoPaymentForm.Publish(ctx, ch, message)
 }
 
-func (v *OrderCreateRequestProcessor) processVirtualCurrency() error {
+func (v *OrderCreateRequestProcessor) processVirtualCurrency(_ context.Context) error {
 	amount := v.request.Amount
 	virtualCurrency := v.checked.project.VirtualCurrency
 
@@ -4367,7 +4369,7 @@ func (v *OrderCreateRequestProcessor) processVirtualCurrency() error {
 		return orderErrorVirtualCurrencyFracNotSupported
 	}
 
-	if v.checked.amount < virtualCurrency.MinPurchaseValue ||
+	if amount < virtualCurrency.MinPurchaseValue ||
 		(virtualCurrency.MaxPurchaseValue > 0 && amount > virtualCurrency.MaxPurchaseValue) {
 		return orderErrorVirtualCurrencyLimits
 	}
@@ -4485,7 +4487,7 @@ func (s *Service) getOrderPriceGroup(ctx context.Context, order *billingpb.Order
 		return
 	}
 
-	defaultPriceGroup, err := s.priceGroupRepository.GetByRegion(ctx, merchant.GetPayoutCurrency())
+	defaultPriceGroup, err := s.priceGroupRepository.GetByRegion(ctx, merchant.GetProcessingDefaultCurrency())
 
 	countryCode := order.GetCountry()
 	if countryCode == "" {
@@ -4551,12 +4553,12 @@ func (s *Service) setOrderChargeAmountAndCurrency(ctx context.Context, order *bi
 	}
 
 	// check that we have terminal in payment method for bin country currency
-	pm, err := s.paymentMethod.GetById(ctx, order.PaymentMethod.Id)
+	pm, err := s.paymentMethodRepository.GetById(ctx, order.PaymentMethod.Id)
 	if err != nil {
 		return nil
 	}
 
-	_, err = s.paymentMethod.GetPaymentSettings(pm, binCountry.Currency, order.MccCode, order.OperatingCompanyId, binCardBrand, order.IsProduction)
+	_, err = s.getPaymentSettings(pm, binCountry.Currency, order.MccCode, order.OperatingCompanyId, binCardBrand, order.IsProduction)
 	if err != nil {
 		return nil
 	}
@@ -4633,7 +4635,7 @@ func (s *Service) processProducts(
 		return
 	}
 
-	defaultPriceGroup, err := s.priceGroupRepository.GetByRegion(ctx, merchant.GetPayoutCurrency())
+	defaultPriceGroup, err := s.priceGroupRepository.GetByRegion(ctx, merchant.GetProcessingDefaultCurrency())
 	if err != nil {
 		return
 	}
@@ -4712,7 +4714,7 @@ func (s *Service) processKeyProducts(
 		return
 	}
 
-	defaultPriceGroup, err := s.priceGroupRepository.GetByRegion(ctx, merchant.GetPayoutCurrency())
+	defaultPriceGroup, err := s.priceGroupRepository.GetByRegion(ctx, merchant.GetProcessingDefaultCurrency())
 	if err != nil {
 		return
 	}

@@ -1,0 +1,301 @@
+[
+  {
+    "createIndexes": "order",
+    "indexes": [
+      {
+        "key": {
+          "user.external_id": 1
+        },
+        "name": "idx_order_user_external_id_asc"
+      },
+      {
+        "key": {
+          "user.external_id": -1
+        },
+        "name": "idx_order_user_external_id_desc"
+      },
+      {
+        "key": {
+          "user.email": 1
+        },
+        "name": "idx_order_user_email_asc"
+      },
+      {
+        "key": {
+          "user.email": -1
+        },
+        "name": "idx_order_user_email_desc"
+      },
+      {
+        "key": {
+          "user.phone": 1
+        },
+        "name": "idx_order_user_phone_asc"
+      },
+      {
+        "key": {
+          "user.phone": -1
+        },
+        "name": "idx_order_user_phone_desc"
+      },
+      {
+        "key": {
+          "created_at": 1
+        },
+        "name": "idx_order_created_at_asc"
+      },
+      {
+        "key": {
+          "created_at": -1
+        },
+        "name": "idx_order_created_at_desc"
+      },
+      {
+        "key": {
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_merchant_id_asc"
+      },
+      {
+        "key": {
+          "project.merchant_id": -1
+        },
+        "name": "idx_order_merchant_id_desc"
+      },
+      {
+        "key": {
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_merchant_name_asc"
+      },
+      {
+        "key": {
+          "merchant_info.company_name": -1
+        },
+        "name": "idx_order_merchant_name_desc"
+      },
+      {
+        "key": {
+          "is_production": 1
+        },
+        "name": "idx_order_is_production_asc"
+      },
+      {
+        "key": {
+          "is_production": -1
+        },
+        "name": "idx_order_is_production_desc"
+      },
+      {
+        "key": {
+          "metadata_values": 1
+        },
+        "name": "idx_order_metadata_values_asc"
+      },
+      {
+        "key": {
+          "metadata_values": -1
+        },
+        "name": "idx_order_metadata_values_desc"
+      },
+      {
+        "key": {
+          "user.external_id":  1,
+          "created_at": 1,
+          "is_production": 1,
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_user_external_id_created_at_is_production_project_merchant_id"
+      },
+      {
+        "key": {
+          "user.email": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_user_email_created_at_is_production_project_merchant_id"
+      },
+      {
+        "key": {
+          "user.phone": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_user_phone_created_at_is_production_project_merchant_id"
+      },
+      {
+        "key": {
+          "user.external_id": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_user_external_id_created_at_is_production_merchant_info_company_name"
+      },
+      {
+        "key": {
+          "user.email": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_user_email_created_at_is_production_merchant_info_company_name"
+      },
+      {
+        "key": {
+          "user.phone": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_user_phone_created_at_is_production_merchant_info_company_name"
+      }
+    ]
+  },
+  {
+    "createIndexes": "order_view",
+    "indexes": [
+      {
+        "key": {
+          "user.external_id": 1
+        },
+        "name": "idx_order_view_user_external_id_asc"
+      },
+      {
+        "key": {
+          "user.external_id": -1
+        },
+        "name": "idx_order_view_user_external_id_desc"
+      },
+      {
+        "key": {
+          "user.email": 1
+        },
+        "name": "idx_order_view_user_email_asc"
+      },
+      {
+        "key": {
+          "user.email": -1
+        },
+        "name": "idx_order_view_user_email_desc"
+      },
+      {
+        "key": {
+          "user.phone": 1
+        },
+        "name": "idx_order_view_user_phone_asc"
+      },
+      {
+        "key": {
+          "user.phone": -1
+        },
+        "name": "idx_order_view_user_phone_desc"
+      },
+      {
+        "key": {
+          "created_at": 1
+        },
+        "name": "idx_order_view_created_at_asc"
+      },
+      {
+        "key": {
+          "created_at": -1
+        },
+        "name": "idx_order_view_created_at_desc"
+      },
+      {
+        "key": {
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_view_merchant_id_asc"
+      },
+      {
+        "key": {
+          "project.merchant_id": -1
+        },
+        "name": "idx_order_view_merchant_id_desc"
+      },
+      {
+        "key": {
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_view_merchant_name_asc"
+      },
+      {
+        "key": {
+          "merchant_info.company_name": -1
+        },
+        "name": "idx_order_view_merchant_name_desc"
+      },
+
+      {
+        "key": {
+          "is_production": 1
+        },
+        "name": "idx_order_view_is_production_asc"
+      },
+      {
+        "key": {
+          "is_production": -1
+        },
+        "name": "idx_order_view_is_production_desc"
+      },
+      {
+        "key": {
+          "user.external_id":  1,
+          "created_at": 1,
+          "is_production": 1,
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_view_user_external_id_created_at_is_production_project_merchant_id"
+      },
+      {
+        "key": {
+          "user.email": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_view_user_email_created_at_is_production_project_merchant_id"
+      },
+      {
+        "key": {
+          "user.phone": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "project.merchant_id": 1
+        },
+        "name": "idx_order_view_user_phone_created_at_is_production_project_merchant_id"
+      },
+      {
+        "key": {
+          "user.external_id": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_view_user_external_id_created_at_is_production_merchant_info_company_name"
+      },
+      {
+        "key": {
+          "user.email": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_view_user_email_created_at_is_production_merchant_info_company_name"
+      },
+      {
+        "key": {
+          "user.phone": 1,
+          "created_at": 1,
+          "is_production": 1,
+          "merchant_info.company_name": 1
+        },
+        "name": "idx_order_view_user_phone_created_at_is_production_merchant_info_company_name"
+      }
+    ]
+  }
+]

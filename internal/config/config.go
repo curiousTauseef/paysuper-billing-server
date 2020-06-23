@@ -52,6 +52,9 @@ type EmailTemplates struct {
 	OnboardingVerificationAdmin    string `envconfig:"EMAIL_ADMIN_NEW_ONBOARDING_REQUEST_TEMPLATE" default:"p1_email_admin_new_onboarding_request_template"`
 	OnboardingCompleted            string `envconfig:"EMAIL_MERCHANT_ONBOARDING_REQUEST_COMPLETE_TEMPLATE" default:"p1_email_merchant_onboarding_request_complete_template"`
 	UserInvite                     string `envconfig:"EMAIL_INVITE_TEMPLATE" default:"code-your-own"`
+	MerchantAgreementSigned        string `envconfig:"EMAIL_MERCHANT_AGREEMENT_SIGNED" default:"p1_agreement_fully_signed"`
+	RoyaltyReportFinancier         string `envconfig:"EMAIL_ROYALTY_REPORT_FINANCIER" default:"p1_royalty_report_financier"`
+	PayoutInvoiceFinancier         string `envconfig:"EMAIL_PAYOUT_INVOICE_FINANCIER" default:"p1_payout_invoice_financier"`
 }
 
 type Centrifugo struct {
@@ -63,7 +66,6 @@ type Centrifugo struct {
 type Config struct {
 	MongoDsn         string `envconfig:"MONGO_DSN" required:"true"`
 	MongoDialTimeout string `envconfig:"MONGO_DIAL_TIMEOUT" required:"false" default:"10"`
-	MetricsPort      string `envconfig:"METRICS_PORT" required:"false" default:"8086"`
 	Environment      string `envconfig:"ENVIRONMENT" default:"dev"`
 	RedisHost        string `envconfig:"REDIS_HOST" default:"127.0.0.1:6379"`
 	RedisPassword    string `envconfig:"REDIS_PASSWORD" default:""`
@@ -120,6 +122,10 @@ type Config struct {
 
 	DashboardUrl string `envconfig:"DASHBOARD_URL" default:"https://paysupermgmt.tst.protocol.one"`
 	CheckoutUrl  string `envconfig:"CHECKOUT_URL" default:"https://checkout.tst.pay.super.com"`
+
+	MetricsPort              string `envconfig:"METRICS_PORT" default:"8086"`
+	MetricsReadTimeout       int    `envconfig:"METRICS_READ_TIMEOUT" default:"60"`
+	MetricsReadHeaderTimeout int    `envconfig:"METRICS_READ_HEADER_TIMEOUT" default:"60"`
 }
 
 func NewConfig() (*Config, error) {
@@ -239,6 +245,10 @@ func (cfg *Config) GetEmailConfirmUrl() string {
 
 func (cfg *Config) GetRoyaltyReportsUrl() string {
 	return fmt.Sprintf(pkg.RoyaltyReportsUrl, cfg.DashboardUrl)
+}
+
+func (cfg *Config) GetRoyaltyReportUrl(id string) string {
+	return fmt.Sprintf(pkg.RoyaltyReportUrl, cfg.DashboardUrl, id)
 }
 
 func (cfg *Config) GetPayoutsUrl() string {

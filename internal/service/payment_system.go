@@ -1,13 +1,8 @@
 package service
 
 import (
-	"context"
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/zap"
 	"sync"
 )
 
@@ -17,9 +12,6 @@ const (
 	paymentSystemHandlerCardPayMock = "cardpay_mock"
 
 	defaultHttpClientTimeout = 10
-
-	cachePaymentSystem      = "payment_system:id:%s"
-	collectionPaymentSystem = "payment_system"
 )
 
 var (
@@ -84,85 +76,4 @@ func (m *Gateway) getGateway(name string) (Gate, error) {
 
 	m.mx.Unlock()
 	return gateway, nil
-}
-
-type PaymentSystemServiceInterface interface {
-	GetById(context.Context, string) (*billingpb.PaymentSystem, error)
-	Insert(context.Context, *billingpb.PaymentSystem) error
-	MultipleInsert(context.Context, []*billingpb.PaymentSystem) error
-	Update(context.Context, *billingpb.PaymentSystem) error
-}
-
-func newPaymentSystemService(svc *Service) *PaymentSystemService {
-	s := &PaymentSystemService{svc: svc}
-	return s
-}
-
-func (h PaymentSystemService) GetById(ctx context.Context, id string) (*billingpb.PaymentSystem, error) {
-	var c billingpb.PaymentSystem
-	key := fmt.Sprintf(cachePaymentSystem, id)
-
-	if err := h.svc.cacher.Get(key, c); err == nil {
-		return &c, nil
-	}
-
-	oid, _ := primitive.ObjectIDFromHex(id)
-	filter := bson.M{"_id": oid, "is_active": true}
-	err := h.svc.db.Collection(collectionPaymentSystem).FindOne(ctx, filter).Decode(&c)
-
-	if err != nil {
-		return nil, fmt.Errorf(errorNotFound, collectionPaymentSystem)
-	}
-
-	if err := h.svc.cacher.Set(key, c, 0); err != nil {
-		zap.S().Errorf("Unable to set cache", "err", err.Error(), "key", key, "data", c)
-	}
-
-	return &c, nil
-}
-
-func (h *PaymentSystemService) Insert(ctx context.Context, ps *billingpb.PaymentSystem) error {
-	_, err := h.svc.db.Collection(collectionPaymentSystem).InsertOne(ctx, ps)
-
-	if err != nil {
-		return err
-	}
-
-	err = h.svc.cacher.Set(fmt.Sprintf(cachePaymentSystem, ps.Id), ps, 0)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h PaymentSystemService) MultipleInsert(ctx context.Context, ps []*billingpb.PaymentSystem) error {
-	c := make([]interface{}, len(ps))
-	for i, v := range ps {
-		c[i] = v
-	}
-
-	_, err := h.svc.db.Collection(collectionPaymentSystem).InsertMany(ctx, c)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *PaymentSystemService) Update(ctx context.Context, ps *billingpb.PaymentSystem) error {
-	oid, _ := primitive.ObjectIDFromHex(ps.Id)
-	filter := bson.M{"_id": oid}
-	_, err := h.svc.db.Collection(collectionPaymentSystem).ReplaceOne(ctx, filter, ps)
-
-	if err != nil {
-		return err
-	}
-
-	if err := h.svc.cacher.Set(fmt.Sprintf(cachePaymentSystem, ps.Id), ps, 0); err != nil {
-		return err
-	}
-
-	return nil
 }

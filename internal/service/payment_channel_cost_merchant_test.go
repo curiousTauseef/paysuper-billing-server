@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
@@ -11,7 +9,6 @@ import (
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
-	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
@@ -51,6 +48,11 @@ func (suite *PaymentChannelCostMerchantTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -66,6 +68,8 @@ func (suite *PaymentChannelCostMerchantTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -219,7 +223,7 @@ func (suite *PaymentChannelCostMerchantTestSuite) SetupTest() {
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 	pccm := []*billingpb.PaymentChannelCostMerchant{paymentChannelCostMerchant, paymentChannelCostMerchant2, anotherPaymentChannelCostMerchant}
-	if err := suite.service.paymentChannelCostMerchant.MultipleInsert(context.TODO(), pccm); err != nil {
+	if err := suite.service.paymentChannelCostMerchantRepository.MultipleInsert(context.TODO(), pccm); err != nil {
 		suite.FailNow("Insert PaymentChannelCostMerchant test data failed", "%v", err)
 	}
 }
@@ -325,71 +329,6 @@ func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant
 	assert.EqualValues(suite.T(), 100, payment.MaxAmount)
 }
 
-func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant_Insert_Ok() {
-	req := &billingpb.PaymentChannelCostMerchant{
-		MerchantId:      suite.merchantId,
-		Name:            "MASTERCARD",
-		Region:          "US",
-		Country:         "",
-		MethodPercent:   2.2,
-		MethodFixAmount: 0,
-		MccCode:         billingpb.MccCodeLowRisk,
-	}
-
-	assert.NoError(suite.T(), suite.service.paymentChannelCostMerchant.Insert(context.TODO(), req))
-}
-
-func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant_Insert_ErrorCacheUpdate() {
-	ci := &mocks.CacheInterface{}
-	ci.On("Set", mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New("service unavailable"))
-	ci.On("Delete", mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New("service unavailable"))
-	suite.service.cacher = ci
-
-	obj := &billingpb.PaymentChannelCostMerchant{
-		MerchantId:      suite.merchantId,
-		Name:            "Mastercard",
-		Region:          billingpb.TariffRegionWorldwide,
-		Country:         "",
-		MethodPercent:   2.1,
-		MethodFixAmount: 0,
-		MccCode:         billingpb.MccCodeLowRisk,
-	}
-	err := suite.service.paymentChannelCostMerchant.Insert(context.TODO(), obj)
-
-	assert.Error(suite.T(), err)
-	assert.EqualError(suite.T(), err, "service unavailable")
-}
-
-func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant_UpdateOk() {
-	obj := &billingpb.PaymentChannelCostMerchant{
-		Id:              suite.paymentChannelCostMerchantId,
-		MerchantId:      suite.merchantId,
-		Name:            "Mastercard",
-		Region:          billingpb.TariffRegionWorldwide,
-		Country:         "",
-		MethodPercent:   2.1,
-		MethodFixAmount: 0,
-		MccCode:         billingpb.MccCodeLowRisk,
-	}
-
-	assert.NoError(suite.T(), suite.service.paymentChannelCostMerchant.Update(context.TODO(), obj))
-}
-
-func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant_Get_Ok() {
-	val, err := suite.service.paymentChannelCostMerchant.Get(context.TODO(), suite.merchantId, "VISA", "USD", billingpb.TariffRegionRussiaAndCis, "AZ", billingpb.MccCodeLowRisk)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), len(val), 2)
-	assert.Equal(suite.T(), val[0].Set[0].Country, "AZ")
-	assert.EqualValues(suite.T(), val[0].Set[0].MethodFixAmount, 0.01)
-	assert.Equal(suite.T(), val[1].Set[0].Country, "")
-
-	val, err = suite.service.paymentChannelCostMerchant.Get(context.TODO(), suite.merchantId, "VISA", "USD", billingpb.TariffRegionRussiaAndCis, "", billingpb.MccCodeLowRisk)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), len(val), 1)
-	assert.Equal(suite.T(), val[0].Set[0].Country, "")
-	assert.Equal(suite.T(), val[0].Set[0].MethodFixAmount, float64(0))
-}
-
 func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant_getPaymentChannelCostMerchant() {
 	req := &billingpb.PaymentChannelCostMerchantRequest{
 		MerchantId:     suite.merchantId,
@@ -441,8 +380,8 @@ func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 
-	_, err = suite.service.paymentChannelCostMerchant.GetById(context.TODO(), suite.paymentChannelCostMerchantId)
-	assert.EqualError(suite.T(), err, fmt.Sprintf(errorNotFound, collectionPaymentChannelCostMerchant))
+	_, err = suite.service.paymentChannelCostMerchantRepository.GetById(context.TODO(), suite.paymentChannelCostMerchantId)
+	assert.Error(suite.T(), err)
 }
 
 func (suite *PaymentChannelCostMerchantTestSuite) TestPaymentChannelCostMerchant_GetAllPaymentChannelCostMerchant_Ok() {

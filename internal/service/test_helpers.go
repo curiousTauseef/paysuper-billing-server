@@ -9,22 +9,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
-	"github.com/paysuper/paysuper-billing-server/internal/repository"
+	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math/rand"
 	"strconv"
 	"time"
 )
 
-func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
+func HelperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 	*billingpb.Merchant,
 	*billingpb.Project,
 	*billingpb.PaymentMethod,
@@ -45,16 +45,16 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 			Amount:   0.01,
 		},
 	}
-	err := service.paymentMinLimitSystem.MultipleInsert(context.TODO(), paymentMinLimitsSystem)
+	err := service.paymentMinLimitSystemRepository.MultipleInsert(context.TODO(), paymentMinLimitsSystem)
 	if err != nil {
 		suite.FailNow("Insert PaymentMinLimitSystem test data failed", "%v", err)
 	}
 
-	operatingCompany := helperOperatingCompany(suite, service)
+	operatingCompany := HelperOperatingCompany(suite, service)
 
-	keyRub := billingpb.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
-	keyUsd := billingpb.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
-	keyEur := billingpb.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
+	keyRub := helper.GetPaymentMethodKey("RUB", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
+	keyUsd := helper.GetPaymentMethodKey("USD", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
+	keyEur := helper.GetPaymentMethodKey("EUR", billingpb.MccCodeLowRisk, operatingCompany.Id, "")
 
 	paymentSystem := &billingpb.PaymentSystem{
 		Id:                 primitive.NewObjectID().Hex(),
@@ -138,11 +138,11 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		RefundAllowed:   true,
 	}
 
-	merchant := helperCreateMerchant(suite, service, "USD", "RU", pmBankCard, 0, operatingCompany.Id)
+	merchant := HelperCreateMerchant(suite, service, "USD", "RU", pmBankCard, 0, operatingCompany.Id)
 
-	projectFixedAmount := helperCreateProject(suite, service, merchant.Id, billingpb.VatPayerBuyer)
+	projectFixedAmount := HelperCreateProject(suite, service, merchant.Id, billingpb.VatPayerBuyer)
 
-	bin := &BinData{
+	bin := &intPkg.BinData{
 		Id:                 primitive.NewObjectID(),
 		CardBin:            400000,
 		CardBrand:          "MASTERCARD",
@@ -153,19 +153,13 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		BankCountryIsoCode: "UA",
 	}
 
-	_, err = service.db.Collection(collectionBinData).InsertOne(context.TODO(), bin)
-
-	if err != nil {
-		suite.FailNow("Insert BIN test data failed", "%v", err)
-	}
-
 	pms := []*billingpb.PaymentMethod{pmBankCard}
-	if err := service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
 	ps := []*billingpb.PaymentSystem{paymentSystem}
-	if err := service.paymentSystem.MultipleInsert(context.TODO(), ps); err != nil {
+	if err := service.paymentSystemRepository.MultipleInsert(context.TODO(), ps); err != nil {
 		suite.FailNow("Insert payment system test data failed", "%v", err)
 	}
 
@@ -344,7 +338,7 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		OperatingCompanyId: operatingCompany.Id,
 	}
 
-	err = service.paymentChannelCostSystem.MultipleInsert(
+	err = service.paymentChannelCostSystemRepository.MultipleInsert(
 		context.TODO(),
 		[]*billingpb.PaymentChannelCostSystem{
 			paymentSysCost1,
@@ -359,10 +353,16 @@ func helperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		suite.FailNow("Insert PaymentChannelCostSystem test data failed", "%v", err)
 	}
 
+	err = service.bankBinRepository.Insert(context.TODO(), bin)
+
+	if err != nil {
+		suite.FailNow("Insert BIN test data failed", "%v", err)
+	}
+
 	return merchant, projectFixedAmount, pmBankCard, paymentSystem
 }
 
-func helperOperatingCompany(
+func HelperOperatingCompany(
 	suite suite.Suite,
 	service *Service,
 ) *billingpb.OperatingCompany {
@@ -388,7 +388,7 @@ func helperOperatingCompany(
 	return operatingCompany
 }
 
-func helperCreateMerchant(
+func HelperCreateMerchant(
 	suite suite.Suite,
 	service *Service,
 	currency string,
@@ -435,13 +435,14 @@ func helperCreateMerchant(
 			},
 		},
 		Banking: &billingpb.MerchantBanking{
-			Currency:             currency,
-			Name:                 "Bank name",
-			Address:              "address",
-			AccountNumber:        "0000001",
-			Swift:                "swift",
-			CorrespondentAccount: "correspondent_account",
-			Details:              "details",
+			Currency:                  currency,
+			Name:                      "Bank name",
+			Address:                   "address",
+			AccountNumber:             "0000001",
+			Swift:                     "swift",
+			CorrespondentAccount:      "correspondent_account",
+			Details:                   "details",
+			ProcessingDefaultCurrency: currency,
 		},
 		Status:                    billingpb.MerchantStatusDraft,
 		CreatedAt:                 nil,
@@ -471,13 +472,18 @@ func helperCreateMerchant(
 		ItemMinCostCurrency:    "",
 		CentrifugoToken:        "",
 		AgreementSignatureData: nil,
-		Steps:                  nil,
-		AgreementTemplate:      "",
-		ReceivedDate:           nil,
-		StatusLastUpdatedAt:    nil,
-		HasProjects:            false,
-		AgreementNumber:        service.getMerchantAgreementNumber(id),
-		MinimalPayoutLimit:     0,
+		Steps: &billingpb.MerchantCompletedSteps{
+			Company:  true,
+			Contacts: true,
+			Banking:  true,
+			Tariff:   true,
+		},
+		AgreementTemplate:   "",
+		ReceivedDate:        nil,
+		StatusLastUpdatedAt: nil,
+		HasProjects:         false,
+		AgreementNumber:     service.getMerchantAgreementNumber(id),
+		MinimalPayoutLimit:  0,
 		Tariff: &billingpb.MerchantTariff{
 			Payment: []*billingpb.MerchantTariffRatesPayment{
 				{
@@ -753,7 +759,7 @@ func helperCreateMerchant(
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
-	err = service.paymentChannelCostMerchant.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2, paymentMerCost3, paymentMerCost4})
+	err = service.paymentChannelCostMerchantRepository.MultipleInsert(context.TODO(), []*billingpb.PaymentChannelCostMerchant{paymentMerCost1, paymentMerCost2, paymentMerCost3, paymentMerCost4})
 
 	if err != nil {
 		suite.FailNow("Insert PaymentChannelCostMerchant test data failed", "%v", err)
@@ -762,7 +768,7 @@ func helperCreateMerchant(
 	return merchant
 }
 
-func helperCreateProject(
+func HelperCreateProject(
 	suite suite.Suite,
 	service *Service,
 	merchantId string,
@@ -788,6 +794,34 @@ func helperCreateProject(
 		},
 		UrlRedirectSuccess: "http://localhost?success",
 		UrlRedirectFail:    "http://localhost?fail",
+		WebhookTesting: &billingpb.WebHookTesting{
+			Products: &billingpb.ProductsTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			VirtualCurrency: &billingpb.VirtualCurrencyTesting{
+				NonExistingUser:  true,
+				ExistingUser:     true,
+				CorrectPayment:   true,
+				IncorrectPayment: true,
+			},
+			Keys: &billingpb.KeysTesting{IsPassed: true},
+		},
+		VirtualCurrency: &billingpb.ProjectVirtualCurrency{
+			Logo:           "logo",
+			Name:           map[string]string{"en": "name"},
+			SuccessMessage: map[string]string{"en": "message"},
+			Prices: []*billingpb.ProductPrice{
+				{
+					Amount:   100,
+					Currency: "RUB",
+					Region:   "RUB",
+				},
+			},
+			SellCountType: "integral",
+		},
 	}
 
 	if err := service.project.Insert(context.TODO(), project); err != nil {
@@ -797,7 +831,7 @@ func helperCreateProject(
 	return project
 }
 
-func helperCreateAndPayPaylinkOrder(
+func HelperCreateAndPayPaylinkOrder(
 	suite suite.Suite,
 	service *Service,
 	paylinkId, country string,
@@ -843,10 +877,10 @@ func helperCreateAndPayPaylinkOrder(
 	assert.NotNil(suite.T(), order)
 	assert.IsType(suite.T(), &billingpb.Order{}, order)
 
-	return helperPayOrder(suite, service, order, paymentMethod, country)
+	return HelperPayOrder(suite, service, order, paymentMethod, country)
 }
 
-func helperCreateAndPayOrder(
+func HelperCreateAndPayOrder(
 	suite suite.Suite,
 	service *Service,
 	amount float64,
@@ -872,7 +906,6 @@ func helperCreateAndPayOrder(
 		Currency:    currency,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Id:    primitive.NewObjectID().Hex(),
 			Email: "test@unit.unit",
@@ -889,10 +922,10 @@ func helperCreateAndPayOrder(
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
 
-	return helperPayOrder(suite, service, rsp.Item, paymentMethod, country)
+	return HelperPayOrder(suite, service, rsp.Item, paymentMethod, country)
 }
 
-func helperPayOrder(
+func HelperPayOrder(
 	suite suite.Suite,
 	service *Service,
 	order *billingpb.Order,
@@ -945,7 +978,7 @@ func helperPayOrder(
 		Customer: &billingpb.CardPayCustomer{
 			Email:  order.User.Email,
 			Ip:     order.User.Ip,
-			Id:     order.ProjectAccount,
+			Id:     order.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{
@@ -985,7 +1018,7 @@ func helperPayOrder(
 	return order
 }
 
-func helperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Order, amount float64, isChargeback bool) *billingpb.Refund {
+func HelperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Order, amount float64, isChargeback bool) *billingpb.Refund {
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:      order.Uuid,
 		Amount:       amount,
@@ -1046,17 +1079,15 @@ func helperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Orde
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp3.Status)
 	assert.Empty(suite.T(), rsp3.Error)
 
-	var refund *billingpb.Refund
-	oid, _ := primitive.ObjectIDFromHex(rsp2.Item.Id)
-	filter := bson.M{"_id": oid}
-	err = service.db.Collection(repository.CollectionRefund).FindOne(context.TODO(), filter).Decode(&refund)
+	refund, err := service.refundRepository.GetById(context.TODO(), rsp2.Item.Id)
+	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), refund)
 	assert.Equal(suite.T(), pkg.RefundStatusCompleted, refund.Status)
 
 	return refund
 }
 
-func createProductsForProject(
+func CreateProductsForProject(
 	suite suite.Suite,
 	service *Service,
 	project *billingpb.Project,
@@ -1109,7 +1140,7 @@ func createProductsForProject(
 	return products
 }
 
-func createKeyProductsForProject(
+func CreateKeyProductsForProject(
 	suite suite.Suite,
 	service *Service,
 	project *billingpb.Project,
@@ -1187,7 +1218,7 @@ func createKeyProductsForProject(
 	return products
 }
 
-func helperCreateAndPayOrder2(
+func HelperCreateAndPayOrder2(
 	suite suite.Suite,
 	service *Service,
 	amount float64,
@@ -1209,7 +1240,6 @@ func helperCreateAndPayOrder2(
 		ProjectId:   project.Id,
 		Account:     "unit test",
 		Description: "unit test",
-		OrderId:     primitive.NewObjectID().Hex(),
 		User: &billingpb.OrderUser{
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
@@ -1281,7 +1311,7 @@ func helperCreateAndPayOrder2(
 		Customer: &billingpb.CardPayCustomer{
 			Email:  rsp.Item.User.Email,
 			Ip:     rsp.Item.User.Ip,
-			Id:     rsp.Item.ProjectAccount,
+			Id:     rsp.Item.User.ExternalId,
 			Locale: "Europe/Moscow",
 		},
 		PaymentData: &billingpb.CallbackCardPayPaymentData{

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
@@ -12,7 +13,9 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
+	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -182,6 +185,16 @@ func (suite *PayoutsTestSuite) SetupTest() {
 			RollingReserveAmount: 0,
 			CorrectionAmount:     0,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        100,
+				TotalTransactions: 100,
+				GrossTotalAmount:  12345 + 100 + 50,
+				PayoutAmount:      12345,
+				TotalVat:          100,
+				TotalFees:         50,
+			},
+		},
 		Status:             billingpb.RoyaltyReportStatusAccepted,
 		CreatedAt:          ptypes.TimestampNow(),
 		PeriodFrom:         suite.dateFrom1,
@@ -199,6 +212,16 @@ func (suite *PayoutsTestSuite) SetupTest() {
 			PayoutAmount:      1234.5,
 			VatAmount:         10,
 			FeeAmount:         5,
+		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        10,
+				TotalTransactions: 10,
+				GrossTotalAmount:  1234.5 + 10 + 5,
+				PayoutAmount:      1234.5,
+				TotalVat:          10,
+				TotalFees:         5,
+			},
 		},
 		Status:             billingpb.RoyaltyReportStatusAccepted,
 		CreatedAt:          ptypes.TimestampNow(),
@@ -218,6 +241,16 @@ func (suite *PayoutsTestSuite) SetupTest() {
 			VatAmount:         10,
 			FeeAmount:         5,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        10,
+				TotalTransactions: 10,
+				GrossTotalAmount:  1234.5 + 10 + 5,
+				PayoutAmount:      1234.5,
+				TotalVat:          10,
+				TotalFees:         5,
+			},
+		},
 		Status:             billingpb.RoyaltyReportStatusPending,
 		CreatedAt:          ptypes.TimestampNow(),
 		PeriodFrom:         ptypes.TimestampNow(),
@@ -235,6 +268,16 @@ func (suite *PayoutsTestSuite) SetupTest() {
 			PayoutAmount:      0,
 			VatAmount:         0,
 			FeeAmount:         0,
+		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        0,
+				TotalTransactions: 0,
+				GrossTotalAmount:  0,
+				PayoutAmount:      0,
+				TotalVat:          0,
+				TotalFees:         0,
+			},
 		},
 		Status:             billingpb.RoyaltyReportStatusAccepted,
 		CreatedAt:          ptypes.TimestampNow(),
@@ -254,6 +297,16 @@ func (suite *PayoutsTestSuite) SetupTest() {
 			VatAmount:         40,
 			FeeAmount:         50,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        10,
+				TotalTransactions: 10,
+				GrossTotalAmount:  30 + 40 + 50,
+				PayoutAmount:      30,
+				TotalVat:          40,
+				TotalFees:         50,
+			},
+		},
 		Status:             billingpb.RoyaltyReportStatusAccepted,
 		CreatedAt:          ptypes.TimestampNow(),
 		PeriodFrom:         ptypes.TimestampNow(),
@@ -272,6 +325,16 @@ func (suite *PayoutsTestSuite) SetupTest() {
 			VatAmount:         100,
 			FeeAmount:         50,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        100,
+				TotalTransactions: 100,
+				GrossTotalAmount:  alreadyPaidRoyalty + 100 + 50,
+				PayoutAmount:      alreadyPaidRoyalty,
+				TotalVat:          100,
+				TotalFees:         50,
+			},
+		},
 		Status:             billingpb.RoyaltyReportStatusAccepted,
 		CreatedAt:          ptypes.TimestampNow(),
 		PeriodFrom:         ptypes.TimestampNow(),
@@ -289,6 +352,16 @@ func (suite *PayoutsTestSuite) SetupTest() {
 			PayoutAmount:      90,
 			VatAmount:         100,
 			FeeAmount:         50,
+		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        100,
+				TotalTransactions: 100,
+				GrossTotalAmount:  90 + 100 + 50,
+				PayoutAmount:      90,
+				TotalVat:          100,
+				TotalFees:         50,
+			},
 		},
 		Status:             billingpb.RoyaltyReportStatusDispute,
 		CreatedAt:          ptypes.TimestampNow(),
@@ -432,6 +505,11 @@ func (suite *PayoutsTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -447,6 +525,8 @@ func (suite *PayoutsTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -491,7 +571,7 @@ func (suite *PayoutsTestSuite) TearDownTest() {
 
 func (suite *PayoutsTestSuite) helperInsertRoyaltyReports(data []*billingpb.RoyaltyReport) {
 	for _, r := range data {
-		if _, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(context.TODO(), r); err != nil {
+		if err := suite.service.royaltyReportRepository.Insert(context.TODO(), r, "", pkg.RoyaltyReportChangeSourceAuto); err != nil {
 			suite.FailNow("Insert royalty report test data failed", "%v", err)
 		}
 	}
@@ -499,7 +579,7 @@ func (suite *PayoutsTestSuite) helperInsertRoyaltyReports(data []*billingpb.Roya
 
 func (suite *PayoutsTestSuite) helperInsertPayoutDocuments(data []*billingpb.PayoutDocument) {
 	for _, p := range data {
-		if err := suite.service.payoutDocument.Insert(context.TODO(), p, "127.0.0.1", payoutChangeSourceAdmin); err != nil {
+		if err := suite.service.payoutRepository.Insert(context.TODO(), p, "127.0.0.1", payoutChangeSourceAdmin); err != nil {
 			suite.FailNow("Insert payout test data failed", "%v", err)
 		}
 	}
@@ -752,11 +832,11 @@ func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_NotEnough
 
 func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertError() {
 
-	pds := &mocks.PayoutDocumentServiceInterface{}
+	pds := &mocks.PayoutRepositoryInterface{}
 	pds.On("Insert", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
 	pds.On("GetBalanceAmount", mock2.Anything, mock2.Anything, mock2.Anything).Return(float64(0), nil)
 	pds.On("GetLast", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, nil)
-	suite.service.payoutDocument = pds
+	suite.service.payoutRepository = pds
 
 	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1, suite.report2})
 
@@ -777,11 +857,11 @@ func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertErr
 
 func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertErrorWithResponse() {
 
-	pds := &mocks.PayoutDocumentServiceInterface{}
+	pds := &mocks.PayoutRepositoryInterface{}
 	pds.On("Insert", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(newBillingServerErrorMsg("0", "test"))
 	pds.On("GetBalanceAmount", mock2.Anything, mock2.Anything, mock2.Anything).Return(float64(0), nil)
 	pds.On("GetLast", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, nil)
-	suite.service.payoutDocument = pds
+	suite.service.payoutRepository = pds
 
 	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1, suite.report2})
 
@@ -851,7 +931,7 @@ func (suite *PayoutsTestSuite) TestPayouts_UpdatePayoutDocument_Ok_PaidOk() {
 	assert.Equal(suite.T(), res.Item.Status, pkg.PayoutDocumentStatusPaid)
 	assert.Equal(suite.T(), res.Item.Transaction, "transaction123")
 
-	rr, err := suite.service.royaltyReport.GetById(context.TODO(), suite.report6.Id)
+	rr, err := suite.service.royaltyReportRepository.GetById(context.TODO(), suite.report6.Id)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rr.Status, billingpb.RoyaltyReportStatusPaid)
 	assert.Equal(suite.T(), rr.PayoutDocumentId, suite.payout2.Id)
@@ -917,10 +997,10 @@ func (suite *PayoutsTestSuite) TestPayouts_UpdatePayoutDocument_Failed_UpdateErr
 
 	suite.helperInsertPayoutDocuments([]*billingpb.PayoutDocument{suite.payout1})
 
-	pds := &mocks.PayoutDocumentServiceInterface{}
+	pds := &mocks.PayoutRepositoryInterface{}
 	pds.On("Update", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(errors.New(mocks.SomeError))
 	pds.On("GetById", mock2.Anything, mock2.Anything).Return(suite.payout2, nil)
-	suite.service.payoutDocument = pds
+	suite.service.payoutRepository = pds
 
 	req := &billingpb.UpdatePayoutDocumentRequest{
 		PayoutDocumentId:   suite.payout2.Id,
@@ -1005,4 +1085,88 @@ func (suite *PayoutsTestSuite) TestPayouts_GetPayoutDocuments_Ok_NotFound() {
 	assert.Equal(suite.T(), res.Status, billingpb.ResponseStatusOk)
 	assert.Equal(suite.T(), res.Data.Count, int32(0))
 	assert.Nil(suite.T(), res.Data.Items)
+}
+
+func (suite *PayoutsTestSuite) TestPayouts_PayoutFinanceDone_Ok() {
+	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1})
+	suite.helperInsertPayoutDocuments([]*billingpb.PayoutDocument{suite.payout1})
+
+	emailsCounter := 0
+	postmarkBrokerMockFn := func(_ string, _ proto.Message, _ amqp.Table) error {
+		emailsCounter++
+		return nil
+	}
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock2.Anything, mock2.Anything).
+		Return(postmarkBrokerMockFn)
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	t := time.Now()
+	req := &billingpb.ReportFinanceDoneRequest{
+		PayoutId:               suite.payout1.Id,
+		MerchantId:             suite.payout1.MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.PayoutFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.EqualValues(suite.T(), 1, emailsCounter)
+}
+
+func (suite *PayoutsTestSuite) TestPayouts_PayoutFinanceDone_PayoutNotFound_Error() {
+	t := time.Now()
+	req := &billingpb.ReportFinanceDoneRequest{
+		PayoutId:               "ffffffffffffffffffffffff",
+		MerchantId:             suite.payout1.MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.PayoutFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), errorPayoutNotFound, rsp.Message)
+}
+
+func (suite *PayoutsTestSuite) TestPayouts_PayoutFinanceDone_PostmarkBroker_Publish_Error() {
+	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report1})
+	suite.helperInsertPayoutDocuments([]*billingpb.PayoutDocument{suite.payout1})
+
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock2.Anything, mock2.Anything).
+		Return(errors.New("PostmarkBroker_Publish"))
+	suite.service.postmarkBroker = postmarkBrokerMock
+	zap.ReplaceGlobals(suite.logObserver)
+
+	t := time.Now()
+	req := &billingpb.ReportFinanceDoneRequest{
+		PayoutId:               suite.payout1.Id,
+		MerchantId:             suite.payout1.MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name1.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.PayoutFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), errorPayoutNotFound, rsp.Message)
+
+	logs := suite.zapRecorder.All()
+	assert.NotEmpty(suite.T(), logs)
+	assert.Equal(suite.T(), zap.ErrorLevel, logs[0].Level)
+	assert.Equal(suite.T(), "Publication message to postmark broker failed", logs[0].Message)
 }

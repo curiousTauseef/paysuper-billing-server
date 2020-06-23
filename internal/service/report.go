@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -11,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 	"time"
 )
 
@@ -20,6 +22,8 @@ const (
 
 var (
 	reportErrorUnknown = newBillingServerErrorMsg("rp000001", "request processing failed. try request later")
+	privateOrderMapper = models.NewOrderViewPrivateMapper()
+	publicOrderMapper  = models.NewOrderViewPublicMapper()
 )
 
 func (s *Service) FindAllOrdersPublic(
@@ -27,18 +31,9 @@ func (s *Service) FindAllOrdersPublic(
 	req *billingpb.ListOrdersRequest,
 	rsp *billingpb.ListOrdersPublicResponse,
 ) error {
-	count, orders, err := s.getOrdersList(ctx, req, collectionOrderView, make([]*billingpb.OrderViewPublic, 1))
+	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrderView, make([]*billingpb.OrderViewPublic, 1))
 
 	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = reportErrorUnknown
-
-		return nil
-	}
-
-	orderList := orders.([]*billingpb.OrderViewPublic)
-
-	if len(orderList) > 0 && orderList[0].MerchantId != req.Merchant[0] {
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = reportErrorUnknown
 
@@ -48,7 +43,7 @@ func (s *Service) FindAllOrdersPublic(
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Item = &billingpb.ListOrdersPublicResponseItem{
 		Count: count,
-		Items: orderList,
+		Items: orders.([]*billingpb.OrderViewPublic),
 	}
 
 	return nil
@@ -59,7 +54,7 @@ func (s *Service) FindAllOrdersPrivate(
 	req *billingpb.ListOrdersRequest,
 	rsp *billingpb.ListOrdersPrivateResponse,
 ) error {
-	count, orders, err := s.getOrdersList(ctx, req, collectionOrderView, make([]*billingpb.OrderViewPrivate, 1))
+	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrderView, make([]*billingpb.OrderViewPrivate, 0))
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -105,28 +100,16 @@ func (s *Service) GetOrderPublic(
 	req *billingpb.GetOrderRequest,
 	rsp *billingpb.GetOrderPublicResponse,
 ) error {
-	order, err := s.orderView.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPublic))
+	order, err := s.orderViewRepository.GetPublicOrderBy(ctx, "", req.OrderId, req.MerchantId)
 
 	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
-		if err == orderErrorNotFound {
-			rsp.Status = billingpb.ResponseStatusNotFound
-		}
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = orderErrorNotFound
 
 		return nil
 	}
 
-	rsp.Item = order.(*billingpb.OrderViewPublic)
-
-	if rsp.Item.MerchantId != req.MerchantId {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
-		return nil
-	}
-
+	rsp.Item = order
 	rsp.Status = billingpb.ResponseStatusOk
 
 	return nil
@@ -137,21 +120,17 @@ func (s *Service) GetOrderPrivate(
 	req *billingpb.GetOrderRequest,
 	rsp *billingpb.GetOrderPrivateResponse,
 ) error {
-	order, err := s.orderView.GetOrderBy(ctx, "", req.OrderId, req.MerchantId, new(billingpb.OrderViewPrivate))
+	order, err := s.orderViewRepository.GetPrivateOrderBy(ctx, "", req.OrderId, req.MerchantId)
 
 	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
-		if err == orderErrorNotFound {
-			rsp.Status = billingpb.ResponseStatusNotFound
-		}
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = orderErrorNotFound
 
 		return nil
 	}
 
 	rsp.Status = billingpb.ResponseStatusOk
-	rsp.Item = order.(*billingpb.OrderViewPrivate)
+	rsp.Item = order
 
 	return nil
 }
@@ -176,14 +155,17 @@ func (s *Service) getOrdersList(
 	}
 
 	if req.QuickSearch != "" {
-		r := primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}
+		r := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.QuickSearch) + ".*", Options: "i"}
 
 		query["$or"] = []bson.M{
 			{"uuid": bson.M{"$regex": r}},
 			{"user.external_id": bson.M{"$regex": r, "$exists": true}},
-			{"project_order_id": bson.M{"$regex": r, "$exists": true}},
+			{"user.email": bson.M{"$regex": r, "$exists": true}},
+			{"user.phone": bson.M{"$regex": r, "$exists": true}},
+			{"metadata_values": bson.M{"$regex": r}},
 			{"project.name": bson.M{"$elemMatch": bson.M{"value": r}}},
 			{"payment_method.name": bson.M{"$regex": r, "$exists": true}},
+			{"merchant_info.company_name": bson.M{"$regex": r, "$exists": true}},
 		}
 	} else {
 		if req.Id != "" {
@@ -221,25 +203,26 @@ func (s *Service) getOrdersList(
 		}
 
 		if req.Account != "" {
-			r := primitive.Regex{Pattern: ".*" + req.Account + ".*", Options: "i"}
+			r := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.Account) + ".*", Options: "i"}
 			query["$or"] = []bson.M{
-				{"user.external_id": r},
-				{"user.phone": r},
-				{"user.email": r},
+				{"user.external_id": bson.M{"$regex": r}},
+				{"user.phone": bson.M{"$regex": r}},
+				{"user.email": bson.M{"$regex": r}},
 				{"payment_method.card.masked": bson.M{"$regex": r, "$exists": true}},
 				{"payment_method.crypto_currency.address": bson.M{"$regex": r, "$exists": true}},
 				{"payment_method.wallet.account": bson.M{"$regex": r, "$exists": true}},
+				{"uuid": bson.M{"$regex": r}},
 			}
 		}
 
 		pmDates := make(bson.M)
 
-		if req.PmDateFrom != 0 {
-			pmDates["$gte"] = time.Unix(req.PmDateFrom, 0)
+		if req.PmDateFrom != "" {
+			pmDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.PmDateFrom)
 		}
 
-		if req.PmDateTo != 0 {
-			pmDates["$lte"] = time.Unix(req.PmDateTo, 0)
+		if req.PmDateTo != "" {
+			pmDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.PmDateTo)
 		}
 
 		if len(pmDates) > 0 {
@@ -248,12 +231,12 @@ func (s *Service) getOrdersList(
 
 		prjDates := make(bson.M)
 
-		if req.ProjectDateFrom != 0 {
-			prjDates["$gte"] = time.Unix(req.ProjectDateFrom, 0)
+		if req.ProjectDateFrom != "" {
+			prjDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ProjectDateFrom)
 		}
 
-		if req.ProjectDateTo != 0 {
-			prjDates["$lte"] = time.Unix(req.ProjectDateTo, 0)
+		if req.ProjectDateTo != "" {
+			prjDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ProjectDateTo)
 		}
 
 		if len(prjDates) > 0 {
@@ -263,6 +246,18 @@ func (s *Service) getOrdersList(
 		if req.StatusNotificationFailedFor != "" {
 			field := fmt.Sprintf(orderFailedNotificationQueryFieldMask, req.StatusNotificationFailedFor)
 			query[field] = false
+		}
+
+		if req.MerchantName != "" {
+			query["merchant_info.company_name"] = bson.M{
+				"$regex":  primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.MerchantName) + ".*", Options: "i"},
+				"$exists": true,
+			}
+		}
+
+		if req.RoyaltyReportId != "" {
+			royaltyReportOid, _ := primitive.ObjectIDFromHex(req.RoyaltyReportId)
+			query["royalty_report_id"] = bson.M{"$exists": true, "$eq": royaltyReportOid}
 		}
 	}
 
@@ -299,12 +294,24 @@ func (s *Service) getOrdersList(
 		return 0, nil, err
 	}
 
-	if res, ok := receiver.([]*billingpb.OrderViewPublic); ok {
+	if _, ok := receiver.([]*billingpb.OrderViewPublic); ok {
+		var res []*models.MgoOrderViewPublic
 		err = cursor.All(ctx, &res)
-		receiver = res
-	} else if res, ok := receiver.([]*billingpb.OrderViewPrivate); ok {
+		temp := make([]*billingpb.OrderViewPublic, len(res))
+		for i, mgo := range res {
+			obj, _ := publicOrderMapper.MapMgoToObject(mgo)
+			temp[i] = obj.(*billingpb.OrderViewPublic)
+		}
+		receiver = temp
+	} else if _, ok := receiver.([]*billingpb.OrderViewPrivate); ok {
+		var res []*models.MgoOrderViewPrivate
 		err = cursor.All(ctx, &res)
-		receiver = res
+		temp := make([]*billingpb.OrderViewPrivate, len(res))
+		for i, mgo := range res {
+			obj, _ := privateOrderMapper.MapMgoToObject(mgo)
+			temp[i] = obj.(*billingpb.OrderViewPrivate)
+		}
+		receiver = temp
 	} else if res, ok := receiver.([]*billingpb.Order); ok {
 		err = cursor.All(ctx, &res)
 		receiver = res

@@ -9,6 +9,10 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionNotifyNewRegion = "notify_new_region"
+)
+
 type notifyRegionRepository repository
 
 // NewNotifyRegionRepository create and return an object for working with the notify new region repository.

@@ -5,17 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	// CollectionCountry is name of table for collection the country.
-	CollectionCountry = "country"
-
-	cacheCountryCodeA2           = "country:code_a2:%s"
-	cacheCountryRisk             = "country:risk:%t"
-	cacheCountryAll              = "country:all"
-	cacheCountryRegions          = "country:regions"
-	cacheCountriesWithVatEnabled = "country:with_vat"
-)
-
 // CountryRepositoryInterface is abstraction layer for working with country and representation in database.
 type CountryRepositoryInterface interface {
 	// Insert adds country to the collection.

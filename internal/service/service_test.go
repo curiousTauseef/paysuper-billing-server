@@ -62,6 +62,11 @@ func (suite *BillingServiceTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	cache, err := database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -77,6 +82,8 @@ func (suite *BillingServiceTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -265,7 +272,7 @@ func (suite *BillingServiceTestSuite) SetupTest() {
 	}
 
 	pms := []*billingpb.PaymentMethod{pmBankCard, pmQiwi, pmBitcoin}
-	if err := suite.service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := suite.service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
@@ -317,6 +324,8 @@ func (suite *BillingServiceTestSuite) TestNewBillingService() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	err := service.Init()
@@ -329,6 +338,11 @@ func (suite *BillingServiceTestSuite) TestBillingService_AccountingCurrencyInitE
 	assert.NoError(suite.T(), err)
 
 	suite.cache, err = database.NewCacheRedis(mocks.NewTestRedis(), "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	service := NewBillingService(
 		suite.db,
 		cfg,
@@ -344,6 +358,8 @@ func (suite *BillingServiceTestSuite) TestBillingService_AccountingCurrencyInitE
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	err = service.Init()
@@ -368,6 +384,8 @@ func (suite *BillingServiceTestSuite) TestBillingService_IsProductionEnvironment
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	err := service.Init()

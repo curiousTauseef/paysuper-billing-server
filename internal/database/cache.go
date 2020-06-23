@@ -1,7 +1,8 @@
 package database
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"github.com/go-redis/redis"
 	"time"
@@ -40,12 +41,16 @@ func NewCacheRedis(r redis.Cmdable, version string) (*Cache, error) {
 }
 
 func (c *Cache) Set(key string, value interface{}, duration time.Duration) error {
-	b, err := json.Marshal(value)
+	var network bytes.Buffer
+
+	enc := gob.NewEncoder(&network)
+	err := enc.Encode(value)
+
 	if err != nil {
 		return err
 	}
 
-	if err := c.redis.Set(c.getStorageKey(key), b, duration).Err(); err != nil {
+	if err := c.redis.Set(c.getStorageKey(key), network.Bytes(), duration).Err(); err != nil {
 		return err
 	}
 
@@ -59,7 +64,12 @@ func (c *Cache) Get(key string, obj interface{}) error {
 		return err
 	}
 
-	if err := json.Unmarshal(b, obj); err != nil {
+	var network bytes.Buffer
+	network.Write(b)
+
+	dec := gob.NewDecoder(&network)
+
+	if err = dec.Decode(obj); err != nil {
 		return fmt.Errorf(errorInterfaceCast, err.Error())
 	}
 

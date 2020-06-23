@@ -9,6 +9,10 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	collectionNotifySales = "notify_sales"
+)
+
 type notifySalesRepository repository
 
 // NewNotifySalesRepository create and return an object for working with the notify sales repository.

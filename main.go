@@ -40,6 +40,13 @@ func main() {
 
 		case "fix_taxes":
 			err = app.TaskFixTaxes()
+		case "rebuild_payouts":
+			err = app.TaskRebuildPayouts()
+			break
+
+		case "create_payout":
+			err = app.TaskCreatePayout()
+			break
 		}
 
 		if err != nil {

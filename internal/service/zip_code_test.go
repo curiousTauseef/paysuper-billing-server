@@ -40,6 +40,11 @@ func (suite *ZipCodeTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	cache, err := database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -55,6 +60,8 @@ func (suite *ZipCodeTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 	err = suite.service.Init()
 

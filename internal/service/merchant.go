@@ -86,14 +86,22 @@ func (s *Service) getMerchantPaymentMethod(ctx context.Context, merchantId, meth
 		}
 	}
 
-	pm, err := s.paymentMethod.GetAll(ctx)
+	pm, err := s.paymentMethodRepository.GetAll(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(merchantPaymentMethods) != len(pm) {
-		for k, v := range pm {
+	pool := make(map[string]*billingpb.PaymentMethod, len(pm))
+
+	if len(pm) > 0 {
+		for _, v := range pm {
+			pool[v.Id] = v
+		}
+	}
+
+	if len(merchantPaymentMethods) != len(pool) {
+		for k, v := range pool {
 			_, ok := merchantPaymentMethods[k]
 
 			if ok {

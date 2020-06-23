@@ -1,0 +1,37 @@
+[
+  {
+    "update": "project",
+    "updates": [
+      {
+        "q": {"status": {"$exists": true, "$eq": 3}},
+        "u": {"$set": {
+          "webhook_testing": {
+            "products" : {
+              "non_existing_user" : true,
+              "existing_user" : true,
+              "correct_payment" : true,
+              "incorrect_payment" : true
+            },
+            "virtual_currency" : {
+              "non_existing_user" : true,
+              "existing_user" : true,
+              "correct_payment" : true,
+              "incorrect_payment" : true
+            },
+            "keys" : {
+              "is_passed" : true
+            }
+          }
+        }},
+        "multi": true
+      },
+      {
+        "q": {"$or": [{"webhook_mode": {"$exists": false}}, {"webhook_mode": {"$nin": ["pre_approval", "default"]}}]},
+        "u": {
+          "$set": {"webhook_mode":  "default"}
+        },
+        "multi": true
+      }
+    ]
+  }
+]

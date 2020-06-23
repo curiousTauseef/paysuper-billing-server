@@ -5,13 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionMerchantUsersTable = "user_merchant"
-	collectionAdminUsersTable    = "user_admin"
-
-	cacheUserMerchants = "user:merchants:%s"
-)
-
 // UserRoleRepositoryInterface is abstraction layer for working with user role and representation in database.
 type UserRoleRepositoryInterface interface {
 	// AddMerchantUser add user role to the merchant collection.

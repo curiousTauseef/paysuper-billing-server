@@ -19,9 +19,7 @@ import (
 	tools "github.com/paysuper/paysuper-tools/number"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
@@ -105,13 +103,15 @@ func (suite *AccountingEntryTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		broker,
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 }
 
 func (suite *AccountingEntryTestSuite) TearDownTest() {
@@ -167,17 +167,17 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 		"merchant_method_fee":                       3,
 		"merchant_method_fee_cost_value":            1.8,
 		"ps_markup_merchant_method_fee":             1.2,
-		"merchant_method_fixed_fee":                 1.4688,
+		"merchant_method_fixed_fee":                 1.469388,
 		"real_merchant_method_fixed_fee":            1.44,
-		"markup_merchant_method_fixed_fee_fx":       0.0288,
+		"markup_merchant_method_fixed_fee_fx":       0.029388,
 		"real_merchant_method_fixed_fee_cost_value": 0.65,
 		"ps_method_fixed_fee_profit":                0.79,
-		"merchant_ps_fixed_fee":                     3.672,
+		"merchant_ps_fixed_fee":                     3.673469,
 		"real_merchant_ps_fixed_fee":                3.6,
-		"markup_merchant_ps_fixed_fee":              0.072,
-		"ps_method_profit":                          7.222,
-		"merchant_net_revenue":                      90.328,
-		"ps_profit_total":                           7.222,
+		"markup_merchant_ps_fixed_fee":              0.073469,
+		"ps_method_profit":                          7.223469,
+		"merchant_net_revenue":                      90.326531,
+		"ps_profit_total":                           7.223469,
 	}
 
 	refundControlResults := map[string]float64{
@@ -192,23 +192,25 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 		"merchant_refund_fixed_fee_cost_value": 0,
 		"merchant_refund_fixed_fee":            0,
 		"ps_merchant_refund_fixed_fee_fx":      0,
-		"ps_merchant_refund_fixed_fee_profit":  -0.15,
+		"ps_merchant_refund_fixed_fee_profit":  -10.8,
 		"reverse_tax_fee":                      20,
 		"reverse_tax_fee_delta":                0,
 		"ps_reverse_tax_fee_delta":             0,
 		"merchant_reverse_tax_fee":             20,
 		"merchant_reverse_revenue":             100,
-		"ps_refund_profit":                     -12.15,
+		"ps_refund_profit":                     -22.8,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
+
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err = suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	accountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -248,8 +250,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -263,63 +264,65 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 	orderCountry := "RU"
 	orderCurrency := "RUB"
 	orderControlResults := map[string]float64{
-		"real_gross_revenue":                        12,
-		"real_tax_fee":                              2,
+		"real_gross_revenue":                        12.0003,
+		"real_tax_fee":                              2.00005,
 		"central_bank_tax_fee":                      0,
-		"real_tax_fee_total":                        2,
-		"ps_gross_revenue_fx":                       0.24,
-		"ps_gross_revenue_fx_tax_fee":               0.04,
-		"ps_gross_revenue_fx_profit":                0.2,
-		"merchant_gross_revenue":                    11.76,
-		"merchant_tax_fee_cost_value":               1.96,
-		"merchant_tax_fee_central_bank_fx":          0.045938,
-		"merchant_tax_fee":                          2.005938,
-		"ps_method_fee":                             0.588,
-		"merchant_method_fee":                       0.294,
-		"merchant_method_fee_cost_value":            0.18,
-		"ps_markup_merchant_method_fee":             0.114,
-		"merchant_method_fixed_fee":                 0.022597,
+		"real_tax_fee_total":                        2.00005,
+		"ps_gross_revenue_fx":                       0.24492,
+		"ps_gross_revenue_fx_tax_fee":               0.04082,
+		"ps_gross_revenue_fx_profit":                0.2041,
+		"merchant_gross_revenue":                    11.75538,
+		"merchant_tax_fee_cost_value":               1.95923,
+		"merchant_tax_fee_central_bank_fx":          0.045919,
+		"merchant_tax_fee":                          2.005149,
+		"ps_method_fee":                             0.587769,
+		"merchant_method_fee":                       0.293885,
+		"merchant_method_fee_cost_value":            0.180004,
+		"ps_markup_merchant_method_fee":             0.113881,
+		"merchant_method_fixed_fee":                 0.022606,
 		"real_merchant_method_fixed_fee":            0.022154,
-		"markup_merchant_method_fixed_fee_fx":       0.000443,
+		"markup_merchant_method_fixed_fee_fx":       0.000452,
 		"real_merchant_method_fixed_fee_cost_value": 0.01,
 		"ps_method_fixed_fee_profit":                0.012154,
-		"merchant_ps_fixed_fee":                     0.056492,
+		"merchant_ps_fixed_fee":                     0.056515,
 		"real_merchant_ps_fixed_fee":                0.055385,
-		"markup_merchant_ps_fixed_fee":              0.001107,
-		"ps_method_profit":                          0.454492,
-		"merchant_net_revenue":                      9.10957,
-		"ps_profit_total":                           0.654492,
+		"markup_merchant_ps_fixed_fee":              0.00113,
+		"ps_method_profit":                          0.45428,
+		"merchant_net_revenue":                      9.105947,
+		"ps_profit_total":                           0.65838,
 	}
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          12,
-		"real_refund_tax_fee":                  2,
-		"real_refund_fee":                      1.2,
+		"real_refund":                          12.0003,
+		"real_refund_tax_fee":                  2.00005,
+		"real_refund_fee":                      1.20003,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      12.24,
-		"ps_merchant_refund_fx":                0.24,
+		"merchant_refund":                      12.24522,
+		"ps_merchant_refund_fx":                0.24492,
 		"merchant_refund_fee":                  0,
-		"ps_markup_merchant_refund_fee":        -1.2,
+		"ps_markup_merchant_refund_fee":        -1.20003,
 		"merchant_refund_fixed_fee_cost_value": 0,
 		"merchant_refund_fixed_fee":            0,
 		"ps_merchant_refund_fixed_fee_fx":      0,
-		"ps_merchant_refund_fixed_fee_profit":  -0.15,
-		"reverse_tax_fee":                      2.005938,
+		"ps_merchant_refund_fixed_fee_profit":  -0.166154,
+		"reverse_tax_fee":                      2.005149,
 		"reverse_tax_fee_delta":                0,
-		"ps_reverse_tax_fee_delta":             0.001875,
-		"merchant_reverse_tax_fee":             2.005937,
-		"merchant_reverse_revenue":             10.2340625,
-		"ps_refund_profit":                     -1.3159375,
+		"ps_reverse_tax_fee_delta":             0.001914,
+		"merchant_reverse_tax_fee":             2.005149,
+		"merchant_reverse_revenue":             10.240071,
+		"ps_refund_profit":                     -1.36427,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
+
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -359,8 +362,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -374,63 +376,65 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 	orderCountry := "US"
 	orderCurrency := "RUB"
 	orderControlResults := map[string]float64{
-		"real_gross_revenue":                        11.9,
-		"real_tax_fee":                              1.9,
+		"real_gross_revenue":                        11.900297,
+		"real_tax_fee":                              1.900048,
 		"central_bank_tax_fee":                      0,
-		"real_tax_fee_total":                        1.9,
-		"ps_gross_revenue_fx":                       0.238,
-		"ps_gross_revenue_fx_tax_fee":               0.038,
-		"ps_gross_revenue_fx_profit":                0.2,
-		"merchant_gross_revenue":                    11.662,
-		"merchant_tax_fee_cost_value":               1.862,
+		"real_tax_fee_total":                        1.900048,
+		"ps_gross_revenue_fx":                       0.24288,
+		"ps_gross_revenue_fx_tax_fee":               0.038779,
+		"ps_gross_revenue_fx_profit":                0.204101,
+		"merchant_gross_revenue":                    11.657417,
+		"merchant_tax_fee_cost_value":               1.861268,
 		"merchant_tax_fee_central_bank_fx":          0,
-		"merchant_tax_fee":                          1.862,
-		"ps_method_fee":                             0.5831,
-		"merchant_method_fee":                       0.29155,
-		"merchant_method_fee_cost_value":            0.1785,
-		"ps_markup_merchant_method_fee":             0.11305,
-		"merchant_method_fixed_fee":                 0.022597,
+		"merchant_tax_fee":                          1.861268,
+		"ps_method_fee":                             0.582871,
+		"merchant_method_fee":                       0.291435,
+		"merchant_method_fee_cost_value":            0.178504,
+		"ps_markup_merchant_method_fee":             0.112931,
+		"merchant_method_fixed_fee":                 0.022606,
 		"real_merchant_method_fixed_fee":            0.022154,
-		"markup_merchant_method_fixed_fee_fx":       0.000443,
+		"markup_merchant_method_fixed_fee_fx":       0.000452,
 		"real_merchant_method_fixed_fee_cost_value": 0.01,
 		"ps_method_fixed_fee_profit":                0.012154,
-		"merchant_ps_fixed_fee":                     0.056492,
+		"merchant_ps_fixed_fee":                     0.056515,
 		"real_merchant_ps_fixed_fee":                0.055385,
-		"markup_merchant_ps_fixed_fee":              0.001107,
-		"ps_method_profit":                          0.451092,
-		"merchant_net_revenue":                      9.160408,
-		"ps_profit_total":                           0.651092,
+		"markup_merchant_ps_fixed_fee":              0.00113,
+		"ps_method_profit":                          0.450882,
+		"merchant_net_revenue":                      9.156763,
+		"ps_profit_total":                           0.654983,
 	}
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          11.9,
-		"real_refund_tax_fee":                  1.9,
-		"real_refund_fee":                      1.19,
+		"real_refund":                          11.900297,
+		"real_refund_tax_fee":                  1.900048,
+		"real_refund_fee":                      1.19003,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      12.138,
-		"ps_merchant_refund_fx":                0.238,
+		"merchant_refund":                      12.143177,
+		"ps_merchant_refund_fx":                0.24288,
 		"merchant_refund_fee":                  0,
-		"ps_markup_merchant_refund_fee":        -1.19,
+		"ps_markup_merchant_refund_fee":        -1.19003,
 		"merchant_refund_fixed_fee_cost_value": 0,
 		"merchant_refund_fixed_fee":            0,
 		"ps_merchant_refund_fixed_fee_fx":      0,
 		"ps_merchant_refund_fixed_fee_profit":  -0.166154,
-		"reverse_tax_fee":                      1.862,
+		"reverse_tax_fee":                      1.861268,
 		"reverse_tax_fee_delta":                0,
 		"ps_reverse_tax_fee_delta":             0,
-		"merchant_reverse_tax_fee":             1.862,
-		"merchant_reverse_revenue":             10.276,
-		"ps_refund_profit":                     -1.356154,
+		"merchant_reverse_tax_fee":             1.861268,
+		"merchant_reverse_revenue":             10.281909,
+		"ps_refund_profit":                     -1.356184,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
+
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -470,8 +474,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -485,56 +488,58 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 	orderControlResults := map[string]float64{
-		"real_gross_revenue":                        12,
-		"real_tax_fee":                              2,
+		"real_gross_revenue":                        12.0003,
+		"real_tax_fee":                              2.00005,
 		"central_bank_tax_fee":                      0,
-		"real_tax_fee_total":                        2,
-		"ps_gross_revenue_fx":                       0.24,
-		"ps_gross_revenue_fx_tax_fee":               0.04,
-		"ps_gross_revenue_fx_profit":                0.2,
-		"merchant_gross_revenue":                    11.76,
-		"merchant_tax_fee_cost_value":               1.96,
-		"merchant_tax_fee_central_bank_fx":          0.004436,
-		"merchant_tax_fee":                          1.964436,
-		"ps_method_fee":                             0.588,
-		"merchant_method_fee":                       0.294,
-		"merchant_method_fee_cost_value":            0.18,
-		"ps_markup_merchant_method_fee":             0.114,
-		"merchant_method_fixed_fee":                 0.022597,
+		"real_tax_fee_total":                        2.00005,
+		"ps_gross_revenue_fx":                       0.24492,
+		"ps_gross_revenue_fx_tax_fee":               0.04082,
+		"ps_gross_revenue_fx_profit":                0.2041,
+		"merchant_gross_revenue":                    11.75538,
+		"merchant_tax_fee_cost_value":               1.95923,
+		"merchant_tax_fee_central_bank_fx":          0,
+		"merchant_tax_fee":                          1.95923,
+		"ps_method_fee":                             0.587769,
+		"merchant_method_fee":                       0.293885,
+		"merchant_method_fee_cost_value":            0.180004,
+		"ps_markup_merchant_method_fee":             0.113881,
+		"merchant_method_fixed_fee":                 0.022606,
 		"real_merchant_method_fixed_fee":            0.022154,
-		"markup_merchant_method_fixed_fee_fx":       0.000443,
+		"markup_merchant_method_fixed_fee_fx":       0.000452,
 		"real_merchant_method_fixed_fee_cost_value": 0.01,
 		"ps_method_fixed_fee_profit":                0.012154,
-		"merchant_ps_fixed_fee":                     0.056492,
+		"merchant_ps_fixed_fee":                     0.056515,
 		"real_merchant_ps_fixed_fee":                0.055385,
-		"markup_merchant_ps_fixed_fee":              0.001107,
-		"ps_method_profit":                          0.454492,
-		"merchant_net_revenue":                      9.151072,
-		"ps_profit_total":                           0.654492,
+		"markup_merchant_ps_fixed_fee":              0.00113,
+		"ps_method_profit":                          0.45428,
+		"merchant_net_revenue":                      9.151866,
+		"ps_profit_total":                           0.65838,
 	}
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          12,
-		"real_refund_tax_fee":                  2,
-		"real_refund_fee":                      1.2,
+		"real_refund":                          12.0003,
+		"real_refund_tax_fee":                  2.00005,
+		"real_refund_fee":                      1.20003,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      12.24,
-		"ps_merchant_refund_fx":                0.24,
+		"merchant_refund":                      12.24522,
+		"ps_merchant_refund_fx":                0.24492,
 		"merchant_refund_fee":                  0,
-		"ps_markup_merchant_refund_fee":        -1.2,
+		"ps_markup_merchant_refund_fee":        -1.20003,
 		"merchant_refund_fixed_fee_cost_value": 0,
 		"merchant_refund_fixed_fee":            0,
 		"ps_merchant_refund_fixed_fee_fx":      0,
-		"ps_merchant_refund_fixed_fee_profit":  -0.15,
-		"reverse_tax_fee":                      1.964436,
+		"ps_merchant_refund_fixed_fee_profit":  -0.166154,
+		"reverse_tax_fee":                      1.95923,
 		"reverse_tax_fee_delta":                0,
-		"ps_reverse_tax_fee_delta":             0.00018,
-		"merchant_reverse_tax_fee":             1.964435,
-		"merchant_reverse_revenue":             10.2755646552,
-		"ps_refund_profit":                     -1.2744353448,
+		"ps_reverse_tax_fee_delta":             0,
+		"merchant_reverse_tax_fee":             1.95923,
+		"merchant_reverse_revenue":             10.28599,
+		"ps_refund_profit":                     -1.366184,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
+
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerBuyer)
 	assert.NotNil(suite.T(), order.Tax)
@@ -543,10 +548,10 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.EqualValues(suite.T(), order.Tax.Amount, 130)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -586,14 +591,13 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPayer_Seller() {
-	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerSeller)
+	project := HelperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerSeller)
 
 	// Order currency RUB
 	// Royalty currency USD
@@ -603,56 +607,58 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 	orderControlResults := map[string]float64{
-		"real_gross_revenue":                        10,
-		"real_tax_fee":                              1.666615,
+		"real_gross_revenue":                        10.00025,
+		"real_tax_fee":                              1.666657,
 		"central_bank_tax_fee":                      0,
-		"real_tax_fee_total":                        1.666615,
-		"ps_gross_revenue_fx":                       0.2,
-		"ps_gross_revenue_fx_tax_fee":               0.033333,
-		"ps_gross_revenue_fx_profit":                0.166667,
-		"merchant_gross_revenue":                    9.80,
-		"merchant_tax_fee_cost_value":               1.633333,
-		"merchant_tax_fee_central_bank_fx":          0.003696,
-		"merchant_tax_fee":                          1.637029,
-		"ps_method_fee":                             0.49,
-		"merchant_method_fee":                       0.245,
-		"merchant_method_fee_cost_value":            0.15,
-		"ps_markup_merchant_method_fee":             0.095,
-		"merchant_method_fixed_fee":                 0.022597,
+		"real_tax_fee_total":                        1.666657,
+		"ps_gross_revenue_fx":                       0.2041,
+		"ps_gross_revenue_fx_tax_fee":               0.034017,
+		"ps_gross_revenue_fx_profit":                0.170083,
+		"merchant_gross_revenue":                    9.79615,
+		"merchant_tax_fee_cost_value":               1.632692,
+		"merchant_tax_fee_central_bank_fx":          0,
+		"merchant_tax_fee":                          1.632692,
+		"ps_method_fee":                             0.489807,
+		"merchant_method_fee":                       0.244904,
+		"merchant_method_fee_cost_value":            0.150004,
+		"ps_markup_merchant_method_fee":             0.0949,
+		"merchant_method_fixed_fee":                 0.022606,
 		"real_merchant_method_fixed_fee":            0.022154,
-		"markup_merchant_method_fixed_fee_fx":       0.000443,
+		"markup_merchant_method_fixed_fee_fx":       0.000452,
 		"real_merchant_method_fixed_fee_cost_value": 0.01,
 		"ps_method_fixed_fee_profit":                0.012154,
-		"merchant_ps_fixed_fee":                     0.056492,
+		"merchant_ps_fixed_fee":                     0.056515,
 		"real_merchant_ps_fixed_fee":                0.055385,
-		"markup_merchant_ps_fixed_fee":              0.001107,
-		"ps_method_profit":                          0.386492,
-		"merchant_net_revenue":                      7.616479,
-		"ps_profit_total":                           0.553159,
+		"markup_merchant_ps_fixed_fee":              0.00113,
+		"ps_method_profit":                          0.386318,
+		"merchant_net_revenue":                      7.617136,
+		"ps_profit_total":                           0.556401,
 	}
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          10,
-		"real_refund_tax_fee":                  1.666615,
-		"real_refund_fee":                      1,
+		"real_refund":                          10.00025,
+		"real_refund_tax_fee":                  1.666657,
+		"real_refund_fee":                      1.000025,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      10.2,
-		"ps_merchant_refund_fx":                0.2,
+		"merchant_refund":                      10.20435,
+		"ps_merchant_refund_fx":                0.2041,
 		"merchant_refund_fee":                  0,
-		"ps_markup_merchant_refund_fee":        -1.0,
+		"ps_markup_merchant_refund_fee":        -1.000025,
 		"merchant_refund_fixed_fee_cost_value": 0,
 		"merchant_refund_fixed_fee":            0,
 		"ps_merchant_refund_fixed_fee_fx":      0,
 		"ps_merchant_refund_fixed_fee_profit":  -0.166154,
-		"reverse_tax_fee":                      1.637029,
+		"reverse_tax_fee":                      1.632692,
 		"reverse_tax_fee_delta":                0,
-		"ps_reverse_tax_fee_delta":             0.000151,
-		"merchant_reverse_tax_fee":             1.637029,
-		"merchant_reverse_revenue":             8.562971,
-		"ps_refund_profit":                     -1.166003,
+		"ps_reverse_tax_fee_delta":             0,
+		"merchant_reverse_tax_fee":             1.632692,
+		"merchant_reverse_revenue":             8.571658,
+		"ps_refund_profit":                     -1.166179,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
+
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerSeller)
 	assert.NotNil(suite.T(), order.Tax)
@@ -661,10 +667,10 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.EqualValues(suite.T(), order.Tax.Amount, 108.33)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -698,20 +704,19 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 
 	controlRealRefund := refundControlResults["merchant_reverse_revenue"] + refundControlResults["merchant_reverse_tax_fee"] -
 		refundControlResults["merchant_refund_fixed_fee"] - refundControlResults["merchant_refund_fee"] - refundControlResults["ps_merchant_refund_fx"]
-	assert.Equal(suite.T(), refundControlResults["real_refund"], tools.ToPrecise(controlRealRefund))
+	assert.Equal(suite.T(), tools.ToPrecise(refundControlResults["real_refund"]), tools.ToPrecise(controlRealRefund))
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPayer_Nobody() {
-	project := helperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerNobody)
+	project := HelperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerNobody)
 
 	// Order currency RUB
 	// Royalty currency USD
@@ -721,43 +726,43 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 	orderControlResults := map[string]float64{
-		"real_gross_revenue":                        10,
+		"real_gross_revenue":                        10.00025,
 		"real_tax_fee":                              0,
 		"central_bank_tax_fee":                      0,
 		"real_tax_fee_total":                        0,
-		"ps_gross_revenue_fx":                       0.2,
+		"ps_gross_revenue_fx":                       0.2041,
 		"ps_gross_revenue_fx_tax_fee":               0,
-		"ps_gross_revenue_fx_profit":                0.2,
-		"merchant_gross_revenue":                    9.80,
+		"ps_gross_revenue_fx_profit":                0.2041,
+		"merchant_gross_revenue":                    9.79615,
 		"merchant_tax_fee_cost_value":               0,
 		"merchant_tax_fee_central_bank_fx":          0,
 		"merchant_tax_fee":                          0,
-		"ps_method_fee":                             0.49,
-		"merchant_method_fee":                       0.245,
-		"merchant_method_fee_cost_value":            0.15,
-		"ps_markup_merchant_method_fee":             0.095,
-		"merchant_method_fixed_fee":                 0.022597,
+		"ps_method_fee":                             0.489807,
+		"merchant_method_fee":                       0.244904,
+		"merchant_method_fee_cost_value":            0.150004,
+		"ps_markup_merchant_method_fee":             0.0949,
+		"merchant_method_fixed_fee":                 0.022606,
 		"real_merchant_method_fixed_fee":            0.022154,
-		"markup_merchant_method_fixed_fee_fx":       0.000443,
+		"markup_merchant_method_fixed_fee_fx":       0.000452,
 		"real_merchant_method_fixed_fee_cost_value": 0.01,
 		"ps_method_fixed_fee_profit":                0.012154,
-		"merchant_ps_fixed_fee":                     0.056492,
+		"merchant_ps_fixed_fee":                     0.056515,
 		"real_merchant_ps_fixed_fee":                0.055385,
-		"markup_merchant_ps_fixed_fee":              0.001107,
-		"ps_method_profit":                          0.386492,
-		"merchant_net_revenue":                      9.253508,
-		"ps_profit_total":                           0.586492,
+		"markup_merchant_ps_fixed_fee":              0.00113,
+		"ps_method_profit":                          0.386318,
+		"merchant_net_revenue":                      9.249828,
+		"ps_profit_total":                           0.590418,
 	}
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          10,
+		"real_refund":                          10.00025,
 		"real_refund_tax_fee":                  0,
-		"real_refund_fee":                      1,
+		"real_refund_fee":                      1.000025,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      10.2,
-		"ps_merchant_refund_fx":                0.2,
+		"merchant_refund":                      10.20435,
+		"ps_merchant_refund_fx":                0.2041,
 		"merchant_refund_fee":                  0,
-		"ps_markup_merchant_refund_fee":        -1.0,
+		"ps_markup_merchant_refund_fee":        -1.000025,
 		"merchant_refund_fixed_fee_cost_value": 0,
 		"merchant_refund_fixed_fee":            0,
 		"ps_merchant_refund_fixed_fee_fx":      0,
@@ -766,11 +771,13 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 		"reverse_tax_fee_delta":                0,
 		"ps_reverse_tax_fee_delta":             0,
 		"merchant_reverse_tax_fee":             0,
-		"merchant_reverse_revenue":             10.2,
-		"ps_refund_profit":                     -1.166154,
+		"merchant_reverse_revenue":             10.20435,
+		"ps_refund_profit":                     -1.166179,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
+
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerNobody)
 	assert.NotNil(suite.T(), order.Tax)
@@ -779,10 +786,10 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.EqualValues(suite.T(), order.Tax.Amount, 0)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
 	assert.NotNil(suite.T(), refund)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
@@ -822,8 +829,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 	assert.NoError(suite.T(), err)
 	suite.helperCheckOrderView(order.Id, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, orderControlResults)
 
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -862,25 +868,25 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 		"merchant_refund_fee":                  24,
 		"ps_markup_merchant_refund_fee":        12,
 		"merchant_refund_fixed_fee_cost_value": 10.8,
-		"merchant_refund_fixed_fee":            11.016,
-		"ps_merchant_refund_fixed_fee_fx":      0.216,
-		"ps_merchant_refund_fixed_fee_profit":  10.866,
+		"merchant_refund_fixed_fee":            11.020408,
+		"ps_merchant_refund_fixed_fee_fx":      0.220407,
+		"ps_merchant_refund_fixed_fee_profit":  0.220407,
 		"reverse_tax_fee":                      20,
 		"reverse_tax_fee_delta":                0,
 		"ps_reverse_tax_fee_delta":             0,
 		"merchant_reverse_tax_fee":             20,
-		"merchant_reverse_revenue":             135.016,
-		"ps_refund_profit":                     22.866,
+		"merchant_reverse_revenue":             135.020408,
+		"ps_refund_profit":                     12.220407,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err = suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err = suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -899,8 +905,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -915,34 +920,34 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	orderCurrency := "RUB"
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          12,
-		"real_refund_tax_fee":                  2,
-		"real_refund_fee":                      1.2,
+		"real_refund":                          12.0003,
+		"real_refund_tax_fee":                  2.00005,
+		"real_refund_fee":                      1.20003,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      12.24,
-		"ps_merchant_refund_fx":                0.24,
-		"merchant_refund_fee":                  2.448,
-		"ps_markup_merchant_refund_fee":        1.248,
+		"merchant_refund":                      12.24522,
+		"ps_merchant_refund_fx":                0.24492,
+		"merchant_refund_fee":                  2.449044,
+		"ps_markup_merchant_refund_fee":        1.249014,
 		"merchant_refund_fixed_fee_cost_value": 0.166154,
-		"merchant_refund_fixed_fee":            0.169477,
-		"ps_merchant_refund_fixed_fee_fx":      0.0033230769,
-		"ps_merchant_refund_fixed_fee_profit":  0.0194769231,
-		"reverse_tax_fee":                      2.005938,
+		"merchant_refund_fixed_fee":            0.169545,
+		"ps_merchant_refund_fixed_fee_fx":      0.003391,
+		"ps_merchant_refund_fixed_fee_profit":  0.003391,
+		"reverse_tax_fee":                      2.005149,
 		"reverse_tax_fee_delta":                0,
-		"ps_reverse_tax_fee_delta":             0.001875,
-		"merchant_reverse_tax_fee":             2.005938,
-		"merchant_reverse_revenue":             12.8515394231,
-		"ps_refund_profit":                     1.2693519231,
+		"ps_reverse_tax_fee_delta":             0.001914,
+		"merchant_reverse_tax_fee":             2.005149,
+		"merchant_reverse_revenue":             12.85866,
+		"ps_refund_profit":                     1.254319,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -961,8 +966,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -977,34 +982,34 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	orderCurrency := "RUB"
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          11.9,
-		"real_refund_tax_fee":                  1.9,
-		"real_refund_fee":                      1.19,
+		"real_refund":                          11.900297,
+		"real_refund_tax_fee":                  1.900048,
+		"real_refund_fee":                      1.19003,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      12.138,
-		"ps_merchant_refund_fx":                0.238,
-		"merchant_refund_fee":                  2.4276,
-		"ps_markup_merchant_refund_fee":        1.248,
+		"merchant_refund":                      12.143177,
+		"ps_merchant_refund_fx":                0.24288,
+		"merchant_refund_fee":                  2.428635,
+		"ps_markup_merchant_refund_fee":        1.238605,
 		"merchant_refund_fixed_fee_cost_value": 0.166154,
-		"merchant_refund_fixed_fee":            0.169477,
-		"ps_merchant_refund_fixed_fee_fx":      0.0033230769,
-		"ps_merchant_refund_fixed_fee_profit":  0.0194769231,
-		"reverse_tax_fee":                      1.862,
+		"merchant_refund_fixed_fee":            0.169545,
+		"ps_merchant_refund_fixed_fee_fx":      0.003391,
+		"ps_merchant_refund_fixed_fee_profit":  0.003391,
+		"reverse_tax_fee":                      1.861268,
 		"reverse_tax_fee_delta":                0,
 		"ps_reverse_tax_fee_delta":             0,
-		"merchant_reverse_tax_fee":             1.862,
-		"merchant_reverse_revenue":             12.8730769231,
-		"ps_refund_profit":                     1.3474769231,
+		"merchant_reverse_tax_fee":             1.861268,
+		"merchant_reverse_revenue":             12.880089,
+		"ps_refund_profit":                     1.241996,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -1023,8 +1028,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1039,34 +1044,34 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 	orderCurrency := "RUB"
 
 	refundControlResults := map[string]float64{
-		"real_refund":                          12,
-		"real_refund_tax_fee":                  2,
-		"real_refund_fee":                      1.2,
+		"real_refund":                          12.0003,
+		"real_refund_tax_fee":                  2.00005,
+		"real_refund_fee":                      1.20003,
 		"real_refund_fixed_fee":                0.166154,
-		"merchant_refund":                      12.24,
-		"ps_merchant_refund_fx":                0.24,
-		"merchant_refund_fee":                  2.448,
-		"ps_markup_merchant_refund_fee":        1.248,
+		"merchant_refund":                      12.24522,
+		"ps_merchant_refund_fx":                0.24492,
+		"merchant_refund_fee":                  2.449044,
+		"ps_markup_merchant_refund_fee":        1.249014,
 		"merchant_refund_fixed_fee_cost_value": 0.166154,
-		"merchant_refund_fixed_fee":            0.169477,
-		"ps_merchant_refund_fixed_fee_fx":      0.003323,
-		"ps_merchant_refund_fixed_fee_profit":  0.019477,
-		"reverse_tax_fee":                      1.964436,
+		"merchant_refund_fixed_fee":            0.169545,
+		"ps_merchant_refund_fixed_fee_fx":      0.003391,
+		"ps_merchant_refund_fixed_fee_profit":  0.003391,
+		"reverse_tax_fee":                      1.95923,
 		"reverse_tax_fee_delta":                0,
-		"ps_reverse_tax_fee_delta":             0.00018,
-		"merchant_reverse_tax_fee":             1.964435,
-		"merchant_reverse_revenue":             12.893042,
-		"ps_refund_profit":                     1.343042,
+		"ps_reverse_tax_fee_delta":             0,
+		"merchant_reverse_tax_fee":             1.95923,
+		"merchant_reverse_revenue":             12.904579,
+		"ps_refund_profit":                     1.252405,
 	}
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 	refundAccountingEntries := suite.helperGetAccountingEntries(refund.CreatedOrderId, repository.CollectionRefund)
 	assert.Equal(suite.T(), len(refundAccountingEntries), len(refundControlResults)-7)
@@ -1085,8 +1090,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	err = suite.service.db.Collection(repository.CollectionRefund).FindOne(ctx, bson.M{"_id": oid}).Decode(&refund)
+
+	refund, err = suite.service.refundRepository.GetById(ctx, refund.Id)
 	assert.NoError(suite.T(), err)
 	suite.helperCheckRefundView(refund.CreatedOrderId, orderCurrency, merchantRoyaltyCurrency, country.VatCurrency, refundControlResults)
 }
@@ -1096,14 +1101,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
 	req := &billingpb.CreateAccountingEntryRequest{
@@ -1124,9 +1129,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Empty(suite.T(), rsp.Message)
 	assert.NotNil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	oid, _ := primitive.ObjectIDFromHex(rsp.Item.Id)
-	err = suite.service.db.Collection(collectionAccountingEntry).FindOne(ctx, bson.M{"_id": oid}).Decode(&accountingEntry)
+	accountingEntry, err := suite.service.accountingRepository.GetById(ctx, rsp.Item.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), accountingEntry)
 
@@ -1148,14 +1151,14 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
 	req := &billingpb.CreateAccountingEntryRequest{
@@ -1177,10 +1180,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorMerchantNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.MerchantId, "source.type": repository.CollectionMerchant}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.MerchantId, repository.CollectionMerchant)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_OrderNotFound_Error() {
@@ -1200,10 +1202,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorOrderNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": repository.CollectionOrder}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.OrderId, repository.CollectionOrder)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_RefundNotFound_Error() {
@@ -1223,10 +1224,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorRefundNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": repository.CollectionRefund}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.RefundId, repository.CollectionRefund)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_Refund_OrderNotFound_Error() {
@@ -1234,19 +1234,18 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
-	err := suite.service.paymentSystem.Update(ctx, suite.paymentSystem)
+	err := suite.service.paymentSystemRepository.Update(ctx, suite.paymentSystem)
 	assert.NoError(suite.T(), err)
 
-	refund := helperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, true)
 	assert.NotNil(suite.T(), refund)
 
 	refund.OriginalOrder.Id = primitive.NewObjectID().Hex()
-	oid, _ := primitive.ObjectIDFromHex(refund.Id)
-	_, err = suite.service.db.Collection(repository.CollectionRefund).ReplaceOne(ctx, bson.M{"_id": oid}, refund)
+	err = suite.service.refundRepository.Update(ctx, refund)
 	assert.NoError(suite.T(), err)
 
 	req := &billingpb.CreateAccountingEntryRequest{
@@ -1265,10 +1264,9 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	assert.Equal(suite.T(), accountingEntryErrorOrderNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.RefundId, "source.type": repository.CollectionRefund}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, req.RefundId, repository.CollectionRefund)
+	assert.NoError(suite.T(), err)
+	assert.Empty(suite.T(), aes)
 }
 
 func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry_EntryNotExist_Error() {
@@ -1276,8 +1274,12 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
+
+	aes, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), aes)
 
 	req := &billingpb.CreateAccountingEntryRequest{
 		Type:     "not_exist_accounting_entry_name",
@@ -1289,35 +1291,28 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 		Reason:   "unit test",
 	}
 	rsp := &billingpb.CreateAccountingEntryResponse{}
-	err := suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
+	err = suite.service.CreateAccountingEntry(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
 	assert.Equal(suite.T(), accountingEntryErrorUnknownEntry, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	var accountingEntry *billingpb.AccountingEntry
-	err = suite.service.db.Collection(collectionAccountingEntry).
-		FindOne(ctx, bson.M{"source.id": req.OrderId, "source.type": repository.CollectionOrder}).Decode(&accountingEntry)
-	assert.Error(suite.T(), mongo.ErrNoDocuments, err)
+	aes2, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), aes2)
+	assert.EqualValues(suite.T(), aes[0].Id, aes2[0].Id)
 }
 
 func (suite *AccountingEntryTestSuite) helperGetAccountingEntries(orderId, collection string) []*billingpb.AccountingEntry {
-	var accountingEntries []*billingpb.AccountingEntry
-	oid, err := primitive.ObjectIDFromHex(orderId)
-	assert.NoError(suite.T(), err)
-	cursor, err := suite.service.db.Collection(collectionAccountingEntry).
-		Find(ctx, bson.M{"source.id": oid, "source.type": collection})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(ctx, &accountingEntries)
+	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, orderId, collection)
 	assert.NoError(suite.T(), err)
 
 	return accountingEntries
 }
 
 func (suite *AccountingEntryTestSuite) helperCheckOrderView(orderId, orderCurrency, royaltyCurrency, vatCurrency string, orderControlResults map[string]float64) {
-	ow, err := suite.service.orderView.GetOrderBy(ctx, orderId, "", "", new(billingpb.OrderViewPrivate))
+	orderView, err := suite.service.orderViewRepository.GetPrivateOrderBy(ctx, orderId, "", "")
 
-	orderView := ow.(*billingpb.OrderViewPrivate)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), orderView)
 
@@ -1404,10 +1399,8 @@ func (suite *AccountingEntryTestSuite) helperCheckOrderView(orderId, orderCurren
 }
 
 func (suite *AccountingEntryTestSuite) helperCheckRefundView(orderId, orderCurrency, royaltyCurrency, vatCurrency string, refundControlResults map[string]float64) {
-	order, err := suite.service.orderView.GetOrderBy(context.TODO(), orderId, "", "", new(billingpb.OrderViewPrivate))
+	orderView, err := suite.service.orderViewRepository.GetPrivateOrderBy(context.TODO(), orderId, "", "")
 	assert.NoError(suite.T(), err)
-	orderView := order.(*billingpb.OrderViewPrivate)
-	assert.NotNil(suite.T(), orderView)
 
 	assert.Equal(suite.T(), orderView.PaymentRefundGrossRevenueOrigin.Currency, orderCurrency)
 	assert.Equal(suite.T(), orderView.PaymentRefundGrossRevenue.Currency, royaltyCurrency)
@@ -1458,8 +1451,8 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 	royaltyCurrency := "EUR"
 	merchantCountry := "DE"
 
-	merchant := helperCreateMerchant(suite.Suite, suite.service, royaltyCurrency, merchantCountry, suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
-	project := helperCreateProject(suite.Suite, suite.service, merchant.Id, billingpb.VatPayerBuyer)
+	merchant := HelperCreateMerchant(suite.Suite, suite.service, royaltyCurrency, merchantCountry, suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
+	project := HelperCreateProject(suite.Suite, suite.service, merchant.Id, billingpb.VatPayerBuyer)
 
 	country, err := suite.service.country.GetByIsoCodeA2(ctx, orderCountry)
 	assert.NoError(suite.T(), err)
@@ -1480,10 +1473,10 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 		MccCode:                 billingpb.MccCodeLowRisk,
 	}
 
-	err = suite.service.paymentChannelCostMerchant.Insert(ctx, paymentMerCost)
+	err = suite.service.paymentChannelCostMerchantRepository.Insert(ctx, paymentMerCost)
 	assert.NoError(suite.T(), err)
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
 	assert.NotNil(suite.T(), order)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)

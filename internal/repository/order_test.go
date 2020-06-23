@@ -2,22 +2,29 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"testing"
 )
 
 type OrderTestSuite struct {
 	suite.Suite
-	db         mongodb.SourceInterface
-	repository OrderRepositoryInterface
-	log        *zap.Logger
+	db          mongodb.SourceInterface
+	repository  OrderRepositoryInterface
+	logObserver *zap.Logger
+	zapRecorder *observer.ObservedLogs
 }
 
 func Test_Order(t *testing.T) {
@@ -28,8 +35,12 @@ func (suite *OrderTestSuite) SetupTest() {
 	_, err := config.NewConfig()
 	assert.NoError(suite.T(), err, "Config load failed")
 
-	suite.log, err = zap.NewProduction()
-	assert.NoError(suite.T(), err, "Logger initialization failed")
+	var core zapcore.Core
+
+	lvl := zap.NewAtomicLevel()
+	core, suite.zapRecorder = observer.New(lvl)
+	suite.logObserver = zap.New(core)
+	zap.ReplaceGlobals(suite.logObserver)
 
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
@@ -248,45 +259,6 @@ func (suite *OrderTestSuite) TestOrder_GetByRefundReceiptNumber_Error() {
 	assert.Nil(suite.T(), order2)
 }
 
-func (suite *OrderTestSuite) TestOrder_GetByProjectOrderId_Ok() {
-	order := suite.getOrderTemplate()
-	order.Refund = &billingpb.OrderNotificationRefund{ReceiptNumber: "number"}
-	err := suite.repository.Insert(context.TODO(), order)
-	assert.NoError(suite.T(), err)
-
-	order2, err := suite.repository.GetByProjectOrderId(context.TODO(), order.Project.Id, order.ProjectOrderId)
-	assert.NoError(suite.T(), err)
-
-	order.CreatedAt = order2.CreatedAt
-	order.UpdatedAt = order2.UpdatedAt
-	order.CanceledAt = order2.CanceledAt
-	order.RefundedAt = order2.RefundedAt
-	order.ProjectLastRequestedAt = order2.ProjectLastRequestedAt
-	order.PaymentMethodOrderClosedAt = order2.PaymentMethodOrderClosedAt
-	order.ExpireDateToFormInput = order2.ExpireDateToFormInput
-	assert.Equal(suite.T(), order, order2)
-}
-
-func (suite *OrderTestSuite) TestOrder_GetByProjectOrderId_ErrorNotFound_InvalidProjectId() {
-	order := suite.getOrderTemplate()
-	err := suite.repository.Insert(context.TODO(), order)
-	assert.NoError(suite.T(), err)
-
-	order2, err := suite.repository.GetByProjectOrderId(context.TODO(), order.Id, order.ProjectOrderId)
-	assert.Error(suite.T(), err)
-	assert.Nil(suite.T(), order2)
-}
-
-func (suite *OrderTestSuite) TestOrder_GetByProjectOrderId_ErrorNotFound_InvalidOrderId() {
-	order := suite.getOrderTemplate()
-	err := suite.repository.Insert(context.TODO(), order)
-	assert.NoError(suite.T(), err)
-
-	order2, err := suite.repository.GetByProjectOrderId(context.TODO(), order.Project.Id, order.Id)
-	assert.Error(suite.T(), err)
-	assert.Nil(suite.T(), order2)
-}
-
 func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
 	return &billingpb.Order{
 		Id: primitive.NewObjectID().Hex(),
@@ -350,8 +322,6 @@ func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
 		PrivateMetadata:             map[string]string{"string": "d"},
 		PrivateStatus:               4,
 		ProductType:                 "ProductType",
-		ProjectAccount:              "ProjectAccount",
-		ProjectOrderId:              primitive.NewObjectID().Hex(),
 		ProjectParams:               map[string]string{"string": "e"},
 		ReceiptEmail:                "",
 		ReceiptPhone:                "",
@@ -371,4 +341,65 @@ func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
 		ProjectLastRequestedAt:      &timestamp.Timestamp{Seconds: 100},
 		RefundedAt:                  &timestamp.Timestamp{Seconds: 100},
 	}
+}
+
+func (suite *OrderTestSuite) TestOrder_GetByUUidAndMerchant_Ok() {
+	order := suite.getOrderTemplate()
+	err := suite.repository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	order1, err := suite.repository.GetByUuidAndMerchantId(context.TODO(), order.Uuid, order.GetMerchantId())
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), order.Id, order1.Id)
+	assert.Equal(suite.T(), order.Uuid, order1.Uuid)
+	assert.Equal(suite.T(), order.Project, order1.Project)
+}
+
+func (suite *OrderTestSuite) TestOrder_GetByUUidAndMerchant_ErrorNotFound() {
+	order := suite.getOrderTemplate()
+	err := suite.repository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	order1, err := suite.repository.GetByUuidAndMerchantId(context.TODO(), "ace2fc5c-b8c2-4424-96e8-5b631a73b88a", order.GetMerchantId())
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), order1)
+
+	messages := suite.zapRecorder.All()
+	assert.Len(suite.T(), messages, 1)
+	assert.Equal(suite.T(), zap.ErrorLevel, messages[0].Level)
+	assert.Equal(suite.T(), pkg.ErrorDatabaseQueryFailed, messages[0].Message)
+}
+
+func (suite *OrderTestSuite) TestOrder_GetByUUidAndMerchant_IncorrectMerchantId_Error() {
+	order := suite.getOrderTemplate()
+	err := suite.repository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	order1, err := suite.repository.GetByUuidAndMerchantId(context.TODO(), order.Uuid, "ace2fc5c-b8c2-4424-96e8-5b631a73b88a")
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), order1)
+
+	messages := suite.zapRecorder.All()
+	assert.Len(suite.T(), messages, 1)
+	assert.Equal(suite.T(), zap.ErrorLevel, messages[0].Level)
+	assert.Equal(suite.T(), pkg.ErrorDatabaseInvalidObjectId, messages[0].Message)
+}
+
+func (suite *OrderTestSuite) TestOrder_GetByUUidAndMerchant_Mapper_Error() {
+	order := suite.getOrderTemplate()
+	err := suite.repository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	mapperMock := &mocks.Mapper{}
+	mapperMock.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("some error"))
+	suite.repository.(*orderRepository).mapper = mapperMock
+
+	order1, err := suite.repository.GetByUuidAndMerchantId(context.TODO(), order.Uuid, order.GetMerchantId())
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), order1)
+
+	messages := suite.zapRecorder.All()
+	assert.Len(suite.T(), messages, 1)
+	assert.Equal(suite.T(), zap.ErrorLevel, messages[0].Level)
+	assert.Equal(suite.T(), pkg.ErrorMapModelFailed, messages[0].Message)
 }

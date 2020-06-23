@@ -44,7 +44,7 @@ func (suite *KeyProductTestSuite) SetupTest() {
 	}
 
 	m, err := migrate.New(
-		"file://../../migrations/tests/keys",
+		"file://../../migrations/tests",
 		cfg.MongoDsn)
 	assert.NoError(suite.T(), err, "Migrate init failed")
 	if err != nil {
@@ -101,13 +101,24 @@ func (suite *KeyProductTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.NoError(suite.service.merchantRepository.Insert(ctx, &billingpb.Merchant{Id: merchantId, Banking: &billingpb.MerchantBanking{Currency: "USD"}}))
+	suite.NoError(suite.service.merchantRepository.Insert(
+		ctx,
+		&billingpb.Merchant{
+			Id: merchantId,
+			Banking: &billingpb.MerchantBanking{
+				Currency:                  "USD",
+				ProcessingDefaultCurrency: "USD",
+			},
+		},
+	))
 
 	pgs := []*billingpb.PriceGroup{pgRub, pgUsd, pgEur}
 	if err := suite.service.priceGroupRepository.MultipleInsert(ctx, pgs); err != nil {

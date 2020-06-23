@@ -61,6 +61,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -147,15 +148,17 @@ func (suite *DashboardRepositoryTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, suite.paymentMethod, _ = helperCreateEntitiesForTests(suite.Suite, suite.service)
-	suite.products = createProductsForProject(suite.Suite, suite.service, suite.project, 3)
-	suite.keyProducts = createKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
+	suite.merchant, suite.project, suite.paymentMethod, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.products = CreateProductsForProject(suite.Suite, suite.service, suite.project, 3)
+	suite.keyProducts = CreateKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
 }
 
 func (suite *DashboardRepositoryTestSuite) TearDownTest() {
@@ -520,7 +523,7 @@ func (suite *DashboardRepositoryTestSuite) Test_GetDashboardBaseReport_CurrentMo
 	assert.Zero(suite.T(), report.RevenueByCountry.TotalPrevious)
 	assert.NotEmpty(suite.T(), report.RevenueByCountry.Chart)
 	assert.Len(suite.T(), report.RevenueByCountry.Chart, iterations)
-
+	fmt.Println(report.RevenueByCountry.Top)
 	for _, v := range report.RevenueByCountry.Top {
 		assert.NotZero(suite.T(), v.Amount)
 		assert.NotZero(suite.T(), v.Country)
@@ -616,7 +619,7 @@ func (suite *DashboardRepositoryTestSuite) createOrdersForPeriod(
 		}
 
 		for j := 0; j < rnd; j++ {
-			helperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1")
+			HelperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1")
 		}
 	}
 }

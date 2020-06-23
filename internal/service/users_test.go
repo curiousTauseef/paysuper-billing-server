@@ -10,6 +10,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinProto "github.com/paysuper/paysuper-proto/go/casbinpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -43,6 +44,11 @@ func (suite *UsersTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -58,6 +64,8 @@ func (suite *UsersTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	err = suite.service.Init()
@@ -1003,6 +1011,8 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_InvalidEmail() {
 	shouldBe := require.New(suite.T())
 
 	token, err := suite.service.createInviteToken(&billingpb.UserRole{Email: "aaa@aaa.aaa"})
+	shouldBe.NoError(err)
+
 	res := &billingpb.AcceptInviteResponse{}
 	err = suite.service.AcceptInvite(context.TODO(), &billingpb.AcceptInviteRequest{Email: "bbb@bbb.bbb", Token: token}, res)
 	shouldBe.NoError(err)
@@ -1015,6 +1025,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_GetByUserId() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1034,6 +1045,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_NoPersonalData() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1053,6 +1065,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_GetAdminUserById() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1078,6 +1091,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_AlreadyAccept() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1103,6 +1117,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_UpdateAdminUser() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1131,6 +1146,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_AddToCasbin() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	userProfileRep.
@@ -1163,6 +1179,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_ConfirmEmail() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	profile := &billingpb.UserProfile{
@@ -1202,6 +1219,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Error_CentrifugoPublish() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	profile := &billingpb.UserProfile{
@@ -1245,6 +1263,7 @@ func (suite *UsersTestSuite) Test_AcceptInvite_Ok() {
 
 	role := &billingpb.UserRole{Email: "aaa@aaa.aaa"}
 	token, err := suite.service.createInviteToken(role)
+	shouldBe.NoError(err)
 
 	userProfileRep := &mocks.UserProfileRepositoryInterface{}
 	profile := &billingpb.UserProfile{
@@ -1296,6 +1315,8 @@ func (suite *UsersTestSuite) Test_CheckInviteToken_Error_InvalidEmail() {
 	shouldBe := require.New(suite.T())
 
 	token, err := suite.service.createInviteToken(&billingpb.UserRole{Email: "aaa@aaa.aaa"})
+	shouldBe.NoError(err)
+
 	res := &billingpb.CheckInviteTokenResponse{}
 	err = suite.service.CheckInviteToken(context.TODO(), &billingpb.CheckInviteTokenRequest{Email: "bbb@bbb.bbb", Token: token}, res)
 	shouldBe.NoError(err)
@@ -1307,6 +1328,8 @@ func (suite *UsersTestSuite) Test_CheckInviteToken_Ok() {
 	shouldBe := require.New(suite.T())
 
 	token, err := suite.service.createInviteToken(&billingpb.UserRole{Email: "aaa@aaa.aaa"})
+	shouldBe.NoError(err)
+
 	res := &billingpb.CheckInviteTokenResponse{}
 	err = suite.service.CheckInviteToken(context.TODO(), &billingpb.CheckInviteTokenRequest{Email: "aaa@aaa.aaa", Token: token}, res)
 	shouldBe.NoError(err)
@@ -1705,4 +1728,36 @@ func (suite *UsersTestSuite) Test_getUserPermissions_Ok() {
 	perm, err := suite.service.getUserPermissions(context.TODO(), "1", "2")
 	shouldBe.NoError(err)
 	shouldBe.Len(perm, 1)
+}
+
+func (suite *UsersTestSuite) TestUsers_GetAdminByUserId_Ok() {
+	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
+	userRoleRepositoryMock.On("GetAdminUserByUserId", mock.Anything, mock.Anything).Return(&billingpb.UserRole{}, nil)
+	suite.service.userRoleRepository = userRoleRepositoryMock
+
+	req := &billingpb.CommonUserProfileRequest{
+		UserId: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+	}
+	rsp := &billingpb.UserRoleResponse{}
+	err := suite.service.GetAdminByUserId(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.UserRole)
+}
+
+func (suite *UsersTestSuite) TestUsers_GetAdminByUserId_AdminUserNotFound_Error() {
+	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
+	userRoleRepositoryMock.On("GetAdminUserByUserId", mock.Anything, mock.Anything).
+		Return(nil, errors.New("some error"))
+	suite.service.userRoleRepository = userRoleRepositoryMock
+
+	req := &billingpb.CommonUserProfileRequest{
+		UserId: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+	}
+	rsp := &billingpb.UserRoleResponse{}
+	err := suite.service.GetAdminByUserId(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), errorUserNotFound, rsp.Message)
+	assert.Nil(suite.T(), rsp.UserRole)
 }

@@ -5,10 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionPriceTable = "price_table"
-)
-
 // PriceTableRepositoryInterface is abstraction layer for working with price table and representation in database.
 type PriceTableRepositoryInterface interface {
 	// Insert adds the price table to the collection.

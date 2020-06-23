@@ -25,6 +25,10 @@ backend:
     port: 8080
     protocol: TCP
   env:
+    - MICRO_REGISTRY
+    - MICRO_REGISTRY_ADDRESS
+    - MICRO_TRANSPORT
+    - MICRO_SERVER_VERSION
     - MONGO_DSN
     - MONGO_DIAL_TIMEOUT
     - CARD_PAY_API_URL

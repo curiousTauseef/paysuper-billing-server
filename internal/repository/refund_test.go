@@ -2,11 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
+	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
@@ -17,7 +20,7 @@ import (
 type RefundTestSuite struct {
 	suite.Suite
 	db         mongodb.SourceInterface
-	repository RefundRepositoryInterface
+	repository *refundRepository
 	log        *zap.Logger
 }
 
@@ -35,7 +38,7 @@ func (suite *RefundTestSuite) SetupTest() {
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
 
-	suite.repository = NewRefundRepository(suite.db)
+	suite.repository = NewRefundRepository(suite.db).(*refundRepository)
 }
 
 func (suite *RefundTestSuite) TearDownTest() {
@@ -67,6 +70,25 @@ func (suite *RefundTestSuite) TestRefund_Insert_Ok() {
 	refund2, err := suite.repository.GetById(context.TODO(), refund.Id)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), refund.Id, refund2.Id)
+}
+
+func (suite *RefundTestSuite) TestRefund_Insert_MapperError() {
+	refund := &billingpb.Refund{
+		Id:        primitive.NewObjectID().Hex(),
+		CreatorId: primitive.NewObjectID().Hex(),
+		OriginalOrder: &billingpb.RefundOrder{
+			Id: primitive.NewObjectID().Hex(),
+		},
+	}
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+
+	suite.repository.mapper = mapper
+
+	err := suite.repository.Insert(context.TODO(), refund)
+	assert.Error(suite.T(), err)
 }
 
 // TODO: Use the DB mock for return error on insert entry
@@ -195,6 +217,43 @@ func (suite *RefundTestSuite) TestRefund_GetById_Ok() {
 	assert.Equal(suite.T(), refund, refund2)
 }
 
+func (suite *RefundTestSuite) TestRefund_GetById_MapperError() {
+	refund := &billingpb.Refund{
+		Id:        primitive.NewObjectID().Hex(),
+		CreatorId: primitive.NewObjectID().Hex(),
+		OriginalOrder: &billingpb.RefundOrder{
+			Id:   primitive.NewObjectID().Hex(),
+			Uuid: "uuid",
+		},
+		Status:         1,
+		Currency:       "CUR",
+		Amount:         2,
+		Reason:         "reason",
+		CreatedOrderId: primitive.NewObjectID().Hex(),
+		ExternalId:     primitive.NewObjectID().Hex(),
+		IsChargeback:   true,
+		SalesTax:       3,
+		PayerData: &billingpb.RefundPayerData{
+			Country: "CTR",
+			State:   "state",
+		},
+		CreatedAt: &timestamp.Timestamp{Seconds: 100},
+		UpdatedAt: &timestamp.Timestamp{Seconds: 100},
+	}
+	err := suite.repository.Insert(context.TODO(), refund)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+
+	suite.repository.mapper = mapper
+
+	refund2, err := suite.repository.GetById(context.TODO(), refund.Id)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), refund2)
+}
+
 func (suite *RefundTestSuite) TestRefund_GetById_ErrorNotFound() {
 	refund := &billingpb.Refund{
 		Id:        primitive.NewObjectID().Hex(),
@@ -256,6 +315,43 @@ func (suite *RefundTestSuite) TestRefund_FindByOrderId_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), refunds, 1)
 	assert.Equal(suite.T(), refund, refunds[0])
+}
+
+func (suite *RefundTestSuite) TestRefund_FindByOrderId_MapperError() {
+	refund := &billingpb.Refund{
+		Id:        primitive.NewObjectID().Hex(),
+		CreatorId: primitive.NewObjectID().Hex(),
+		OriginalOrder: &billingpb.RefundOrder{
+			Id:   primitive.NewObjectID().Hex(),
+			Uuid: "uuid",
+		},
+		Status:         1,
+		Currency:       "CUR",
+		Amount:         2,
+		Reason:         "reason",
+		CreatedOrderId: primitive.NewObjectID().Hex(),
+		ExternalId:     primitive.NewObjectID().Hex(),
+		IsChargeback:   true,
+		SalesTax:       3,
+		PayerData: &billingpb.RefundPayerData{
+			Country: "CTR",
+			State:   "state",
+		},
+		CreatedAt: &timestamp.Timestamp{Seconds: 100},
+		UpdatedAt: &timestamp.Timestamp{Seconds: 100},
+	}
+	err := suite.repository.Insert(context.TODO(), refund)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+
+	suite.repository.mapper = mapper
+
+	refunds, err := suite.repository.FindByOrderUuid(context.TODO(), refund.OriginalOrder.Uuid, 1, 0)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), refunds)
 }
 
 func (suite *RefundTestSuite) TestRefund_FindByOrderId_Empty() {

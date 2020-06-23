@@ -13,8 +13,10 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
+	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -105,6 +107,8 @@ func (suite *MerchantBalanceTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -117,10 +121,10 @@ func (suite *MerchantBalanceTestSuite) SetupTest() {
 	core, suite.zapRecorder = observer.New(lvl)
 	suite.logObserver = zap.New(core)
 
-	operatingCompany := helperOperatingCompany(suite.Suite, suite.service)
+	operatingCompany := HelperOperatingCompany(suite.Suite, suite.service)
 
-	suite.merchant = helperCreateMerchant(suite.Suite, suite.service, "RUB", "RU", nil, 13000, operatingCompany.Id)
-	suite.merchant2 = helperCreateMerchant(suite.Suite, suite.service, "", "RU", nil, 0, operatingCompany.Id)
+	suite.merchant = HelperCreateMerchant(suite.Suite, suite.service, "RUB", "RU", nil, 13000, operatingCompany.Id)
+	suite.merchant2 = HelperCreateMerchant(suite.Suite, suite.service, "", "RU", nil, 0, operatingCompany.Id)
 }
 
 func (suite *MerchantBalanceTestSuite) TearDownTest() {
@@ -276,6 +280,16 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 			VatAmount:         10,
 			FeeAmount:         5,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        10,
+				TotalTransactions: 10,
+				GrossTotalAmount:  1234.5 + 10 + 5,
+				PayoutAmount:      1234.5,
+				TotalVat:          10,
+				TotalFees:         5,
+			},
+		},
 		Status:         billingpb.RoyaltyReportStatusAccepted,
 		CreatedAt:      ptypes.TimestampNow(),
 		PeriodFrom:     ptypes.TimestampNow(),
@@ -283,7 +297,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 		AcceptExpireAt: ptypes.TimestampNow(),
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err := suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	date, err := ptypes.TimestampProto(time.Now().Add(time.Hour * -480))
@@ -307,7 +321,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 		FailureMessage:     "",
 		FailureCode:        "",
 	}
-	err = suite.service.payoutDocument.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
+	err = suite.service.payoutRepository.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
 	assert.NoError(suite.T(), err)
 
 	ae1 := &billingpb.AccountingEntry{
@@ -338,8 +352,8 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_updateMerchantBalance
 		CreatedAt:  ptypes.TimestampNow(),
 	}
 
-	accountingEntries := []interface{}{ae1, ae2}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).InsertMany(ctx, accountingEntries)
+	accountingEntries := []*billingpb.AccountingEntry{ae1, ae2}
+	err = suite.service.accountingRepository.MultipleInsert(ctx, accountingEntries)
 	assert.NoError(suite.T(), err)
 
 	count := suite.mbRecordsCount(suite.merchant.Id, suite.merchant.GetPayoutCurrency())
@@ -381,7 +395,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_getRollingReserveForB
 		FailureMessage:     "",
 		FailureCode:        "",
 	}
-	err = suite.service.payoutDocument.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
+	err = suite.service.payoutRepository.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
 	assert.NoError(suite.T(), err)
 
 	rr, err := suite.service.getRollingReserveForBalance(ctx, suite.merchant.Id, suite.merchant.GetPayoutCurrency())
@@ -403,6 +417,16 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 			VatAmount:         10,
 			FeeAmount:         5,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        10,
+				TotalTransactions: 10,
+				GrossTotalAmount:  1234.5 + 10 + 5,
+				PayoutAmount:      1234.5,
+				TotalVat:          10,
+				TotalFees:         5,
+			},
+		},
 		Status:         billingpb.RoyaltyReportStatusPending,
 		CreatedAt:      ptypes.TimestampNow(),
 		PeriodFrom:     ptypes.TimestampNow(),
@@ -410,8 +434,18 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		AcceptExpireAt: ptypes.TimestampNow(),
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err := suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
+
+	reportingServiceMock := &reportingMocks.ReporterService{}
+	reportingServiceMock.On("CreateFile", mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(
+			&reporterpb.CreateFileResponse{
+				Status: billingpb.ResponseStatusOk,
+			},
+			nil,
+		)
+	suite.service.reporterService = reportingServiceMock
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
 		ReportId:   report.Id,
@@ -458,6 +492,16 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 			VatAmount:         100,
 			FeeAmount:         50,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        100,
+				TotalTransactions: 100,
+				GrossTotalAmount:  alreadyPaidRoyalty + 100 + 50,
+				PayoutAmount:      alreadyPaidRoyalty,
+				TotalVat:          100,
+				TotalFees:         50,
+			},
+		},
 		Status:         billingpb.RoyaltyReportStatusAccepted,
 		CreatedAt:      ptypes.TimestampNow(),
 		PeriodFrom:     ptypes.TimestampNow(),
@@ -466,7 +510,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
 
-	_, err := suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err := suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	date, err := ptypes.TimestampProto(time.Now().Add(time.Hour * -480))
@@ -490,7 +534,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		FailureMessage:     "",
 		FailureCode:        "",
 	}
-	err = suite.service.payoutDocument.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
+	err = suite.service.payoutRepository.Insert(ctx, payout, "127.0.0.1", payoutChangeSourceAdmin)
 	assert.NoError(suite.T(), err)
 
 	req3 := &billingpb.UpdatePayoutDocumentRequest{
@@ -606,6 +650,15 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 
 // 5. trigger on auto-accepting royalty report
 func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeringOk_6() {
+	reportingServiceMock := &reportingMocks.ReporterService{}
+	reportingServiceMock.On("CreateFile", mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(
+			&reporterpb.CreateFileResponse{
+				Status: billingpb.ResponseStatusOk,
+			},
+			nil,
+		)
+	suite.service.reporterService = reportingServiceMock
 
 	count := suite.mbRecordsCount(suite.merchant.Id, suite.merchant.GetPayoutCurrency())
 	assert.EqualValues(suite.T(), count, 0)
@@ -622,6 +675,16 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 			VatAmount:         10,
 			FeeAmount:         5,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        10,
+				TotalTransactions: 10,
+				GrossTotalAmount:  1000 + 10 + 5,
+				PayoutAmount:      1000,
+				TotalVat:          10,
+				TotalFees:         5,
+			},
+		},
 		Status:         billingpb.RoyaltyReportStatusPending,
 		CreatedAt:      ptypes.TimestampNow(),
 		PeriodFrom:     ptypes.TimestampNow(),
@@ -629,7 +692,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		AcceptExpireAt: date,
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err = suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	req6 := &billingpb.EmptyRequest{}
@@ -673,6 +736,16 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 			VatAmount:         10,
 			FeeAmount:         5,
 		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsTotal: &billingpb.RoyaltyReportProductSummaryItem{
+				SalesCount:        10,
+				TotalTransactions: 10,
+				GrossTotalAmount:  500 + 10 + 5,
+				PayoutAmount:      500,
+				TotalVat:          10,
+				TotalFees:         5,
+			},
+		},
 		Status:         billingpb.RoyaltyReportStatusPending,
 		CreatedAt:      ptypes.TimestampNow(),
 		PeriodFrom:     ptypes.TimestampNow(),
@@ -680,7 +753,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_UpdateBalanceTriggeri
 		AcceptExpireAt: date,
 		Currency:       suite.merchant.GetPayoutCurrency(),
 	}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).InsertOne(ctx, report)
+	err = suite.service.royaltyReportRepository.Insert(ctx, report, "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	req7 := &billingpb.ChangeRoyaltyReportRequest{

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,7 +40,7 @@ func (suite *PriceGroupTestSuite) SetupTest() {
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
 
-	suite.repository = &priceGroupRepository{db: suite.db, cache: &mocks.CacheInterface{}}
+	suite.repository = &priceGroupRepository{db: suite.db, cache: &mocks.CacheInterface{}, mapper: models.NewPriceGroupMapper()}
 }
 
 func (suite *PriceGroupTestSuite) TearDownTest() {
@@ -95,7 +95,25 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_Insert_ErrorCacheUpdate() {
 
 func (suite *PriceGroupTestSuite) TestPriceGroup_Insert_ErrorDb() {
 	group := suite.getPriceGroupTemplate()
-	group.CreatedAt = &timestamp.Timestamp{Seconds: -100000000000000}
+
+	collectionMock := &mongodbMocks.CollectionInterface{}
+	collectionMock.On("InsertOne", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	dbMock := &mongodbMocks.SourceInterface{}
+	dbMock.On("Collection", mock.Anything).Return(collectionMock, nil)
+	suite.repository.db = dbMock
+
+	err := suite.repository.Insert(context.TODO(), group)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *PriceGroupTestSuite) TestPriceGroup_Insert_MapError() {
+	group := suite.getPriceGroupTemplate()
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
 	err := suite.repository.Insert(context.TODO(), group)
 	assert.Error(suite.T(), err)
 }
@@ -123,7 +141,25 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_MultipleInsert_Ok() {
 
 func (suite *PriceGroupTestSuite) TestPriceGroup_MultipleInsert_ErrorDb() {
 	groups := []*billingpb.PriceGroup{suite.getPriceGroupTemplate()}
-	groups[0].CreatedAt = &timestamp.Timestamp{Seconds: -100000000000000}
+
+	collectionMock := &mongodbMocks.CollectionInterface{}
+	collectionMock.On("InsertMany", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	dbMock := &mongodbMocks.SourceInterface{}
+	dbMock.On("Collection", mock.Anything).Return(collectionMock, nil)
+	suite.repository.db = dbMock
+
+	err := suite.repository.MultipleInsert(context.TODO(), groups)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *PriceGroupTestSuite) TestPriceGroup_MultipleInsert_MapError() {
+	groups := []*billingpb.PriceGroup{suite.getPriceGroupTemplate()}
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
 	err := suite.repository.MultipleInsert(context.TODO(), groups)
 	assert.Error(suite.T(), err)
 }
@@ -169,7 +205,25 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_Update_ErrorCacheUpdate() {
 
 func (suite *PriceGroupTestSuite) TestPriceGroup_Update_ErrorDb() {
 	group := suite.getPriceGroupTemplate()
-	group.CreatedAt = &timestamp.Timestamp{Seconds: -100000000000000}
+
+	collectionMock := &mongodbMocks.CollectionInterface{}
+	collectionMock.On("ReplaceOne", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("error"))
+	dbMock := &mongodbMocks.SourceInterface{}
+	dbMock.On("Collection", mock.Anything).Return(collectionMock, nil)
+	suite.repository.db = dbMock
+
+	err := suite.repository.Update(context.TODO(), group)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *PriceGroupTestSuite) TestPriceGroup_Update_MapError() {
+	group := suite.getPriceGroupTemplate()
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+	suite.repository.mapper = mapper
+
 	err := suite.repository.Update(context.TODO(), group)
 	assert.Error(suite.T(), err)
 }
@@ -280,7 +334,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetById_OkByCache() {
 	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Set", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Delete", cachePriceGroupAll).Return(nil)
-	cache.On("Get", key, billingpb.PriceGroup{}).Return(nil)
+	cache.On("Get", key, &billingpb.PriceGroup{}).Return(nil)
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), group)
@@ -304,6 +358,30 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetById_SkipInactive() {
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), group)
+	assert.NoError(suite.T(), err)
+
+	_, err = suite.repository.GetById(context.TODO(), group.Id)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *PriceGroupTestSuite) TestPriceGroup_GetById_MapError() {
+	group := suite.getPriceGroupTemplate()
+	mgo, err := suite.repository.mapper.MapObjectToMgo(group)
+
+	cache := &mocks.CacheInterface{}
+	key := fmt.Sprintf(cachePriceGroupId, group.Id)
+	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Set", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Delete", cachePriceGroupAll).Return(nil)
+	cache.On("Get", key, mock.Anything).Return(errors.New("error"))
+	suite.repository.cache = cache
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(mgo, nil)
+	suite.repository.mapper = mapper
+
+	err = suite.repository.Insert(context.TODO(), group)
 	assert.NoError(suite.T(), err)
 
 	_, err = suite.repository.GetById(context.TODO(), group.Id)
@@ -395,7 +473,7 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetByRegion_OkByCache() {
 	cache.On("Set", fmt.Sprintf(cachePriceGroupId, group.Id), mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Set", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything, time.Duration(0)).Return(nil)
 	cache.On("Delete", cachePriceGroupAll).Return(nil)
-	cache.On("Get", fmt.Sprintf(cachePriceGroupRegion, group.Region), billingpb.PriceGroup{}).Return(nil)
+	cache.On("Get", fmt.Sprintf(cachePriceGroupRegion, group.Region), &billingpb.PriceGroup{}).Return(nil)
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), group)
@@ -424,9 +502,32 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetByRegion_SkipInactive() {
 	assert.Error(suite.T(), err)
 }
 
+func (suite *PriceGroupTestSuite) TestPriceGroup_GetByRegion_MapError() {
+	group := suite.getPriceGroupTemplate()
+	mgo, err := suite.repository.mapper.MapObjectToMgo(group)
+
+	cache := &mocks.CacheInterface{}
+	cache.On("Set", fmt.Sprintf(cachePriceGroupId, group.Id), mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Set", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Delete", cachePriceGroupAll).Return(nil)
+	cache.On("Get", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything).Return(errors.New("error"))
+	suite.repository.cache = cache
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(mgo, nil)
+	suite.repository.mapper = mapper
+
+	err = suite.repository.Insert(context.TODO(), group)
+	assert.NoError(suite.T(), err)
+
+	_, err = suite.repository.GetByRegion(context.TODO(), group.Region)
+	assert.Error(suite.T(), err)
+}
+
 func (suite *PriceGroupTestSuite) TestPriceGroup_GetAll_OkByCache() {
 	cache := &mocks.CacheInterface{}
-	cache.On("Get", cachePriceGroupAll, []*billingpb.PriceGroup{}).Return(nil)
+	cache.On("Get", cachePriceGroupAll, &[]*billingpb.PriceGroup{}).Return(nil)
 	suite.repository.cache = cache
 
 	_, err := suite.repository.GetAll(context.TODO())
@@ -545,6 +646,30 @@ func (suite *PriceGroupTestSuite) TestPriceGroup_GetAll_DbCursorError() {
 
 	err := suite.repository.Insert(context.TODO(), group)
 	assert.NoError(suite.T(), err)
+
+	_, err = suite.repository.GetAll(context.TODO())
+	assert.Error(suite.T(), err)
+}
+
+func (suite *PriceGroupTestSuite) TestPriceGroup_GetAll_MapError() {
+	group := suite.getPriceGroupTemplate()
+	mgo, err := suite.repository.mapper.MapObjectToMgo(group)
+
+	cache := &mocks.CacheInterface{}
+	cache.On("Set", fmt.Sprintf(cachePriceGroupId, group.Id), mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Set", fmt.Sprintf(cachePriceGroupRegion, group.Region), mock.Anything, time.Duration(0)).Return(nil)
+	cache.On("Delete", cachePriceGroupAll).Return(nil)
+	cache.On("Get", cachePriceGroupAll, mock.Anything).Return(errors.New("error"))
+	cache.On("Set", cachePriceGroupAll, mock.Anything, time.Duration(0)).Return(nil)
+	suite.repository.cache = cache
+
+	err = suite.repository.Insert(context.TODO(), group)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(mgo, nil)
+	suite.repository.mapper = mapper
 
 	_, err = suite.repository.GetAll(context.TODO())
 	assert.Error(suite.T(), err)

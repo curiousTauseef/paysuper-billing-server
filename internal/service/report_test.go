@@ -6,11 +6,13 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -39,6 +41,8 @@ type ReportTestSuite struct {
 	pmBitcoin1              *billingpb.PaymentMethod
 	productIds              []string
 	merchantDefaultCurrency string
+
+	merchant *billingpb.Merchant
 }
 
 func Test_Report(t *testing.T) {
@@ -92,13 +96,15 @@ func (suite *ReportTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	_, suite.project, suite.pmBankCard, _ = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, suite.pmBankCard, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 }
 
 func (suite *ReportTestSuite) TearDownTest() {
@@ -152,7 +158,7 @@ func (suite *ReportTestSuite) TestReport_FindById() {
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	req = &billingpb.ListOrdersRequest{Id: order.Uuid}
 	req.Merchant = append(req.Merchant, suite.project.MerchantId)
@@ -188,9 +194,9 @@ func (suite *ReportTestSuite) TestReport_FindByMerchantId() {
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
 
-	order1 := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
-	order2 := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
-	order3 := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order1 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order2 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order3 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -221,7 +227,7 @@ func (suite *ReportTestSuite) TestReport_FindByProject() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -249,7 +255,7 @@ func (suite *ReportTestSuite) TestReport_FindByCountry() {
 	var orderIds []string
 
 	for i := 0; i < 4; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -277,7 +283,7 @@ func (suite *ReportTestSuite) TestReport_FindByPaymentMethod() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -305,7 +311,7 @@ func (suite *ReportTestSuite) TestReport_FindByStatus() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -333,7 +339,7 @@ func (suite *ReportTestSuite) TestReport_FindByAccount() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -374,7 +380,7 @@ func (suite *ReportTestSuite) TestReport_FindByAccount() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByPmDateFrom() {
-	req := &billingpb.ListOrdersRequest{PmDateFrom: time.Now().Unix() - 10}
+	req := &billingpb.ListOrdersRequest{PmDateFrom: time.Now().Add(-10 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -385,7 +391,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateFrom() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -402,7 +408,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateFrom() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
-	req := &billingpb.ListOrdersRequest{PmDateTo: time.Now().Unix() + 1000}
+	req := &billingpb.ListOrdersRequest{PmDateTo: time.Now().Add(1000 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -414,13 +420,17 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
 	date := &timestamp.Timestamp{}
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 		date = order.PaymentMethodOrderClosedAt
 	}
 
 	req.Merchant = append(req.Merchant, suite.project.MerchantId)
-	req.PmDateTo = date.Seconds + 100
+
+	t, err := ptypes.Timestamp(date)
+	assert.NoError(suite.T(), err)
+	req.PmDateTo = t.Add(100 * time.Second).Format(billingpb.FilterDatetimeFormat)
+
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
@@ -433,7 +443,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByProjectDateFrom() {
-	req := &billingpb.ListOrdersRequest{ProjectDateFrom: time.Now().Unix() - 10}
+	req := &billingpb.ListOrdersRequest{ProjectDateFrom: time.Now().UTC().Add(-10 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -444,7 +454,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateFrom() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -461,7 +471,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateFrom() {
 }
 
 func (suite *ReportTestSuite) TestReport_FindByProjectDateTo() {
-	req := &billingpb.ListOrdersRequest{ProjectDateTo: time.Now().Unix() + 100}
+	req := &billingpb.ListOrdersRequest{ProjectDateTo: time.Now().Add(100 * time.Second).Format(billingpb.FilterDatetimeFormat)}
 	rsp := &billingpb.ListOrdersPublicResponse{}
 	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -472,7 +482,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateTo() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -507,7 +517,7 @@ func (suite *ReportTestSuite) TestReport_GetOrder() {
 	assert.Equal(suite.T(), orderErrorNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	order := helperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
 
 	req.OrderId = order.Uuid
 	err = suite.service.GetOrderPublic(context.TODO(), req, rsp)
@@ -519,4 +529,129 @@ func (suite *ReportTestSuite) TestReport_GetOrder() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.NotNil(suite.T(), rsp.Item)
+}
+
+func (suite *ReportTestSuite) TestReport_FindByProjectOrderId_QuickSearch_Ok() {
+	req := &billingpb.ListOrdersRequest{
+		Merchant:    []string{suite.project.MerchantId},
+		QuickSearch: "254e3736-000f-5000-8000-178d1d80bf70",
+	}
+	rsp := &billingpb.ListOrdersPublicResponse{}
+	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
+
+	req1 := &billingpb.OrderCreateRequest{
+		Type:        pkg.OrderType_simple,
+		ProjectId:   suite.project.Id,
+		Amount:      100,
+		Currency:    "RUB",
+		Account:     "unit test",
+		Description: "unit test",
+		User: &billingpb.OrderUser{
+			Id:    primitive.NewObjectID().Hex(),
+			Email: "test@unit.unit",
+			Ip:    "127.0.0.1",
+			Address: &billingpb.OrderBillingAddress{
+				Country:    "RU",
+				PostalCode: "19000",
+			},
+		},
+		Metadata: map[string]string{
+			"invoiceId": "254e3736-000f-5000-8000-178d1d80bf70",
+			"status":    "VIP 8",
+			"server":    "3",
+		},
+	}
+
+	rsp1 := &billingpb.OrderCreateProcessResponse{}
+	err = suite.service.OrderCreateProcess(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
+
+	_ = HelperPayOrder(suite.Suite, suite.service, rsp1.Item, suite.pmBankCard, "RU")
+
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), 1, rsp.Item.Count)
+
+	// search by quick filter by partial match
+	req.QuickSearch = "254e3736-000f"
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), 1, rsp.Item.Count)
+}
+
+func (suite *ReportTestSuite) TestReport_FindByMerchantId_QuickSearch_Ok() {
+	req := &billingpb.ListOrdersRequest{
+		Merchant:    []string{suite.project.MerchantId},
+		QuickSearch: suite.merchant.GetCompanyName(),
+	}
+	rsp := &billingpb.ListOrdersPublicResponse{}
+	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
+
+	expectedCount := 5
+
+	for i := 0; i < expectedCount; i++ {
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	}
+
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+
+	// search by quick filter by partial match
+	merchantName := suite.merchant.GetCompanyName()
+	req.QuickSearch = merchantName[0:4]
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+}
+
+func (suite *ReportTestSuite) TestReport_FindByMerchantId_Ok() {
+	req := &billingpb.ListOrdersRequest{
+		Merchant:     []string{suite.project.MerchantId},
+		MerchantName: suite.merchant.GetCompanyName(),
+	}
+	rsp := &billingpb.ListOrdersPublicResponse{}
+	err := suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
+
+	expectedCount := 3
+
+	for i := 0; i < expectedCount; i++ {
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	}
+
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+
+	// search by quick filter by partial match
+	merchantName := suite.merchant.GetCompanyName()
+	req.MerchantName = merchantName[0:4]
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.NotNil(suite.T(), rsp.Item)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
 }

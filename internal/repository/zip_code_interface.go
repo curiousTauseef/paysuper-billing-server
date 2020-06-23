@@ -5,12 +5,6 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 )
 
-const (
-	collectionZipCode = "zip_code"
-
-	cacheZipCodeByZipAndCountry = "zip_code:zip_country:%s_%s"
-)
-
 // ZipCodeRepositoryInterface is abstraction layer for working with zip code and representation in database.
 type ZipCodeRepositoryInterface interface {
 	// Insert adds zip code to the collection.

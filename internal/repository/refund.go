@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -11,17 +12,33 @@ import (
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
 
+const (
+	// CollectionRefund is name of table for collection the refund.
+	CollectionRefund = "refund"
+)
+
 type refundRepository repository
 
 // NewRefundRepository create and return an object for working with the refund repository.
 // The returned object implements the RefundRepositoryInterface interface.
 func NewRefundRepository(db mongodb.SourceInterface) RefundRepositoryInterface {
-	s := &refundRepository{db: db}
+	s := &refundRepository{db: db, mapper: models.NewRefundMapper()}
 	return s
 }
 
 func (h *refundRepository) Insert(ctx context.Context, refund *billingpb.Refund) error {
-	_, err := h.db.Collection(CollectionRefund).InsertOne(ctx, refund)
+	mgo, err := h.mapper.MapObjectToMgo(refund)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, refund),
+		)
+		return err
+	}
+
+	_, err = h.db.Collection(CollectionRefund).InsertOne(ctx, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -50,7 +67,18 @@ func (h *refundRepository) Update(ctx context.Context, refund *billingpb.Refund)
 		return err
 	}
 
-	_, err = h.db.Collection(CollectionRefund).ReplaceOne(ctx, bson.M{"_id": oid}, refund)
+	mgo, err := h.mapper.MapObjectToMgo(refund)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, refund),
+		)
+		return err
+	}
+
+	_, err = h.db.Collection(CollectionRefund).ReplaceOne(ctx, bson.M{"_id": oid}, mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -67,7 +95,6 @@ func (h *refundRepository) Update(ctx context.Context, refund *billingpb.Refund)
 }
 
 func (h *refundRepository) GetById(ctx context.Context, id string) (*billingpb.Refund, error) {
-	var refund *billingpb.Refund
 	oid, err := primitive.ObjectIDFromHex(id)
 
 	if err != nil {
@@ -80,8 +107,9 @@ func (h *refundRepository) GetById(ctx context.Context, id string) (*billingpb.R
 		return nil, err
 	}
 
+	mgo := &models.MgoRefund{}
 	query := bson.M{"_id": oid}
-	err = h.db.Collection(CollectionRefund).FindOne(ctx, query).Decode(&refund)
+	err = h.db.Collection(CollectionRefund).FindOne(ctx, query).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(
@@ -93,12 +121,20 @@ func (h *refundRepository) GetById(ctx context.Context, id string) (*billingpb.R
 		return nil, err
 	}
 
-	return refund, nil
+	obj, err := h.mapper.MapMgoToObject(mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseMapModelFailed,
+			zap.Error(err),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+		)
+		return nil, err
+	}
+
+	return obj.(*billingpb.Refund), nil
 }
 
 func (h *refundRepository) FindByOrderUuid(ctx context.Context, id string, limit int64, offset int64) ([]*billingpb.Refund, error) {
-	var refunds []*billingpb.Refund
-
 	query := bson.M{"original_order.uuid": id}
 	opts := options.Find().
 		SetLimit(limit).
@@ -115,7 +151,8 @@ func (h *refundRepository) FindByOrderUuid(ctx context.Context, id string, limit
 		return nil, err
 	}
 
-	err = cursor.All(ctx, &refunds)
+	var mgoRefunds []*models.MgoRefund
+	err = cursor.All(ctx, &mgoRefunds)
 
 	if err != nil {
 		zap.L().Error(
@@ -125,6 +162,20 @@ func (h *refundRepository) FindByOrderUuid(ctx context.Context, id string, limit
 			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
 		)
 		return nil, err
+	}
+
+	refunds := make([]*billingpb.Refund, len(mgoRefunds))
+	for i, mgo := range mgoRefunds {
+		obj, err := h.mapper.MapMgoToObject(mgo)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+			)
+			return nil, err
+		}
+		refunds[i] = obj.(*billingpb.Refund)
 	}
 
 	return refunds, nil

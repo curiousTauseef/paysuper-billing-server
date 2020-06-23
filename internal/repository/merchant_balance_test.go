@@ -7,6 +7,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,7 +41,7 @@ func (suite *MerchantBalanceTestSuite) SetupTest() {
 	suite.db, err = mongodb.NewDatabase()
 	assert.NoError(suite.T(), err, "Database connection failed")
 
-	suite.repository = &merchantBalanceRepository{db: suite.db, cache: &mocks.CacheInterface{}}
+	suite.repository = &merchantBalanceRepository{db: suite.db, cache: &mocks.CacheInterface{}, mapper: models.NewMerchantBalanceMapper()}
 }
 
 func (suite *MerchantBalanceTestSuite) TearDownTest() {
@@ -56,6 +57,25 @@ func (suite *MerchantBalanceTestSuite) TearDownTest() {
 func (suite *MerchantBalanceTestSuite) TestMerchantBalance_NewMerchantBalanceRepository_Ok() {
 	repository := NewMerchantBalanceRepository(suite.db, &mocks.CacheInterface{})
 	assert.IsType(suite.T(), &merchantBalanceRepository{}, repository)
+}
+
+func (suite *MerchantBalanceTestSuite) TestMerchantBalance_Insert_MapError() {
+	balance := suite.getMerchantBalanceTemplate()
+
+	cache := &mocks.CacheInterface{}
+	key := fmt.Sprintf(cacheKeyMerchantBalances, balance.MerchantId, balance.Currency)
+	cache.On("Get", key, mock.Anything).Return(errors.New("error"))
+	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
+	suite.repository.cache = cache
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+
+	suite.repository.mapper = mapper
+
+	err := suite.repository.Insert(context.TODO(), balance)
+	assert.Error(suite.T(), err)
 }
 
 func (suite *MerchantBalanceTestSuite) TestMerchantBalance_Insert_Ok() {
@@ -90,7 +110,7 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_Insert_ErrorCacheUpda
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), balance)
-	assert.Error(suite.T(), err)
+	assert.NoError(suite.T(), err)
 }
 
 func (suite *MerchantBalanceTestSuite) TestMerchantBalance_Insert_ErrorDb() {
@@ -123,13 +143,36 @@ func (suite *MerchantBalanceTestSuite) TestMerchantBalance_GetByIdAndCurrency_Ok
 	assert.Equal(suite.T(), balance.Credit, balance2.Credit)
 }
 
+func (suite *MerchantBalanceTestSuite) TestMerchantBalance_GetByIdAndCurrency_MapError() {
+	balance := suite.getMerchantBalanceTemplate()
+
+	cache := &mocks.CacheInterface{}
+	key := fmt.Sprintf(cacheKeyMerchantBalances, balance.MerchantId, balance.Currency)
+	cache.On("Get", key, mock.Anything).Return(errors.New("error"))
+	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
+	suite.repository.cache = cache
+
+	err := suite.repository.Insert(context.TODO(), balance)
+	assert.NoError(suite.T(), err)
+
+	mapper := &mocks.Mapper{}
+	mapper.On("MapMgoToObject", mock.Anything).Return(nil, errors.New("error"))
+	mapper.On("MapObjectToMgo", mock.Anything).Return(nil, errors.New("error"))
+
+	suite.repository.mapper = mapper
+
+	balance2, err := suite.repository.GetByIdAndCurrency(context.TODO(), balance.MerchantId, balance.Currency)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), balance2)
+}
+
 func (suite *MerchantBalanceTestSuite) TestMerchantBalance_GetByIdAndCurrency_OkByCache() {
 	balance := suite.getMerchantBalanceTemplate()
 
 	cache := &mocks.CacheInterface{}
 	key := fmt.Sprintf(cacheKeyMerchantBalances, balance.MerchantId, balance.Currency)
 	cache.On("Set", key, mock.Anything, time.Duration(0)).Return(nil)
-	cache.On("Get", key, billingpb.MerchantBalance{}).Return(nil)
+	cache.On("Get", key, mock.Anything).Return(nil)
 	suite.repository.cache = cache
 
 	err := suite.repository.Insert(context.TODO(), balance)

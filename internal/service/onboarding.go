@@ -18,16 +18,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"regexp"
 	"strings"
 	"time"
 )
 
 const (
-	collectionMerchantPaymentMethodHistory = "payment_method_history"
-
 	merchantStatusSigningMessage  = "We've got your license agreement signing request. If we will need your further assistance, processing this request, our onboarding manager will contact you directly."
 	merchantStatusSignedMessage   = "Your license agreement signing request is confirmed and document is signed by Pay Super. Let us have productive cooperation!"
 	merchantStatusRejectedMessage = "Your license agreement signing request was confirmed as SPAM and will be no longer processed."
@@ -126,26 +124,27 @@ func (s *Service) ListMerchants(
 	query := make(bson.M)
 
 	if req.QuickSearch != "" {
+		pattern := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.QuickSearch) + ".*", Options: "i"}
 		query["$or"] = []bson.M{
-			{"company.name": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
-			{"user.email": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
-			{"user.first_name": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
-			{"user.last_name": primitive.Regex{Pattern: ".*" + req.QuickSearch + ".*", Options: "i"}},
+			{"company.name": pattern},
+			{"user.email": pattern},
+			{"user.first_name": pattern},
+			{"user.last_name": pattern},
 		}
 	} else {
 		if req.Name != "" {
-			query["company.name"] = primitive.Regex{Pattern: ".*" + req.Name + ".*", Options: "i"}
+			query["company.name"] = primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.Name) + ".*", Options: "i"}
 		}
 
-		if req.LastPayoutDateFrom > 0 || req.LastPayoutDateTo > 0 {
+		if req.LastPayoutDateFrom != "" || req.LastPayoutDateTo != "" {
 			payoutDates := make(bson.M)
 
-			if req.LastPayoutDateFrom > 0 {
-				payoutDates["$gte"] = time.Unix(req.LastPayoutDateFrom, 0)
+			if req.LastPayoutDateFrom != "" {
+				payoutDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.LastPayoutDateFrom)
 			}
 
-			if req.LastPayoutDateTo > 0 {
-				payoutDates["$lte"] = time.Unix(req.LastPayoutDateTo, 0)
+			if req.LastPayoutDateTo != "" {
+				payoutDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.LastPayoutDateTo)
 			}
 
 			query["last_payout.date"] = payoutDates
@@ -163,29 +162,29 @@ func (s *Service) ListMerchants(
 			query["last_payout.amount"] = req.LastPayoutAmount
 		}
 
-		if req.RegistrationDateFrom > 0 || req.RegistrationDateTo > 0 {
+		if req.RegistrationDateFrom != "" || req.RegistrationDateTo != "" {
 			regDates := bson.M{}
 
-			if req.RegistrationDateFrom > 0 {
-				regDates["$gte"] = time.Unix(req.RegistrationDateFrom, 0)
+			if req.RegistrationDateFrom != "" {
+				regDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.RegistrationDateFrom)
 			}
 
-			if req.RegistrationDateTo > 0 {
-				regDates["$lte"] = time.Unix(req.RegistrationDateTo, 0)
+			if req.RegistrationDateTo != "" {
+				regDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.RegistrationDateTo)
 			}
 
 			query["user.registration_date"] = regDates
 		}
 
-		if req.ReceivedDateFrom > 0 || req.ReceivedDateTo > 0 {
+		if req.ReceivedDateFrom != "" || req.ReceivedDateTo != "" {
 			dates := bson.M{}
 
-			if req.ReceivedDateFrom > 0 {
-				dates["$gte"] = time.Unix(req.ReceivedDateFrom, 0)
+			if req.ReceivedDateFrom != "" {
+				dates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ReceivedDateFrom)
 			}
 
-			if req.ReceivedDateTo > 0 {
-				dates["$lte"] = time.Unix(req.ReceivedDateTo, 0)
+			if req.ReceivedDateTo != "" {
+				dates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.ReceivedDateTo)
 			}
 
 			query["received_date"] = dates
@@ -203,6 +202,10 @@ func (s *Service) ListMerchants(
 	}
 
 	rsp.Items, err = s.merchantRepository.Find(ctx, query, req.Sort, req.Offset, req.Limit)
+
+	if err != nil {
+		return merchantErrorUnknown
+	}
 
 	return nil
 }
@@ -237,8 +240,12 @@ func (s *Service) ChangeMerchant(
 
 	if merchant == nil {
 		merchant = &billingpb.Merchant{
-			Id:                 primitive.NewObjectID().Hex(),
-			User:               req.User,
+			Id:   primitive.NewObjectID().Hex(),
+			User: req.User,
+			Banking: &billingpb.MerchantBanking{
+				Currency:                  pkg.DefaultMerchantBankingCurrency,
+				ProcessingDefaultCurrency: pkg.DefaultMerchantBankingCurrency,
+			},
 			MinimalPayoutLimit: pkg.MerchantMinimalPayoutLimit,
 			Status:             billingpb.MerchantStatusDraft,
 			CreatedAt:          ptypes.TimestampNow(),
@@ -274,6 +281,10 @@ func (s *Service) ChangeMerchant(
 				rsp.Message = merchantErrorCurrencyNotFound
 				return nil
 			}
+
+			if req.Banking.ProcessingDefaultCurrency == "" {
+				req.Banking.ProcessingDefaultCurrency = req.Banking.Currency
+			}
 		}
 
 		if req.Banking.AccountNumber != "" {
@@ -287,26 +298,17 @@ func (s *Service) ChangeMerchant(
 		merchant.Contacts = req.Contacts
 	}
 
-	if merchant.IsDataComplete() {
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationMerchant, merchant.GetAuthorizedEmail())
+	if merchant.IsDataComplete() && merchant.Steps != nil && merchant.Steps.Tariff {
+		err = s.onMerchantOnboardingComplete(ctx, merchant)
+
 		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
 		}
 
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationAdmin, s.cfg.EmailOnboardingAdminRecipient)
-		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
+		merchant.Status = billingpb.MerchantStatusPending
+		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
 	}
 
 	merchant.UpdatedAt = ptypes.TimestampNow()
@@ -318,6 +320,31 @@ func (s *Service) ChangeMerchant(
 	merchant.Steps.Company = merchant.IsCompanyComplete()
 	merchant.Steps.Contacts = merchant.IsContactsComplete()
 	merchant.Steps.Banking = merchant.IsBankingComplete()
+
+	if isNewMerchant {
+		operatingCompany, err := s.operatingCompanyRepository.GetByPaymentCountry(ctx, "")
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
+
+		merchant.OperatingCompanyId = operatingCompany.Id
+		merchant, err = s.setMerchantTariffRates(ctx, merchant, pkg.DefaultMerchantTariffsRegion, pkg.DefaultMerchantOperationType)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = err.(*billingpb.ResponseErrorMessage)
+			return nil
+		}
+
+		if merchant == nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
+	}
 
 	if !merchant.HasPrimaryOnboardingUserName() {
 		profile, _ := s.userProfileRepository.GetByUserId(ctx, req.User.Id)
@@ -345,37 +372,47 @@ func (s *Service) ChangeMerchant(
 		return nil
 	}
 
-	if isNewMerchant == true {
-		err = s.userRoleRepository.AddMerchantUser(
-			ctx,
-			&billingpb.UserRole{
-				Id:         primitive.NewObjectID().Hex(),
-				MerchantId: merchant.Id,
-				Status:     pkg.UserRoleStatusAccepted,
-				Role:       billingpb.RoleMerchantOwner,
-				UserId:     merchant.User.Id,
-				Email:      merchant.User.Email,
-				FirstName:  merchant.User.FirstName,
-				LastName:   merchant.User.LastName,
-			},
-		)
+	merchant.CentrifugoToken = s.centrifugoDashboard.GetChannelToken(merchant.Id, time.Now().Add(time.Hour*3).Unix())
 
-		if err == nil {
-			_, err = s.casbinService.AddRoleForUser(ctx, &casbinProto.UserRoleRequest{
-				User: fmt.Sprintf(pkg.CasbinMerchantUserMask, merchant.Id, merchant.User.Id),
-				Role: billingpb.RoleMerchantOwner,
-			})
-		}
+	if !isNewMerchant {
+		rsp.Status = billingpb.ResponseStatusOk
+		rsp.Item = merchant
+		return nil
 	}
+
+	err = s.userRoleRepository.AddMerchantUser(
+		ctx,
+		&billingpb.UserRole{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: merchant.Id,
+			Status:     pkg.UserRoleStatusAccepted,
+			Role:       billingpb.RoleMerchantOwner,
+			UserId:     merchant.User.Id,
+			Email:      merchant.User.Email,
+			FirstName:  merchant.User.FirstName,
+			LastName:   merchant.User.LastName,
+		},
+	)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = merchantUnableToAddMerchantUserRole
-
 		return nil
 	}
 
-	merchant.CentrifugoToken = s.centrifugoDashboard.GetChannelToken(merchant.Id, time.Now().Add(time.Hour*3).Unix())
+	_, err = s.casbinService.AddRoleForUser(
+		ctx,
+		&casbinProto.UserRoleRequest{
+			User: fmt.Sprintf(pkg.CasbinMerchantUserMask, merchant.Id, merchant.User.Id),
+			Role: billingpb.RoleMerchantOwner,
+		},
+	)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = merchantUnableToAddMerchantUserRole
+		return nil
+	}
 
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Item = merchant
@@ -487,6 +524,14 @@ func (s *Service) ChangeMerchantData(
 
 		merchant.Status = billingpb.MerchantStatusAgreementSigned
 		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
+
+		err = s.sendLicenseAgreementSignedEmail(merchant)
+
+		if err != nil {
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = merchantErrorUnknown
+			return nil
+		}
 	}
 
 	message, ok := merchantStatusChangesMessages[merchant.Status]
@@ -812,7 +857,7 @@ func (s *Service) GetMerchantPaymentMethod(
 		return nil
 	}
 
-	pm, err := s.paymentMethod.GetById(ctx, req.PaymentMethodId)
+	pm, err := s.paymentMethodRepository.GetById(ctx, req.PaymentMethodId)
 
 	if err != nil {
 		s.logError(
@@ -853,40 +898,9 @@ func (s *Service) ListMerchantPaymentMethods(
 		return nil
 	}
 
-	var pms []*billingpb.PaymentMethod
+	pms, err := s.paymentMethodRepository.FindByName(ctx, req.PaymentMethodName, req.Sort)
 
-	query := bson.M{"is_active": true}
-
-	if req.PaymentMethodName != "" {
-		query["name"] = primitive.Regex{Pattern: ".*" + req.PaymentMethodName + ".*", Options: "i"}
-	}
-
-	opts := options.Find().SetSort(mongodb.ToSortOption(req.Sort))
-	cursor, err := s.db.Collection(collectionPaymentMethod).Find(ctx, query, opts)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentMethod),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil
-	}
-
-	err = cursor.All(ctx, &pms)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorQueryCursorExecutionFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPaymentMethod),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-		)
-		return nil
-	}
-
-	if len(pms) <= 0 {
+	if err != nil || len(pms) <= 0 {
 		return nil
 	}
 
@@ -932,7 +946,7 @@ func (s *Service) ChangeMerchantPaymentMethod(
 		return err
 	}
 
-	pm, e := s.paymentMethod.GetById(ctx, req.PaymentMethod.Id)
+	pm, e := s.paymentMethodRepository.GetById(ctx, req.PaymentMethod.Id)
 	if e != nil {
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = orderErrorPaymentMethodNotFound
@@ -971,7 +985,7 @@ func (s *Service) ChangeMerchantPaymentMethod(
 		CreatedAt:     ptypes.TimestampNow(),
 		PaymentMethod: mpm,
 	}
-	_, err = s.db.Collection(collectionMerchantPaymentMethodHistory).InsertOne(ctx, history)
+	err = s.merchantPaymentMethodHistoryRepository.Insert(ctx, history)
 	if err != nil {
 		zap.S().Errorf("Query to update merchant payment methods history", "err", err.Error(), "data", merchant)
 
@@ -1189,7 +1203,7 @@ func (s *Service) GetMerchantTariffRates(
 		req.PayerRegion = req.HomeRegion
 	}
 
-	tariffs, err := s.merchantTariffRates.GetBy(ctx, req)
+	tariffs, err := s.getMerchantTariffRates(ctx, req)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -1213,16 +1227,6 @@ func (s *Service) SetMerchantTariffRates(
 	req *billingpb.SetMerchantTariffRatesRequest,
 	rsp *billingpb.CheckProjectRequestSignatureResponse,
 ) error {
-	mccCode, err := getMccByOperationsType(req.MerchantOperationsType)
-	if err != nil {
-		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-			rsp.Status = billingpb.ResponseStatusBadData
-			rsp.Message = e
-			return nil
-		}
-		return err
-	}
-
 	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
 
 	if err != nil {
@@ -1237,7 +1241,7 @@ func (s *Service) SetMerchantTariffRates(
 		return nil
 	}
 
-	if merchant.HasTariff() {
+	if merchant.HasTariff() && merchant.Steps != nil && merchant.Steps.Tariff {
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = merchantErrorOnboardingTariffAlreadyExist
 
@@ -1251,166 +1255,13 @@ func (s *Service) SetMerchantTariffRates(
 		return nil
 	}
 
-	merchantPayoutCurrency := merchant.GetPayoutCurrency()
-	if merchantPayoutCurrency == "" {
-		rsp.Status = billingpb.ResponseStatusBadData
-		rsp.Message = merchantErrorCurrencyNotSet
-
-		return nil
-	}
-
-	query := &billingpb.GetMerchantTariffRatesRequest{
-		HomeRegion:             req.HomeRegion,
-		MerchantOperationsType: req.MerchantOperationsType,
-	}
-	tariffs, err := s.merchantTariffRates.GetBy(ctx, query)
+	merchant, err = s.setMerchantTariffRates(ctx, merchant, req.HomeRegion, req.MerchantOperationsType)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorUnknown
-
+		rsp.Message = err.(*billingpb.ResponseErrorMessage)
 		return nil
 	}
-
-	payoutTariff, ok := tariffs.Payout[merchantPayoutCurrency]
-	if !ok {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorNoTariffsInPayoutCurrency
-
-		return nil
-	}
-
-	minimalPayoutLimit, ok := tariffs.MinimalPayout[merchantPayoutCurrency]
-	if !ok {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorNoTariffsInPayoutCurrency
-
-		return nil
-	}
-
-	timestampNow := ptypes.TimestampNow()
-
-	merchant.MerchantOperationsType = req.MerchantOperationsType
-	merchant.Tariff = &billingpb.MerchantTariff{
-		Payment:    tariffs.Payment,
-		Payout:     payoutTariff,
-		HomeRegion: req.HomeRegion,
-	}
-
-	merchant.MinimalPayoutLimit = minimalPayoutLimit
-
-	if len(tariffs.Payment) > 0 {
-		var costs []*billingpb.PaymentChannelCostMerchant
-
-		for _, v := range tariffs.Payment {
-			cost := &billingpb.PaymentChannelCostMerchant{
-				Id:                      primitive.NewObjectID().Hex(),
-				MerchantId:              req.MerchantId,
-				Name:                    strings.ToUpper(v.MethodName),
-				PayoutCurrency:          merchantPayoutCurrency,
-				MinAmount:               v.MinAmount,
-				Region:                  v.PayerRegion,
-				MethodPercent:           v.MethodPercentFee,
-				MethodFixAmount:         v.MethodFixedFee,
-				MethodFixAmountCurrency: v.MethodFixedFeeCurrency,
-				PsPercent:               v.PsPercentFee,
-				PsFixedFee:              v.PsFixedFee,
-				PsFixedFeeCurrency:      v.PsFixedFeeCurrency,
-				CreatedAt:               timestampNow,
-				UpdatedAt:               timestampNow,
-				IsActive:                true,
-				MccCode:                 mccCode,
-			}
-
-			costs = append(costs, cost)
-		}
-
-		if len(costs) <= 0 {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-
-		err = s.paymentChannelCostMerchant.MultipleInsert(ctx, costs)
-
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-	}
-
-	regions, err := s.country.GetAll(ctx)
-
-	if err != nil || len(regions.Countries) <= 0 {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorUnknown
-		return nil
-	}
-
-	var (
-		cost  *billingpb.MoneyBackCostMerchant
-		costs []*billingpb.MoneyBackCostMerchant
-	)
-
-	for _, tariffRegion := range pkg.SupportedTariffRegions {
-		for _, v := range tariffs.Refund {
-			cost = &billingpb.MoneyBackCostMerchant{
-				Id:                primitive.NewObjectID().Hex(),
-				MerchantId:        req.MerchantId,
-				Name:              strings.ToUpper(v.MethodName),
-				PayoutCurrency:    merchantPayoutCurrency,
-				UndoReason:        pkg.UndoReasonReversal,
-				Region:            tariffRegion,
-				Country:           "",
-				DaysFrom:          0,
-				PaymentStage:      1,
-				Percent:           v.MethodPercentFee,
-				FixAmount:         v.MethodFixedFee,
-				FixAmountCurrency: v.MethodFixedFeeCurrency,
-				IsPaidByMerchant:  v.IsPaidByMerchant,
-				CreatedAt:         timestampNow,
-				UpdatedAt:         timestampNow,
-				IsActive:          true,
-				MccCode:           mccCode,
-			}
-			costs = append(costs, cost)
-		}
-		for _, v := range tariffs.Chargeback {
-			cost = &billingpb.MoneyBackCostMerchant{
-				Id:                primitive.NewObjectID().Hex(),
-				MerchantId:        req.MerchantId,
-				Name:              strings.ToUpper(v.MethodName),
-				PayoutCurrency:    merchantPayoutCurrency,
-				UndoReason:        pkg.UndoReasonChargeback,
-				Region:            tariffRegion,
-				Country:           "",
-				DaysFrom:          0,
-				PaymentStage:      1,
-				Percent:           v.MethodPercentFee,
-				FixAmount:         v.MethodFixedFee,
-				FixAmountCurrency: v.MethodFixedFeeCurrency,
-				IsPaidByMerchant:  v.IsPaidByMerchant,
-				CreatedAt:         timestampNow,
-				UpdatedAt:         timestampNow,
-				IsActive:          true,
-				MccCode:           mccCode,
-			}
-			costs = append(costs, cost)
-		}
-	}
-
-	if len(costs) > 0 {
-		err = s.moneyBackCostMerchantRepository.MultipleInsert(ctx, costs)
-
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantErrorUnknown
-			return nil
-		}
-	}
-
-	merchant.MccCode = mccCode
 
 	if merchant.Steps == nil {
 		merchant.Steps = &billingpb.MerchantCompletedSteps{}
@@ -1419,47 +1270,16 @@ func (s *Service) SetMerchantTariffRates(
 	merchant.Steps.Tariff = true
 
 	if merchant.IsDataComplete() {
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationMerchant, merchant.GetAuthorizedEmail())
-		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
-
-		err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationAdmin, s.cfg.EmailOnboardingAdminRecipient)
-		if err != nil {
-			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-				rsp.Status = billingpb.ResponseStatusSystemError
-				rsp.Message = e
-				return nil
-			}
-			return err
-		}
-
-		statusChange := &billingpb.SystemNotificationStatuses{From: billingpb.MerchantStatusDraft, To: billingpb.MerchantStatusPending}
-
-		merchant.Status = billingpb.MerchantStatusPending
-		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
-		message, ok := merchantStatusChangesMessages[merchant.Status]
-
-		if !ok {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = merchantNotificationSettingNotFound
-
-			return nil
-		}
-
-		_, err = s.addNotification(ctx, message, merchant.Id, "", statusChange)
+		err = s.onMerchantOnboardingComplete(ctx, merchant)
 
 		if err != nil {
 			rsp.Status = billingpb.ResponseStatusSystemError
 			rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
 			return nil
 		}
+
+		merchant.Status = billingpb.MerchantStatusPending
+		merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
 	}
 
 	err = s.merchantRepository.Update(ctx, merchant)
@@ -1560,7 +1380,12 @@ func (s *Service) getMerchantAgreementNumber(merchantId string) string {
 	return fmt.Sprintf("%s%s-%03d", now.Format("01"), now.Format("02"), mongodb.GetObjectIDCounter(merchantOid))
 }
 
-func (s *Service) sendOnboardingLetter(merchant *billingpb.Merchant, oc *billingpb.OperatingCompany, template, recipientEmail string) (err error) {
+func (s *Service) sendOnboardingLetter(
+	merchant *billingpb.Merchant,
+	oc *billingpb.OperatingCompany,
+	template,
+	recipientEmail string,
+) (err error) {
 	ocName := ""
 	if oc != nil {
 		ocName = oc.Name
@@ -1592,4 +1417,56 @@ func (s *Service) sendOnboardingLetter(merchant *billingpb.Merchant, oc *billing
 	}
 
 	return
+}
+
+// Send message to RabbitMQ for send email to merchant owner about than license agreement fully signed
+func (s *Service) sendLicenseAgreementSignedEmail(merchant *billingpb.Merchant) error {
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.MerchantAgreementSigned,
+		TemplateModel: map[string]string{
+			"agreement_url": s.cfg.GetMerchantCompanyUrl(),
+		},
+		To: merchant.GetOwnerEmail(),
+	}
+
+	err := s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+
+	if err != nil {
+		zap.L().Error(
+			"Publication message about than license agreement fully signed failed",
+			zap.Error(err),
+			zap.String("template", payload.TemplateAlias),
+			zap.String("recipient_email", payload.To),
+			zap.Any("merchant", merchant),
+		)
+	}
+
+	return err
+}
+
+func (s *Service) onMerchantOnboardingComplete(ctx context.Context, merchant *billingpb.Merchant) error {
+	err := s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationMerchant, merchant.GetAuthorizedEmail())
+
+	if err != nil {
+		return merchantErrorUnknown
+	}
+
+	err = s.sendOnboardingLetter(merchant, nil, s.cfg.EmailTemplates.OnboardingVerificationAdmin, s.cfg.EmailOnboardingAdminRecipient)
+
+	if err != nil {
+		return merchantErrorUnknown
+	}
+
+	statusChange := &billingpb.SystemNotificationStatuses{
+		From: merchant.Status,
+		To:   billingpb.MerchantStatusPending,
+	}
+	message, ok := merchantStatusChangesMessages[billingpb.MerchantStatusPending]
+
+	if !ok {
+		return merchantNotificationSettingNotFound
+	}
+
+	_, err = s.addNotification(ctx, message, merchant.Id, "", statusChange)
+	return err
 }

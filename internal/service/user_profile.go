@@ -7,18 +7,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/streadway/amqp"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"strings"
 	"time"
 )
 
 const (
-	collectionOPageReview        = "feedback"
 	userEmailConfirmTokenStorage = "email_confirm:token:%s"
 )
 
@@ -42,6 +41,13 @@ func (s *Service) CreateOrUpdateUserProfile(
 	var err error
 
 	profile, err := s.userProfileRepository.GetByUserId(ctx, req.UserId)
+
+	if err != nil && err != mongo.ErrNoDocuments {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = userProfileErrorUnknown
+
+		return nil
+	}
 
 	if profile == nil {
 		profile = req
@@ -436,16 +442,9 @@ func (s *Service) CreatePageReview(
 		CreatedAt: ptypes.TimestampNow(),
 	}
 
-	_, err := s.db.Collection(collectionOPageReview).InsertOne(ctx, review)
+	err := s.feedbackRepository.Insert(ctx, review)
 
 	if err != nil {
-		zap.S().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String("collection", collectionOPageReview),
-			zap.Any("data", review),
-		)
-
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = userProfileErrorUnknown
 

@@ -1,0 +1,99 @@
+[
+  {
+    "update": "merchant",
+    "updates": [
+      {
+        "q": {"tariff": {"$exists": true, "$ne": null}, "mcc_code": "5816"},
+        "u": {
+          "$set": {
+            "tariff.chargeback": [
+              {
+                "method_name" : "MasterCard",
+                "method_percent_fee" : 0.0,
+                "method_fixed_fee" : 25.0,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : true
+              },
+              {
+                "method_name" : "VISA",
+                "method_percent_fee" : 0.0,
+                "method_fixed_fee" : 25.0,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : true
+              }
+            ],
+            "tariff.refund": [
+              {
+                "method_name" : "MasterCard",
+                "method_percent_fee" : 0.00509757,
+                "method_fixed_fee" : 0.03916,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : false
+              },
+              {
+                "method_name" : "VISA",
+                "method_percent_fee" : 0.0,
+                "method_fixed_fee" : 0.27115,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : false
+              }
+            ],
+            "tariff.minimal_payout": {
+              "USD" : 100.0,
+              "EUR" : 100.0,
+              "RUB" : 10000.0,
+              "GBP" : 100.0
+            }
+          }
+        },
+        "multi": true
+      },
+      {
+        "q": {"tariff": {"$exists": true, "$ne": null}, "mcc_code": "5967"},
+        "u": {
+          "$set": {
+            "tariff.chargeback": [
+              {
+                "method_name" : "MasterCard",
+                "method_percent_fee" : 0.0,
+                "method_fixed_fee" : 50.0,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : true
+              },
+              {
+                "method_name" : "VISA",
+                "method_percent_fee" : 0.0,
+                "method_fixed_fee" : 50.0,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : true
+              }
+            ],
+            "tariff.refund": [
+              {
+                "method_name" : "MasterCard",
+                "method_percent_fee" : 0.00509757,
+                "method_fixed_fee" : 0.03916,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : false
+              },
+              {
+                "method_name" : "VISA",
+                "method_percent_fee" : 0.0,
+                "method_fixed_fee" : 0.27115,
+                "method_fixed_fee_currency" : "EUR",
+                "is_paid_by_merchant" : false
+              }
+            ],
+            "tariff.minimal_payout": {
+              "USD" : 100.0,
+              "EUR" : 100.0,
+              "RUB" : 10000.0,
+              "GBP" : 100.0
+            }
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]

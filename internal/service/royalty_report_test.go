@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
@@ -20,13 +22,13 @@ import (
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
+	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -130,22 +132,24 @@ func (suite *RoyaltyReportTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, suite.paymentMethod, suite.paymentSystem = helperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 
 	suite.project.Status = billingpb.ProjectStatusInProduction
 	if err := suite.service.project.Update(context.TODO(), suite.project); err != nil {
 		suite.FailNow("Update project test data failed", "%v", err)
 	}
 
-	suite.merchant1 = helperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
-	suite.merchant2 = helperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
-	suite.merchant3 = helperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
+	suite.merchant1 = HelperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
+	suite.merchant2 = HelperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
+	suite.merchant3 = HelperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, 0, suite.merchant.OperatingCompanyId)
 
 	suite.project1 = &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
@@ -285,10 +289,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	to := now.Monday().In(loc).Add(time.Duration(suite.service.cfg.RoyaltyReportPeriodEndHour) * time.Hour)
 	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{"period_from": from, "period_to": to})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetByPeriod(context.TODO(), from, to)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), reports)
 	assert.Len(suite.T(), reports, 3)
@@ -349,10 +350,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Selec
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), reports)
 	assert.Len(suite.T(), reports, len(req.Merchants))
@@ -403,10 +401,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Empty
 	err := suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), reports)
 }
@@ -421,10 +416,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_NotEx
 	assert.Empty(suite.T(), rsp.Merchants)
 	assert.Len(suite.T(), rsp.Merchants, 0)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), reports)
 }
@@ -437,10 +429,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Unkno
 	assert.Error(suite.T(), err)
 	assert.EqualError(suite.T(), err, royaltyReportErrorTimezoneIncorrect.Error())
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), reports)
 }
@@ -465,7 +454,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_Ok() {
 	oid, _ := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	query := bson.M{"merchant_id": oid}
 	set := bson.M{"$set": bson.M{"period_from": from, "period_to": to}}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).UpdateMany(context.TODO(), query, set)
+	err = suite.service.royaltyReportRepository.UpdateMany(context.TODO(), query, set)
+	assert.NoError(suite.T(), err)
 
 	req := &billingpb.CreateRoyaltyReportRequest{}
 	rsp := &billingpb.CreateRoyaltyReportRequest{}
@@ -497,12 +487,11 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), reports)
 
-	req1 := &billingpb.ListRoyaltyReportsRequest{MerchantId: report.MerchantId}
+	req1 := &billingpb.ListRoyaltyReportsRequest{MerchantId: reports[0].MerchantId}
 	rsp1 := &billingpb.ListRoyaltyReportsResponse{}
 	err = suite.service.ListRoyaltyReports(context.TODO(), req1, rsp1)
 	assert.NoError(suite.T(), err)
@@ -545,7 +534,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 	oid, _ := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	query := bson.M{"merchant_id": oid}
 	set := bson.M{"$set": bson.M{"period_from": from, "period_to": to}}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).UpdateMany(context.TODO(), query, set)
+	err = suite.service.royaltyReportRepository.UpdateMany(context.TODO(), query, set)
+	assert.NoError(suite.T(), err)
 
 	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -588,7 +578,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 	oid, _ := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	query := bson.M{"merchant_id": oid}
 	set := bson.M{"$set": bson.M{"created_at": time.Now().Add(24 * -time.Hour)}}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).UpdateMany(context.TODO(), query, set)
+	err = suite.service.royaltyReportRepository.UpdateMany(context.TODO(), query, set)
+	assert.NoError(suite.T(), err)
 
 	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -596,8 +587,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 
 	req1 := &billingpb.ListRoyaltyReportsRequest{
 		MerchantId: suite.project.GetMerchantId(),
-		PeriodFrom: time.Now().Add(30 * -time.Hour).Unix(),
-		PeriodTo:   time.Now().Add(20 * -time.Hour).Unix(),
+		PeriodFrom: time.Now().Add(30 * -time.Hour).Format(billingpb.FilterDatetimeFormat),
+		PeriodTo:   time.Now().Add(20 * -time.Hour).Format(billingpb.FilterDatetimeFormat),
 	}
 	rsp1 := &billingpb.ListRoyaltyReportsResponse{}
 	err = suite.service.ListRoyaltyReports(context.TODO(), req1, rsp1)
@@ -609,8 +600,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindByPeriod_NotFound() {
 	req := &billingpb.ListRoyaltyReportsRequest{
 		MerchantId: suite.project.GetMerchantId(),
-		PeriodFrom: time.Now().Unix(),
-		PeriodTo:   time.Now().Unix(),
+		PeriodFrom: time.Now().Format(billingpb.FilterDatetimeFormat),
+		PeriodTo:   time.Now().Format(billingpb.FilterDatetimeFormat),
 	}
 	rsp := &billingpb.ListRoyaltyReportsResponse{}
 	err := suite.service.ListRoyaltyReports(context.TODO(), req, rsp)
@@ -630,18 +621,17 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Ok() 
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
 
 	zap.ReplaceGlobals(suite.logObserver)
 	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, mocks.NewClientStatusOk())
 
 	req1 := &billingpb.ChangeRoyaltyReportRequest{
-		ReportId:   report.Id,
-		MerchantId: report.MerchantId,
+		ReportId:   reports[0].Id,
+		MerchantId: reports[0].MerchantId,
 		Status:     billingpb.RoyaltyReportStatusAccepted,
 		Ip:         "127.0.0.1",
 	}
@@ -654,28 +644,17 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Ok() 
 	messages := suite.zapRecorder.All()
 	assert.Regexp(suite.T(), "dashboard", messages[0].Message)
 
-	oid, err := primitive.ObjectIDFromHex(report.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), filter).Decode(&report)
+	report, err := suite.service.royaltyReportRepository.GetById(context.TODO(), reports[0].Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusAccepted, report.Status)
 	assert.False(suite.T(), report.IsAutoAccepted)
 
-	var changes []*billingpb.RoyaltyReportChanges
-	oid, err = primitive.ObjectIDFromHex(report.Id)
-	assert.NoError(suite.T(), err)
-	filter = bson.M{"royalty_report_id": oid}
-	opts := options.Find().SetSort(bson.M{"created_at": -1})
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReportChanges).Find(context.TODO(), filter, opts)
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &changes)
+	changes, err := suite.service.royaltyReportRepository.GetRoyaltyHistoryById(context.TODO(), report.Id)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), changes, 2)
-	assert.Equal(suite.T(), req1.Ip, changes[0].Ip)
-	assert.Equal(suite.T(), pkg.RoyaltyReportChangeSourceAdmin, changes[0].Source)
+	assert.Equal(suite.T(), req1.Ip, changes[1].Ip)
+	assert.Equal(suite.T(), pkg.RoyaltyReportChangeSourceAdmin, changes[1].Source)
 
 	centrifugoCl, ok := suite.httpClient.Transport.(*mocks.TransportStatusOk)
 	assert.True(suite.T(), ok)
@@ -693,17 +672,16 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
-	assert.EqualValues(suite.T(), -62135596800, report.AcceptedAt.Seconds)
-	assert.Len(suite.T(), report.Summary.Corrections, 0)
-	assert.Equal(suite.T(), report.Totals.CorrectionAmount, float64(0))
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, reports[0].AcceptedAt.Seconds)
+	assert.Len(suite.T(), reports[0].Summary.Corrections, 0)
+	assert.Equal(suite.T(), reports[0].Totals.CorrectionAmount, float64(0))
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
-		ReportId:      report.Id,
+		ReportId:      reports[0].Id,
 		IsAccepted:    false,
 		DisputeReason: "unit-test",
 		Ip:            "127.0.0.1",
@@ -714,11 +692,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
 	assert.Empty(suite.T(), rsp1.Message)
 
-	oid, err := primitive.ObjectIDFromHex(report.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), filter).Decode(&report)
+	report, err := suite.service.royaltyReportRepository.GetById(context.TODO(), reports[0].Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusDispute, report.Status)
@@ -739,11 +713,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp2.Status)
 	assert.Empty(suite.T(), rsp2.Message)
 
-	oid, err = primitive.ObjectIDFromHex(report.Id)
-	assert.NoError(suite.T(), err)
-	filter = bson.M{"_id": oid}
-
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), filter).Decode(&report)
+	report, err = suite.service.royaltyReportRepository.GetById(context.TODO(), report.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
@@ -762,23 +732,18 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyRepo
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
-	assert.EqualValues(suite.T(), -62135596800, report.AcceptedAt.Seconds)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, reports[0].AcceptedAt.Seconds)
 
-	oid, err := primitive.ObjectIDFromHex(report.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-
-	report.Status = billingpb.RoyaltyReportStatusPending
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).ReplaceOne(context.TODO(), filter, report)
+	reports[0].Status = billingpb.RoyaltyReportStatusPending
+	err = suite.service.royaltyReportRepository.Update(context.TODO(), reports[0], "127.0.0.1", pkg.RoyaltyReportChangeSourceMerchant)
 	assert.NoError(suite.T(), err)
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
-		ReportId:   report.Id,
+		ReportId:   reports[0].Id,
 		IsAccepted: true,
 		Ip:         "127.0.0.1",
 	}
@@ -788,18 +753,15 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyRepo
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
 	assert.Empty(suite.T(), rsp1.Message)
 
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), filter).Decode(&report)
+	report, err := suite.service.royaltyReportRepository.GetById(context.TODO(), reports[0].Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusAccepted, report.Status)
 	assert.NotEqual(suite.T(), int64(-62135596800), report.AcceptedAt.Seconds)
 
-	var changes []*billingpb.RoyaltyReportChanges
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReportChanges).Find(context.TODO(), bson.M{"royalty_report_id": oid})
+	changes, err := suite.service.royaltyReportRepository.GetRoyaltyHistoryById(context.TODO(), reports[0].Id)
 	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &changes)
-	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), changes, 2)
+	assert.Len(suite.T(), changes, 3)
 	assert.Equal(suite.T(), req1.Ip, changes[1].Ip)
 	assert.Equal(suite.T(), pkg.RoyaltyReportChangeSourceMerchant, changes[1].Source)
 
@@ -819,15 +781,14 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyRepo
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
-	assert.EqualValues(suite.T(), -62135596800, report.AcceptedAt.Seconds)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, reports[0].AcceptedAt.Seconds)
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
-		ReportId:      report.Id,
+		ReportId:      reports[0].Id,
 		IsAccepted:    false,
 		DisputeReason: "unit-test",
 		Ip:            "127.0.0.1",
@@ -838,19 +799,12 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyRepo
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
 	assert.Empty(suite.T(), rsp1.Message)
 
-	oid, err := primitive.ObjectIDFromHex(report.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), filter).Decode(&report)
+	report, err := suite.service.royaltyReportRepository.GetById(context.TODO(), reports[0].Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), report)
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusDispute, report.Status)
 
-	var changes []*billingpb.RoyaltyReportChanges
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReportChanges).Find(context.TODO(), bson.M{"royalty_report_id": oid})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &changes)
+	changes, err := suite.service.royaltyReportRepository.GetRoyaltyHistoryById(context.TODO(), reports[0].Id)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), changes, 2)
 	assert.Equal(suite.T(), req1.Ip, changes[1].Ip)
@@ -885,16 +839,15 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Chang
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
 
 	req1 := &billingpb.ChangeRoyaltyReportRequest{
-		ReportId:   report.Id,
+		ReportId:   reports[0].Id,
 		Status:     billingpb.RoyaltyReportStatusCanceled,
-		MerchantId: report.MerchantId,
+		MerchantId: reports[0].MerchantId,
 		Ip:         "127.0.0.1",
 	}
 	rsp1 := &billingpb.ResponseError{}
@@ -915,23 +868,19 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Statu
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
 
-	report.Status = billingpb.RoyaltyReportStatusPending
-	oid, err := primitive.ObjectIDFromHex(report.Id)
-	assert.NoError(suite.T(), err)
-	filter := bson.M{"_id": oid}
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).ReplaceOne(context.TODO(), filter, report)
+	reports[0].Status = billingpb.RoyaltyReportStatusPending
+	err = suite.service.royaltyReportRepository.Update(context.TODO(), reports[0], "", pkg.RoyaltyReportChangeSourceAuto)
 	assert.NoError(suite.T(), err)
 
 	req1 := &billingpb.ChangeRoyaltyReportRequest{
-		ReportId:   report.Id,
+		ReportId:   reports[0].Id,
 		Status:     billingpb.RoyaltyReportStatusDispute,
-		MerchantId: report.MerchantId,
+		MerchantId: reports[0].MerchantId,
 		Ip:         "127.0.0.1",
 	}
 	rsp1 := &billingpb.ResponseError{}
@@ -953,13 +902,12 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReportOrders_O
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
 
-	req1 := &billingpb.ListRoyaltyReportOrdersRequest{ReportId: report.Id, Limit: 5, Offset: 0}
+	req1 := &billingpb.ListRoyaltyReportOrdersRequest{ReportId: reports[0].Id, Limit: 5, Offset: 0}
 	rsp1 := &billingpb.TransactionsResponse{}
 	err = suite.service.ListRoyaltyReportOrders(context.TODO(), req1, rsp1)
 	assert.NoError(suite.T(), err)
@@ -995,10 +943,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReportOrders_O
 	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), reports)
 }
@@ -1031,11 +976,10 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_SendRoyaltyReportNotifica
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
 
 	ci := &mocks.CentrifugoInterface{}
 	ci.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("error"))
@@ -1045,7 +989,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_SendRoyaltyReportNotifica
 	logger := zap.New(core)
 	zap.ReplaceGlobals(logger)
 
-	suite.service.sendRoyaltyReportNotification(context.Background(), report)
+	suite.service.sendRoyaltyReportNotification(context.Background(), reports[0])
 	assert.True(suite.T(), recorded.Len() == 1)
 
 	messages := recorded.All()
@@ -1076,17 +1020,15 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_AutoAcceptRoyaltyReports_
 	oid, err := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	assert.NoError(suite.T(), err)
 
-	_, err = suite.service.db.Collection(collectionRoyaltyReport).
-		UpdateMany(
-			context.TODO(),
-			bson.M{"merchant_id": oid},
-			bson.M{
-				"$set": bson.M{
-					"accept_expire_at": time.Now().Add(-time.Duration(336) * time.Hour),
-					"status":           billingpb.RoyaltyReportStatusPending,
-				},
+	err = suite.service.royaltyReportRepository.UpdateMany(context.TODO(),
+		bson.M{"merchant_id": oid},
+		bson.M{
+			"$set": bson.M{
+				"accept_expire_at": time.Now().Add(-time.Duration(336) * time.Hour),
+				"status":           billingpb.RoyaltyReportStatusPending,
 			},
-		)
+		},
+	)
 	assert.NoError(suite.T(), err)
 
 	req1 := &billingpb.EmptyRequest{}
@@ -1094,10 +1036,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_AutoAcceptRoyaltyReports_
 	err = suite.service.AutoAcceptRoyaltyReports(context.TODO(), req1, rsp1)
 	assert.NoError(suite.T(), err)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 
 	for _, v := range reports {
@@ -1112,7 +1051,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_AutoAcceptRoyaltyReports_
 }
 
 func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *billingpb.Order {
-	order := helperCreateAndPayOrder(
+	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
 		100,
@@ -1133,15 +1072,6 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 	err = suite.service.updateOrder(context.TODO(), order)
 	if !assert.NoError(suite.T(), err) {
 		suite.FailNow("update order failed", "%v", err)
-	}
-
-	oid, err := primitive.ObjectIDFromHex(project.GetMerchantId())
-	assert.NoError(suite.T(), err)
-	query := bson.M{"merchant_id": oid}
-	set := bson.M{"$set": bson.M{"created_at": date}}
-	_, err = suite.service.db.Collection(collectionAccountingEntry).UpdateMany(context.TODO(), query, set)
-	if !assert.NoError(suite.T(), err) {
-		suite.FailNow("accounting entries update failed", "%v", err)
 	}
 
 	return order
@@ -1221,10 +1151,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_Me
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rspReport.Merchants)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), reports)
 	assert.Len(suite.T(), reports, len(rspReport.Merchants))
@@ -1249,15 +1176,14 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_GetRoyaltyReport_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
 
-	report := new(billingpb.RoyaltyReport)
-	err = suite.service.db.Collection(collectionRoyaltyReport).FindOne(context.TODO(), bson.M{}).Decode(&report)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), report)
-	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report.Status)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
 
 	req1 := &billingpb.GetRoyaltyReportRequest{
-		ReportId:   report.Id,
-		MerchantId: report.MerchantId,
+		ReportId:   reports[0].Id,
+		MerchantId: reports[0].MerchantId,
 	}
 	rsp1 := &billingpb.GetRoyaltyReportResponse{}
 	err = suite.service.GetRoyaltyReport(context.TODO(), req1, rsp1)
@@ -1265,7 +1191,25 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_GetRoyaltyReport_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
 	assert.Empty(suite.T(), rsp1.Message)
 	assert.NotEmpty(suite.T(), rsp1.Item)
-	assert.Equal(suite.T(), rsp1.Item, report)
+	assert.EqualValues(suite.T(), rsp1.Item.Id, reports[0].Id)
+	assert.EqualValues(suite.T(), rsp1.Item.MerchantId, reports[0].MerchantId)
+	assert.EqualValues(suite.T(), rsp1.Item.Status, reports[0].Status)
+	assert.EqualValues(suite.T(), rsp1.Item.OperatingCompanyId, reports[0].OperatingCompanyId)
+	assert.EqualValues(suite.T(), rsp1.Item.Currency, reports[0].Currency)
+	assert.EqualValues(suite.T(), rsp1.Item.DisputeReason, reports[0].DisputeReason)
+	assert.EqualValues(suite.T(), rsp1.Item.IsAutoAccepted, reports[0].IsAutoAccepted)
+	assert.EqualValues(suite.T(), rsp1.Item.PayoutDocumentId, reports[0].PayoutDocumentId)
+	assert.EqualValues(suite.T(), rsp1.Item.Totals, reports[0].Totals)
+	assert.EqualValues(suite.T(), rsp1.Item.Summary, reports[0].Summary)
+	assert.EqualValues(suite.T(), rsp1.Item.CreatedAt.Seconds, reports[0].CreatedAt.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.UpdatedAt.Seconds, reports[0].UpdatedAt.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.AcceptExpireAt.Seconds, reports[0].AcceptExpireAt.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.PeriodFrom.Seconds, reports[0].PeriodFrom.Seconds)
+	assert.EqualValues(suite.T(), rsp1.Item.PeriodTo.Seconds, reports[0].PeriodTo.Seconds)
+	assert.Empty(suite.T(), rsp1.Item.AcceptedAt)
+	assert.Empty(suite.T(), rsp1.Item.DisputeClosedAt)
+	assert.Empty(suite.T(), rsp1.Item.DisputeStartedAt)
+	assert.Empty(suite.T(), rsp1.Item.PayoutDate)
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_OnlyTestOrders_Ok() {
@@ -1285,10 +1229,364 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_OnlyT
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), rsp.Merchants)
 
-	var reports []*billingpb.RoyaltyReport
-	cursor, err := suite.service.db.Collection(collectionRoyaltyReport).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reports)
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.Empty(suite.T(), reports)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_DisputeAndCorrection_SendEmail_MerchantNotFound_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, report[0].AcceptedAt.Seconds)
+	assert.Len(suite.T(), report[0].Summary.Corrections, 0)
+	assert.Equal(suite.T(), report[0].Totals.CorrectionAmount, float64(0))
+
+	merchantRepositoryMock := &mocks.MerchantRepositoryInterface{}
+	merchantRepositoryMock.On("GetById", mock.Anything, mock.Anything).
+		Return(nil, errors.New("some error"))
+	suite.service.merchantRepository = merchantRepositoryMock
+
+	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
+		ReportId:      report[0].Id,
+		IsAccepted:    false,
+		DisputeReason: "unit-test",
+		Ip:            "127.0.0.1",
+	}
+	rsp1 := &billingpb.ResponseError{}
+	err = suite.service.MerchantReviewRoyaltyReport(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), rsp1.Message, royaltyReportErrorMerchantNotFound)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_DisputeAndCorrection_SendEmail_MessagePublish_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, report[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, report[0].AcceptedAt.Seconds)
+	assert.Len(suite.T(), report[0].Summary.Corrections, 0)
+	assert.Equal(suite.T(), report[0].Totals.CorrectionAmount, float64(0))
+
+	brokerMock := &mocks.BrokerInterface{}
+	brokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).
+		Return(errors.New("some error"))
+	suite.service.postmarkBroker = brokerMock
+
+	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
+		ReportId:      report[0].Id,
+		IsAccepted:    false,
+		DisputeReason: "unit-test",
+		Ip:            "127.0.0.1",
+	}
+	rsp1 := &billingpb.ResponseError{}
+	err = suite.service.MerchantReviewRoyaltyReport(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), rsp1.Message, royaltyReportEntryErrorUnknown)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_Ok() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	emailsCounter := 0
+	postmarkBrokerMockFn := func(_ string, _ proto.Message, _ amqp.Table) error {
+		emailsCounter++
+		return nil
+	}
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.Anything, mock.Anything).
+		Return(postmarkBrokerMockFn)
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	t := time.Now()
+	req1 := &billingpb.ReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
+	assert.Zero(suite.T(), emailsCounter)
+
+	attachments := suite.service.royaltyReportRepository.GetAllRoyaltyReportFinanceItems(req1.RoyaltyReportId)
+	assert.Len(suite.T(), attachments, 1)
+	assert.Equal(suite.T(), req1.FileName, attachments[0].Name)
+	assert.Equal(suite.T(), base64.StdEncoding.EncodeToString(req1.FileContent), attachments[0].Content)
+
+	req1.FileName = "file_name1.txt"
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
+	assert.EqualValues(suite.T(), 1, emailsCounter)
+
+	attachments = suite.service.royaltyReportRepository.GetAllRoyaltyReportFinanceItems(req1.RoyaltyReportId)
+	assert.Empty(suite.T(), attachments)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_RoyaltyReportNotFound_Error() {
+	t := time.Now()
+	req := &billingpb.ReportFinanceDoneRequest{
+		RoyaltyReportId:        "ffffffffffffffffffffffff",
+		MerchantId:             "ffffffffffffffffffffffff",
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.RoyaltyReportFinanceDone(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), royaltyReportErrorReportNotFound, rsp.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_SetRoyaltyReportFinanceItem_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	royaltyReportRepositoryMock := &mocks.RoyaltyReportRepositoryInterface{}
+	royaltyReportRepositoryMock.On("GetById", mock2.Anything, mock2.Anything).
+		Return(report[0], nil)
+	royaltyReportRepositoryMock.On("SetRoyaltyReportFinanceItem", mock2.Anything, mock2.Anything).
+		Return(nil, errors.New("SetRoyaltyReportFinanceItem"))
+	suite.service.royaltyReportRepository = royaltyReportRepositoryMock
+
+	t := time.Now()
+	req1 := &billingpb.ReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_RemoveRoyaltyReportFinanceItems_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	content := base64.StdEncoding.EncodeToString([]byte(``))
+
+	royaltyReportRepositoryMock := &mocks.RoyaltyReportRepositoryInterface{}
+	royaltyReportRepositoryMock.On("GetById", mock2.Anything, mock2.Anything).
+		Return(report[0], nil)
+	royaltyReportRepositoryMock.On("SetRoyaltyReportFinanceItem", mock2.Anything, mock2.Anything).
+		Return(
+			[]*postmarkpb.PayloadAttachment{
+				{
+					Content:     content,
+					Name:        "file_name.txt",
+					ContentType: "text/plain",
+				},
+				{
+					Content:     content,
+					Name:        "file_name.txt",
+					ContentType: "text/plain",
+				},
+			},
+			nil,
+		)
+	royaltyReportRepositoryMock.On("RemoveRoyaltyReportFinanceItems", mock2.Anything).
+		Return(errors.New("RemoveRoyaltyReportFinanceItems"))
+	suite.service.royaltyReportRepository = royaltyReportRepositoryMock
+
+	t := time.Now()
+	req1 := &billingpb.ReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_RoyaltyReportFinanceDone_PostmarkBroker_Publish_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	report, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), report)
+	assert.NotNil(suite.T(), report[0])
+
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.Anything, mock.Anything).
+		Return(errors.New("PostmarkBroker_Publish"))
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	zap.ReplaceGlobals(suite.logObserver)
+	_, err = suite.service.royaltyReportRepository.SetRoyaltyReportFinanceItem(
+		report[0].Id,
+		&postmarkpb.PayloadAttachment{
+			Content:     base64.StdEncoding.EncodeToString([]byte(``)),
+			Name:        "file_name.txt",
+			ContentType: "text/plain",
+		},
+	)
+	assert.NoError(suite.T(), err)
+
+	t := time.Now()
+	req1 := &billingpb.ReportFinanceDoneRequest{
+		RoyaltyReportId:        report[0].Id,
+		MerchantId:             report[0].MerchantId,
+		PeriodFrom:             t.Format(billingpb.FilterDateFormat),
+		PeriodTo:               t.Format(billingpb.FilterDateFormat),
+		LicenseAgreementNumber: "ace2fc5c-b8c2-4424-96e8-5b631a73b88a",
+		OperatingCompanyName:   "Company Name",
+		FileName:               "file_name1.txt",
+		FileContent:            []byte(``),
+	}
+	rsp1 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.RoyaltyReportFinanceDone(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+
+	logs := suite.zapRecorder.All()
+	assert.NotEmpty(suite.T(), logs)
+	assert.Equal(suite.T(), zap.ErrorLevel, logs[0].Level)
+	assert.Equal(suite.T(), "Publication message to postmark broker failed", logs[0].Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyReport_Accepted_OnRoyaltyReportAccepted_RoyaltyReport_Error() {
+	suite.createOrder(suite.project)
+	err := suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	req := &billingpb.CreateRoyaltyReportRequest{}
+	rsp := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), reports)
+	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
+	assert.EqualValues(suite.T(), -62135596800, reports[0].AcceptedAt.Seconds)
+
+	reports[0].Status = billingpb.RoyaltyReportStatusPending
+	err = suite.service.royaltyReportRepository.Update(context.TODO(), reports[0], "127.0.0.1", pkg.RoyaltyReportChangeSourceMerchant)
+	assert.NoError(suite.T(), err)
+
+	reportingServiceMock := &reportingMocks.ReporterService{}
+	reportingServiceMock.On("CreateFile", mock2.Anything, mock2.Anything, mock2.Anything).
+		Return(nil, errors.New("ReportingService_CreateFile"))
+	suite.service.reporterService = reportingServiceMock
+
+	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
+		ReportId:   reports[0].Id,
+		IsAccepted: true,
+		Ip:         "127.0.0.1",
+	}
+	rsp1 := &billingpb.ResponseError{}
+	err = suite.service.MerchantReviewRoyaltyReport(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp1.Status)
+	assert.Equal(suite.T(), royaltyReportEntryErrorUnknown, rsp1.Message)
+}
+
+func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_OnRoyaltyReportAccepted_MerchantNotFound_Error() {
+	err := suite.service.onRoyaltyReportAccepted(
+		context.Background(),
+		&billingpb.RoyaltyReport{
+			MerchantId: "ffffffffffffffffffffffff",
+		},
+	)
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), merchantErrorNotFound, err)
 }

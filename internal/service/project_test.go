@@ -26,24 +26,94 @@ var (
 			Email: "test@unit.test",
 		},
 		Company: &billingpb.MerchantCompanyInfo{
-			Name:    "merchant1",
-			Country: "RU",
-			Zip:     "190000",
-			City:    "St.Petersburg",
+			Name:               "merchant1",
+			Country:            "RU",
+			Zip:                "190000",
+			City:               "St.Petersburg",
+			AlternativeName:    "Company",
+			Website:            "http://localhost",
+			Address:            "Address",
+			RegistrationNumber: "1234567890",
 		},
 		Contacts: &billingpb.MerchantContact{
-			Authorized: &billingpb.MerchantContactAuthorized{},
-			Technical:  &billingpb.MerchantContactTechnical{},
+			Authorized: &billingpb.MerchantContactAuthorized{
+				Name:     "Authorized Name",
+				Email:    "Authorized Email",
+				Phone:    "Authorized Phone",
+				Position: "Authorized Position",
+			},
+			Technical: &billingpb.MerchantContactTechnical{
+				Name:  "Authorized Name",
+				Email: "Authorized Email",
+				Phone: "Authorized Phone",
+			},
 		},
 		Banking: &billingpb.MerchantBanking{
-			Currency: "RUB",
-			Name:     "Bank name",
+			Currency:      "RUB",
+			Name:          "Banking Name",
+			Address:       "Banking Address",
+			AccountNumber: "Banking AccountNumber",
+			Swift:         "Banking Swift",
 		},
 		IsVatEnabled:              true,
 		IsCommissionToUserEnabled: true,
 		Status:                    billingpb.MerchantStatusDraft,
 		IsSigned:                  true,
 		DontChargeVat:             false,
+		Tariff: &billingpb.MerchantTariff{
+			Payment: []*billingpb.MerchantTariffRatesPayment{
+				{
+					MinAmount:              0,
+					MaxAmount:              100000,
+					MethodName:             "MethodName",
+					MethodPercentFee:       100,
+					MethodFixedFee:         0,
+					MethodFixedFeeCurrency: "USD",
+					PsPercentFee:           100,
+					PsFixedFee:             0,
+					PsFixedFeeCurrency:     "USD",
+					MerchantHomeRegion:     billingpb.TariffRegionRussiaAndCis,
+					PayerRegion:            billingpb.TariffRegionRussiaAndCis,
+					MccCode:                billingpb.MccCodeLowRisk,
+					IsActive:               true,
+				},
+			},
+			Payout: &billingpb.MerchantTariffRatesSettingsItem{
+				MethodName:             "MethodName",
+				MethodPercentFee:       100,
+				MethodFixedFee:         10,
+				MethodFixedFeeCurrency: "USD",
+				IsPaidByMerchant:       false,
+			},
+			HomeRegion: billingpb.TariffRegionRussiaAndCis,
+			Chargeback: []*billingpb.MerchantTariffRatesSettingsItem{
+				{
+					MethodName:             "MethodName",
+					MethodPercentFee:       100,
+					MethodFixedFee:         0,
+					MethodFixedFeeCurrency: "USD",
+					IsPaidByMerchant:       false,
+				},
+			},
+			Refund: []*billingpb.MerchantTariffRatesSettingsItem{
+				{
+					MethodName:             "MethodName",
+					MethodPercentFee:       100,
+					MethodFixedFee:         0,
+					MethodFixedFeeCurrency: "USD",
+					IsPaidByMerchant:       false,
+				},
+			},
+			MinimalPayout: map[string]float32{
+				"USD": 0,
+			},
+		},
+		Steps: &billingpb.MerchantCompletedSteps{
+			Company:  true,
+			Contacts: true,
+			Banking:  true,
+			Tariff:   true,
+		},
 	}
 
 	projectMock = &billingpb.Project{
@@ -103,8 +173,10 @@ type ProjectCRUDTestSuite struct {
 	service *Service
 	cache   database.CacheInterface
 
-	merchant *billingpb.Merchant
-	project  *billingpb.Project
+	merchant  *billingpb.Merchant
+	project   *billingpb.Project
+	merchant1 *billingpb.Merchant
+	project1  *billingpb.Project
 }
 
 func Test_ProjectCRUD(t *testing.T) {
@@ -177,7 +249,6 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 	}
 
 	merchant := merchantMock
-
 	project := &billingpb.Project{
 		Id:                       projectId,
 		CallbackCurrency:         "RUB",
@@ -200,8 +271,8 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 		UrlRedirectFail:    "http://localhost?fail",
 	}
 
-	products := []interface{}{
-		&billingpb.Product{
+	products := []*billingpb.Product{
+		{
 			Object:          "product",
 			Type:            "simple_product",
 			Sku:             "ru_double_yeti",
@@ -219,7 +290,7 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 			},
 			Prices: []*billingpb.ProductPrice{{Currency: "USD", Amount: 1005.00}},
 		},
-		&billingpb.Product{
+		{
 			Object:          "product1",
 			Type:            "simple_product",
 			Sku:             "ru_double_yeti1",
@@ -237,7 +308,7 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 			},
 			Prices: []*billingpb.ProductPrice{{Currency: "USD", Amount: 1005.00}},
 		},
-		&billingpb.Product{
+		{
 			Object:          "product2",
 			Type:            "simple_product",
 			Sku:             "ru_double_yeti2",
@@ -257,10 +328,13 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 		},
 	}
 
-	_, err = db.Collection(collectionProduct).InsertMany(context.TODO(), products)
-	assert.NoError(suite.T(), err, "Insert product test data failed")
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -276,6 +350,8 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -283,7 +359,7 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 	}
 
 	pms := []*billingpb.PaymentMethod{pm1, pm2}
-	if err := suite.service.paymentMethod.MultipleInsert(context.TODO(), pms); err != nil {
+	if err := suite.service.paymentMethodRepository.MultipleInsert(context.TODO(), pms); err != nil {
 		suite.FailNow("Insert payment methods test data failed", "%v", err)
 	}
 
@@ -297,6 +373,14 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 
 	suite.merchant = merchant
 	suite.project = project
+
+	err = suite.service.productRepository.MultipleInsert(context.TODO(), products)
+	assert.NoError(suite.T(), err, "Insert product test data failed")
+
+	suite.merchant1, suite.project1, _, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant1.IsSigned = false
+	err = suite.service.merchantRepository.Update(context.TODO(), suite.merchant1)
+	assert.NoError(suite.T(), err)
 }
 
 func (suite *ProjectCRUDTestSuite) TearDownTest() {
@@ -311,6 +395,8 @@ func (suite *ProjectCRUDTestSuite) TearDownTest() {
 	if err != nil {
 		suite.FailNow("Database close failed", "%v", err)
 	}
+
+	suite.service.cacher.FlushAll()
 }
 
 func (suite *ProjectCRUDTestSuite) TestProjectCRUD_ChangeProject_NewProject_Ok() {
@@ -456,8 +542,8 @@ func (suite *ProjectCRUDTestSuite) TestProjectCRUD_ChangeProject_ExistProject_Ok
 	assert.Equal(suite.T(), req.MerchantId, rsp.Item.MerchantId)
 	assert.Equal(suite.T(), req.Name, rsp.Item.Name)
 	assert.Equal(suite.T(), req.CallbackProtocol, rsp.Item.CallbackProtocol)
-	assert.NotEqual(suite.T(), req.Status, rsp.Item.Status)
-	assert.Equal(suite.T(), billingpb.ProjectStatusDraft, rsp.Item.Status)
+	assert.Equal(suite.T(), req.Status, rsp.Item.Status)
+	assert.Equal(suite.T(), billingpb.ProjectStatusInProduction, rsp.Item.Status)
 
 	project, err := suite.service.project.GetById(context.TODO(), rsp.Item.Id)
 	assert.NoError(suite.T(), err)
@@ -610,6 +696,8 @@ func (suite *ProjectCRUDTestSuite) TestProjectCRUD_GetProject_Ok() {
 		ProjectId:  suite.project.Id,
 		MerchantId: suite.merchant.Id,
 	}
+
+	suite.cache.FlushAll()
 	rsp := &billingpb.ChangeProjectResponse{}
 	err := suite.service.GetProject(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -1017,6 +1105,11 @@ func (suite *ProjectTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -1032,6 +1125,8 @@ func (suite *ProjectTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		mocks.NewNotifierOk(),
+		mocks.NewBrokerMockOk(),
 	)
 
 	if err := suite.service.Init(); err != nil {
@@ -1524,7 +1619,7 @@ func (suite *ProjectCRUDTestSuite) TestProjectCRUD_ChangeProject_NewProject_With
 	project, err := suite.service.project.GetById(context.TODO(), rsp.Item.Id)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rsp.Item.RedirectSettings, project.RedirectSettings)
-	assert.Equal(suite.T(), project.RedirectSettings.Mode, pkg.ProjectRedirectModeAny)
+	assert.Equal(suite.T(), project.RedirectSettings.Mode, pkg.ProjectRedirectModeDisable)
 	assert.Equal(suite.T(), project.RedirectSettings.Usage, pkg.ProjectRedirectUsageAny)
 	assert.Zero(suite.T(), project.RedirectSettings.Delay)
 	assert.Zero(suite.T(), project.RedirectSettings.ButtonCaption)
@@ -1725,4 +1820,32 @@ func (suite *ProjectCRUDTestSuite) TestProjectCRUD_UpdateProject_WithIncorrectRe
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
 	assert.Equal(suite.T(), rsp.Message, projectErrorRedirectModeIsRequired)
+}
+
+func (suite *ProjectCRUDTestSuite) TestProjectCRUD_ChangeProject_ChangeStatusToProductionNotAllowed_Error() {
+	// new project
+	req := new(billingpb.Project)
+	err := copier.Copy(&req, &suite.project)
+	assert.NoError(suite.T(), err)
+
+	req.Id = ""
+	req.MerchantId = suite.merchant1.Id
+
+	rsp := &billingpb.ChangeProjectResponse{}
+	err = suite.service.ChangeProject(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
+	assert.Equal(suite.T(), projectErrorChangeStatusToProductionNotAllowed, rsp.Message)
+
+	// exists project
+	err = copier.Copy(&req, &suite.project1)
+	assert.NoError(suite.T(), err)
+
+	req.Status = billingpb.ProjectStatusInProduction
+	req.VirtualCurrency = nil
+
+	err = suite.service.ChangeProject(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
+	assert.Equal(suite.T(), projectErrorChangeStatusToProductionNotAllowed, rsp.Message)
 }

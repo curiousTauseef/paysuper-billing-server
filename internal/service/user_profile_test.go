@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -71,6 +70,11 @@ func (suite *UserProfileTestSuite) SetupTest() {
 
 	redisdb := mocks.NewTestRedis()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
+
+	if err != nil {
+		suite.FailNow("Cache redis initialize failed", "%v", err)
+	}
+
 	suite.service = NewBillingService(
 		db,
 		cfg,
@@ -86,6 +90,8 @@ func (suite *UserProfileTestSuite) SetupTest() {
 		mocks.NewFormatterOK(),
 		mocks.NewBrokerMockOk(),
 		&casbinMocks.CasbinService{},
+		nil,
+		mocks.NewBrokerMockOk(),
 	)
 
 	err = suite.service.Init()
@@ -869,10 +875,7 @@ func (suite *UserProfileTestSuite) TestUserProfile_CreatePageReview_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.Empty(suite.T(), rsp.Message)
 
-	var reviews []*billingpb.PageReview
-	cursor, err := suite.service.db.Collection(collectionOPageReview).Find(context.TODO(), bson.M{})
-	assert.NoError(suite.T(), err)
-	err = cursor.All(context.TODO(), &reviews)
+	reviews, err := suite.service.feedbackRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), reviews, 3)
 

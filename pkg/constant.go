@@ -32,6 +32,9 @@ const (
 
 	MerchantAgreementTypeESign = 2
 
+	ProjectWebhookPreApproval = "pre_approval"
+	ProjectWebhookDefault     = "default"
+
 	ObjectTypeUser = "user"
 
 	UserIdentityTypeEmail    = "email"
@@ -107,8 +110,10 @@ const (
 	ErrorTimeConversionMethod = "conversion method"
 
 	ErrorDatabaseQueryFailed          = "Query to database collection failed"
+	ErrorMapModelFailed               = "Map entity failed"
 	ErrorDatabaseInvalidObjectId      = "String is not a valid ObjectID"
 	ErrorQueryCursorExecutionFailed   = "Execute result from query cursor failed"
+	ErrorQueryCursorCloseFailed       = "Close DB cursor is failed"
 	ErrorDatabaseFieldCollection      = "collection"
 	ErrorDatabaseFieldDocumentId      = "document_id"
 	ErrorDatabaseFieldQuery           = "query"
@@ -121,7 +126,9 @@ const (
 	ErrorDatabaseFieldOperationInsert = "insert"
 	ErrorDatabaseFieldOperationUpdate = "update"
 	ErrorDatabaseFieldOperationUpsert = "upsert"
+	ErrorDatabaseFieldOperationDelete = "delete"
 	ErrorDatabaseFieldDocument        = "document"
+	ErrorDatabaseMapModelFailed       = "Map entity failed"
 
 	ErrorJsonMarshallingFailed = "json marshalling failed"
 
@@ -129,6 +136,8 @@ const (
 	ErrorCacheFieldKey    = "key"
 	ErrorCacheFieldData   = "data"
 	ErrorCacheFieldCmd    = "command"
+
+	ErrorUserCheckFailed = "failed to check user"
 
 	ErrorRoyaltyReportGenerationFailed = "royalty report generation failed"
 	ErrorRoyaltyReportFieldMerchantId  = "merchant_id"
@@ -204,14 +213,21 @@ const (
 	RoleTypeMerchant = "merchant"
 	RoleTypeSystem   = "system"
 
-	UserRoleStatusInvited  = "invited"
-	UserRoleStatusAccepted = "accepted"
+	UnknownTypeError = "unknown type in request"
+
+	TestCaseNonExistingUser  = "non_existing_user"
+	TestCaseExistingUser     = "existing_user"
+	TestCaseCorrectPayment   = "correct_payment"
+	TestCaseIncorrectPayment = "invalid_signature"
+	UserRoleStatusInvited    = "invited"
+	UserRoleStatusAccepted   = "accepted"
 
 	// MerchantId_UserId
 	CasbinMerchantUserMask = "%s_%s"
 
 	EmailConfirmUrl            = "%s/confirm_email"
-	RoyaltyReportsUrl          = "%s/royalty_reports"
+	RoyaltyReportsUrl          = "%s/reports"
+	RoyaltyReportUrl           = "%s/reports/%s"
 	PayoutsUrl                 = "%s/payouts"
 	ReceiptPurchaseUrl         = "%s/pay/receipt/purchase/%s/%s"
 	ReceiptRefundUrl           = "%s/pay/receipt/refund/%s/%s"
@@ -234,6 +250,10 @@ const (
 	ProjectRedirectModeSuccessful = "successful"
 	ProjectRedirectModeFail       = "fail"
 	ProjectRedirectUsageAny       = "any"
+
+	DefaultMerchantBankingCurrency = "EUR"
+	DefaultMerchantTariffsRegion   = billingpb.TariffRegionEurope
+	DefaultMerchantOperationType   = MerchantOperationTypeLowRisk
 )
 
 var (
