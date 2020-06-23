@@ -1924,7 +1924,6 @@ func (s *Service) getPayloadForReceipt(ctx context.Context, order *billingpb.Ord
 				Values: items,
 			}},
 		},
-		"vat": vat,
 		"showSummary": {
 			Kind: &structpb.Value_BoolValue{BoolValue: receipt.Items != nil && len(receipt.Items) > 1},
 		},
@@ -1932,6 +1931,10 @@ func (s *Service) getPayloadForReceipt(ctx context.Context, order *billingpb.Ord
 
 	if subTotal != nil {
 		fields["subTotal"] = subTotal
+	}
+
+	if vat != nil {
+		fields["vat"] = vat
 	}
 
 	payload.TemplateObjectModel = &structpb.Struct{
