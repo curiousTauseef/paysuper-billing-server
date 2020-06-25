@@ -153,8 +153,8 @@ func (s *Service) createPayoutDocument(
 		}
 
 		payoutAmount := grossTotalAmount - totalFees - totalVat
-		totalFeesAmount += payoutAmount - r.Totals.CorrectionAmount
-		balanceAmount += payoutAmount - r.Totals.CorrectionAmount - r.Totals.RollingReserveAmount
+		totalFeesAmount += payoutAmount + r.Totals.CorrectionAmount
+		balanceAmount += payoutAmount + r.Totals.CorrectionAmount - r.Totals.RollingReserveAmount
 
 		pd.TotalTransactions += r.Totals.TransactionsCount
 		pd.SourceId = append(pd.SourceId, r.Id)
@@ -841,8 +841,8 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 			}
 
 			payoutAmount := grossTotalAmount - totalFees - totalVat
-			totalFeesAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount
-			balanceAmount += payoutAmount - royaltyReport.Totals.CorrectionAmount - royaltyReport.Totals.RollingReserveAmount
+			totalFeesAmount += payoutAmount + royaltyReport.Totals.CorrectionAmount
+			balanceAmount += payoutAmount + royaltyReport.Totals.CorrectionAmount - royaltyReport.Totals.RollingReserveAmount
 		}
 
 		payout.TotalFees = math.Round(totalFeesAmount*100) / 100

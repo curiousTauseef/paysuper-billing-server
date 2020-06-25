@@ -43,9 +43,6 @@ func main() {
 		case "rebuild_payouts":
 			err = app.TaskRebuildPayouts()
 			break
-		case "create_royalty_correction":
-			err = app.TaskAddRoyaltyReportCorrection()
-			break
 
 		case "create_payout":
 			err = app.TaskCreatePayout()
