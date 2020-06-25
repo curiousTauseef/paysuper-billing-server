@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2020-06-23
+
+### Changed
+-  Royalty reports corrections changes. ([635610b](https://github.com/paysuper/paysuper-billing-server/commit/635610b0dad30521783188408313007172cf8c12))
+
+***
+
 ## [1.2.0] - 2020-02-04
 
 ### Added
