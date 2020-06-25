@@ -858,6 +858,8 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 	royalties, err := s.royaltyReportRepository.GetAll(ctx)
 
 	for _, royalty := range royalties {
+		merchant, err := s.merchantRepository.GetById(ctx, royalty.MerchantId)
+
 		totalEndUserFeesMoney := helper.NewMoney()
 		returnsAmountMoney := helper.NewMoney()
 		endUserFeesMoney := helper.NewMoney()
@@ -870,6 +872,32 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 		totalVat := float64(0)
 		totalFees := float64(0)
 		totalPayoutAmount := float64(0)
+
+		periodFrom, err := ptypes.Timestamp(royalty.PeriodFrom)
+
+		if err != nil {
+			return err
+		}
+
+		periodTo, err := ptypes.Timestamp(royalty.PeriodTo)
+
+		if err != nil {
+			return err
+		}
+
+		summaryItems, total, _, err := s.orderViewRepository.GetRoyaltySummary(
+			ctx,
+			royalty.MerchantId,
+			merchant.GetPayoutCurrency(),
+			periodFrom,
+			periodTo,
+		)
+
+		if err != nil {
+			return err
+		}
+
+		royalty.Summary.ProductsItems = summaryItems
 
 		for _, item := range royalty.Summary.ProductsItems {
 			grossSalesAmount, err := totalEndUserFeesMoney.Round(item.GrossSalesAmount)
@@ -914,6 +942,7 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 
 		royalty.Totals.FeeAmount = math.Round(totalFees*100) / 100
 		royalty.Totals.VatAmount = math.Round(totalVat*100) / 100
+		royalty.Totals.TransactionsCount = total.TotalTransactions
 		royalty.Totals.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
 		royalty.Summary.ProductsTotal.GrossSalesAmount = math.Round(totalGrossSalesAmount*100) / 100
 		royalty.Summary.ProductsTotal.GrossReturnsAmount = math.Round(totalGrossReturnsAmount*100) / 100
@@ -921,7 +950,10 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 		royalty.Summary.ProductsTotal.TotalVat = math.Round(totalVat*100) / 100
 		royalty.Summary.ProductsTotal.TotalFees = math.Round(totalFees*100) / 100
 		royalty.Summary.ProductsTotal.PayoutAmount = math.Round(totalPayoutAmount*100) / 100
-		_ = s.royaltyReportRepository.Update(ctx, royalty, "0.0.0.0", "auto")
+		royalty.Summary.ProductsTotal.SalesCount = total.SalesCount
+		royalty.Summary.ProductsTotal.TotalTransactions = total.TotalTransactions
+
+		err = s.royaltyReportRepository.Update(ctx, royalty, "0.0.0.0", "auto")
 	}
 
 	merchants, err := s.merchantRepository.GetAll(ctx)

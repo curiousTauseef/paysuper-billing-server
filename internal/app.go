@@ -404,6 +404,30 @@ func (app *Application) TaskRebuildPayouts() error {
 	return app.svc.TaskRebuildPayoutsRoyalties()
 }
 
+func (app *Application) TaskAddRoyaltyReportCorrection() error {
+	req := &billingpb.ChangeRoyaltyReportRequest{
+		MerchantId: "5dfa3c95f2d08430618e0054",
+		ReportId:   "5ed596a7b0e24aa4c7d9d17d",
+		Correction: &billingpb.ChangeRoyaltyReportCorrection{
+			Amount: 3.53,
+			Reason: "Корректировка суммы выплаты в связи с перепроведеним проблемных платежей в апреля 2020",
+		},
+		Ip: "0.0.0.0",
+	}
+	rsp := &billingpb.ResponseError{}
+	err := app.svc.ChangeRoyaltyReport(context.Background(), req, rsp)
+
+	if err != nil {
+		return err
+	}
+
+	if rsp != nil && rsp.Status != billingpb.ResponseStatusOk {
+		return rsp.Message
+	}
+
+	return nil
+}
+
 func (app *Application) TaskCreatePayout() error {
 	rsp := &billingpb.CreatePayoutDocumentResponse{}
 	err := app.svc.CreatePayoutDocument(
