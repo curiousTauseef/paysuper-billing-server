@@ -615,7 +615,7 @@ func (r *royaltyReportRepository) GetBalanceAmount(ctx context.Context, merchant
 		}
 
 		payoutAmount := grossTotalAmount - totalFees - totalVat
-		balance[val.Currency] += payoutAmount - correctionAmount - rollingReserveAmount
+		balance[val.Currency] += payoutAmount + correctionAmount - rollingReserveAmount
 	}
 
 	if len(balance) > 1 {
