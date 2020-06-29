@@ -11,13 +11,13 @@ type PayoutRepositoryInterface struct {
 	mock.Mock
 }
 
-// Find provides a mock function with given fields: ctx, merchantId, statuses, dateFrom, dateTo, limit, offset
-func (_m *PayoutRepositoryInterface) Find(ctx context.Context, merchantId string, statuses []string, dateFrom string, dateTo string, limit int64, offset int64) ([]*billingpb.PayoutDocument, error) {
-	ret := _m.Called(ctx, merchantId, statuses, dateFrom, dateTo, limit, offset)
+// Find provides a mock function with given fields: ctx, in
+func (_m *PayoutRepositoryInterface) Find(ctx context.Context, in *billingpb.GetPayoutDocumentsRequest) ([]*billingpb.PayoutDocument, error) {
+	ret := _m.Called(ctx, in)
 
 	var r0 []*billingpb.PayoutDocument
-	if rf, ok := ret.Get(0).(func(context.Context, string, []string, string, string, int64, int64) []*billingpb.PayoutDocument); ok {
-		r0 = rf(ctx, merchantId, statuses, dateFrom, dateTo, limit, offset)
+	if rf, ok := ret.Get(0).(func(context.Context, *billingpb.GetPayoutDocumentsRequest) []*billingpb.PayoutDocument); ok {
+		r0 = rf(ctx, in)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*billingpb.PayoutDocument)
@@ -25,8 +25,8 @@ func (_m *PayoutRepositoryInterface) Find(ctx context.Context, merchantId string
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, []string, string, string, int64, int64) error); ok {
-		r1 = rf(ctx, merchantId, statuses, dateFrom, dateTo, limit, offset)
+	if rf, ok := ret.Get(1).(func(context.Context, *billingpb.GetPayoutDocumentsRequest) error); ok {
+		r1 = rf(ctx, in)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -57,20 +57,20 @@ func (_m *PayoutRepositoryInterface) FindAll(ctx context.Context) ([]*billingpb.
 	return r0, r1
 }
 
-// FindCount provides a mock function with given fields: ctx, merchantId, statuses, dateFrom, dateTo
-func (_m *PayoutRepositoryInterface) FindCount(ctx context.Context, merchantId string, statuses []string, dateFrom string, dateTo string) (int64, error) {
-	ret := _m.Called(ctx, merchantId, statuses, dateFrom, dateTo)
+// FindCount provides a mock function with given fields: ctx, in
+func (_m *PayoutRepositoryInterface) FindCount(ctx context.Context, in *billingpb.GetPayoutDocumentsRequest) (int64, error) {
+	ret := _m.Called(ctx, in)
 
 	var r0 int64
-	if rf, ok := ret.Get(0).(func(context.Context, string, []string, string, string) int64); ok {
-		r0 = rf(ctx, merchantId, statuses, dateFrom, dateTo)
+	if rf, ok := ret.Get(0).(func(context.Context, *billingpb.GetPayoutDocumentsRequest) int64); ok {
+		r0 = rf(ctx, in)
 	} else {
 		r0 = ret.Get(0).(int64)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, []string, string, string) error); ok {
-		r1 = rf(ctx, merchantId, statuses, dateFrom, dateTo)
+	if rf, ok := ret.Get(1).(func(context.Context, *billingpb.GetPayoutDocumentsRequest) error); ok {
+		r1 = rf(ctx, in)
 	} else {
 		r1 = ret.Error(1)
 	}

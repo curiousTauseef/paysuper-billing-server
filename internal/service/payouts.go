@@ -588,8 +588,7 @@ func (s *Service) GetPayoutDocuments(
 	res *billingpb.GetPayoutDocumentsResponse,
 ) error {
 	res.Status = billingpb.ResponseStatusOk
-
-	count, err := s.payoutRepository.FindCount(ctx, req.MerchantId, req.Status, req.DateFrom, req.DateTo)
+	count, err := s.payoutRepository.FindCount(ctx, req)
 
 	if err != nil && err != mongo.ErrNoDocuments {
 		return err
@@ -604,7 +603,7 @@ func (s *Service) GetPayoutDocuments(
 		return nil
 	}
 
-	pds, err := s.payoutRepository.Find(ctx, req.MerchantId, req.Status, req.DateFrom, req.DateTo, req.Offset, req.Limit)
+	pds, err := s.payoutRepository.Find(ctx, req)
 
 	if err != nil {
 		return err

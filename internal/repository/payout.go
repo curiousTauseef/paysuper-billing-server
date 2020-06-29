@@ -378,49 +378,26 @@ func (r *payoutRepository) GetLast(ctx context.Context, merchantId, currency str
 	return obj.(*billingpb.PayoutDocument), nil
 }
 
-func (r *payoutRepository) FindCount(ctx context.Context, merchantId string, status []string, dateFrom, dateTo string) (int64, error) {
-	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+func (r *payoutRepository) FindCount(
+	ctx context.Context,
+	in *billingpb.GetPayoutDocumentsRequest,
+) (int64, error) {
+	filter, err := r.getFindFilter(in)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseInvalidObjectId,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
-		)
-		return int64(0), err
+		return 0, err
 	}
 
-	query := bson.M{"merchant_id": merchantOid}
-
-	if len(status) > 0 {
-		query["status"] = bson.M{"$in": status}
-	}
-
-	if dateFrom != "" || dateTo != "" {
-		date := bson.M{}
-
-		if dateFrom != "" {
-			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
-		}
-
-		if dateTo != "" {
-			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
-		}
-
-		query["created_at"] = date
-	}
-
-	count, err := r.db.Collection(collectionPayoutDocuments).CountDocuments(ctx, query)
+	count, err := r.db.Collection(collectionPayoutDocuments).CountDocuments(ctx, filter)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
 		)
-		return int64(0), err
+		return 0, err
 	}
 
 	return count, nil
@@ -428,57 +405,28 @@ func (r *payoutRepository) FindCount(ctx context.Context, merchantId string, sta
 
 func (r *payoutRepository) Find(
 	ctx context.Context,
-	merchantId string,
-	status []string,
-	dateFrom, dateTo string,
-	offset, limit int64,
+	in *billingpb.GetPayoutDocumentsRequest,
 ) ([]*billingpb.PayoutDocument, error) {
-	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+	filter, err := r.getFindFilter(in)
 
 	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseInvalidObjectId,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
-		)
 		return nil, err
 	}
 
-	query := bson.M{"merchant_id": merchantOid}
-
-	if len(status) > 0 {
-		query["status"] = bson.M{"$in": status}
-	}
-
-	if dateFrom != "" || dateTo != "" {
-		date := bson.M{}
-
-		if dateFrom != "" {
-			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
-		}
-
-		if dateTo != "" {
-			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
-		}
-
-		query["created_at"] = date
-	}
-
 	opts := options.Find().
-		SetSort(mongodb.ToSortOption([]string{"-_id"})).
-		SetLimit(limit).
-		SetSkip(offset)
-	cursor, err := r.db.Collection(collectionPayoutDocuments).Find(ctx, query, opts)
+		SetSort(bson.M{"created_at": -1}).
+		SetLimit(in.Limit).
+		SetSkip(in.Offset)
+	cursor, err := r.db.Collection(collectionPayoutDocuments).Find(ctx, filter, opts)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorDatabaseQueryFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			zap.Any(pkg.ErrorDatabaseFieldLimit, limit),
-			zap.Any(pkg.ErrorDatabaseFieldOffset, offset),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+			zap.Any(pkg.ErrorDatabaseFieldLimit, in.Limit),
+			zap.Any(pkg.ErrorDatabaseFieldOffset, in.Offset),
 		)
 		return nil, err
 	}
@@ -491,9 +439,9 @@ func (r *payoutRepository) Find(
 			pkg.ErrorQueryCursorExecutionFailed,
 			zap.Error(err),
 			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
-			zap.Any(pkg.ErrorDatabaseFieldLimit, limit),
-			zap.Any(pkg.ErrorDatabaseFieldOffset, offset),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+			zap.Any(pkg.ErrorDatabaseFieldLimit, in.Limit),
+			zap.Any(pkg.ErrorDatabaseFieldOffset, in.Offset),
 		)
 		return nil, err
 	}
@@ -645,4 +593,44 @@ func (r *payoutRepository) FindAll(
 	}
 
 	return objs, nil
+}
+
+func (r *payoutRepository) getFindFilter(in *billingpb.GetPayoutDocumentsRequest) (bson.M, error) {
+	filter := make(bson.M)
+
+	if in.MerchantId != "" {
+		merchantOid, err := primitive.ObjectIDFromHex(in.MerchantId)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
+				zap.String(pkg.ErrorDatabaseFieldQuery, in.MerchantId),
+			)
+			return nil, err
+		}
+
+		filter = bson.M{"merchant_id": merchantOid}
+	}
+
+	if len(in.Status) > 0 {
+		filter["status"] = bson.M{"$in": in.Status}
+	}
+
+	if in.DateFrom != "" || in.DateTo != "" {
+		date := bson.M{}
+
+		if in.DateFrom != "" {
+			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, in.DateFrom)
+		}
+
+		if in.DateTo != "" {
+			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, in.DateTo)
+		}
+
+		filter["created_at"] = date
+	}
+
+	return filter, nil
 }
