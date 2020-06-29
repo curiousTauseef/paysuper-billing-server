@@ -193,20 +193,25 @@ func (r *payoutRepository) GetByIdMerchantId(ctx context.Context, id, merchantId
 		return nil, err
 	}
 
-	merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+	query := bson.M{"_id": oid}
 
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseInvalidObjectId,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
-			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
-		)
-		return nil, err
+	if merchantId != "" {
+		merchantOid, err := primitive.ObjectIDFromHex(merchantId)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseInvalidObjectId,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, collectionPayoutDocuments),
+				zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+			)
+			return nil, err
+		}
+
+		query["merchant_id"] = merchantOid
 	}
 
 	var mgo = models.MgoPayoutDocument{}
-	query := bson.M{"_id": oid, "merchant_id": merchantOid}
 	err = r.db.Collection(collectionPayoutDocuments).FindOne(ctx, query).Decode(&mgo)
 
 	if err != nil {
