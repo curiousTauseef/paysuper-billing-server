@@ -321,7 +321,7 @@ func (s *Service) GetRoyaltyReport(
 		return nil
 	}
 
-	if report.MerchantId != req.MerchantId {
+	if req.MerchantId != "" && report.MerchantId != req.MerchantId {
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = royaltyReportErrorNotOwnedByMerchant
 		return nil
