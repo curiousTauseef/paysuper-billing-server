@@ -1170,3 +1170,19 @@ func (suite *PayoutsTestSuite) TestPayouts_PayoutFinanceDone_PostmarkBroker_Publ
 	assert.Equal(suite.T(), zap.ErrorLevel, logs[0].Level)
 	assert.Equal(suite.T(), "Publication message to postmark broker failed", logs[0].Message)
 }
+
+func (suite *PayoutsTestSuite) TestPayouts_UpdatePayoutDocument_Failed_RequestNotHasRequiredFields_Error() {
+	suite.helperInsertRoyaltyReports([]*billingpb.RoyaltyReport{suite.report6})
+	suite.helperInsertPayoutDocuments([]*billingpb.PayoutDocument{suite.payout6})
+
+	req := &billingpb.UpdatePayoutDocumentRequest{
+		PayoutDocumentId: suite.payout6.Id,
+		Status:           pkg.PayoutDocumentStatusFailed,
+		Ip:               "127.0.0.1",
+	}
+	rsp := &billingpb.PayoutDocumentResponse{}
+	err := suite.service.UpdatePayoutDocument(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusBadData)
+	assert.Equal(suite.T(), rsp.Message, errorPayoutRequireFailureFields)
+}

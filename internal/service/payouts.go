@@ -45,6 +45,7 @@ var (
 	errorPayoutManualPayoutsDisabled   = newBillingServerErrorMsg("po000015", "manual payouts disabled")
 	errorPayoutAutoPayoutsDisabled     = newBillingServerErrorMsg("po000016", "auto payouts disabled")
 	errorPayoutAutoPayoutsWithErrors   = newBillingServerErrorMsg("po000017", "auto payouts creation finished with errors")
+	errorPayoutRequireFailureFields    = newBillingServerErrorMsg("po000018", "fields failure_code and failure_message is required when status changing to failure")
 
 	statusForUpdateBalance = map[string]bool{
 		pkg.PayoutDocumentStatusPending: true,
@@ -474,10 +475,15 @@ func (s *Service) UpdatePayoutDocument(
 	becomeFailed := isReqStatusForBecomeFailed && !isPayoutStatusForBecomeFailed
 
 	if req.Status != "" && pd.Status != req.Status {
-		if pd.Status == pkg.PayoutDocumentStatusPaid || pd.Status == pkg.PayoutDocumentStatusFailed {
+		if pd.Status != pkg.PayoutDocumentStatusPending {
 			res.Status = billingpb.ResponseStatusBadData
 			res.Message = errorPayoutStatusChangeIsForbidden
+			return nil
+		}
 
+		if req.Status == pkg.PayoutDocumentStatusFailed && (req.FailureCode == "" || req.FailureMessage == "") {
+			res.Status = billingpb.ResponseStatusBadData
+			res.Message = errorPayoutRequireFailureFields
 			return nil
 		}
 
