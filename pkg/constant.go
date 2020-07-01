@@ -235,6 +235,7 @@ const (
 	AdminCompanyUrl            = "%s/merchants/%s/company-info"
 	AdminOnboardingRequestsUrl = "%s/agreement-requests"
 	UserInviteUrl              = "%s/login?invite_token=%s"
+	SystemPayoutUrl            = "%s/system-payouts/%s"
 
 	OrderType_simple         = "simple"
 	OrderType_key            = "key"
