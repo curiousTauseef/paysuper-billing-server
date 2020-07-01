@@ -255,6 +255,10 @@ func (cfg *Config) GetPayoutsUrl() string {
 	return fmt.Sprintf(pkg.PayoutsUrl, cfg.DashboardUrl)
 }
 
+func (cfg *Config) GetSystemPayoutUrl(id string) string {
+	return fmt.Sprintf(pkg.SystemPayoutUrl, cfg.DashboardUrl, id)
+}
+
 func (cfg *Config) GetMerchantCompanyUrl() string {
 	return fmt.Sprintf(pkg.MerchantCompanyUrl, cfg.DashboardUrl)
 }

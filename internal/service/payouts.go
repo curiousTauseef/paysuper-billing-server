@@ -776,6 +776,7 @@ func (s *Service) PayoutFinanceDone(
 			"license_agreement":      req.LicenseAgreementNumber,
 			"status":                 payout.Status,
 			"operating_company_name": req.OperatingCompanyName,
+			"payout_url":             s.cfg.GetSystemPayoutUrl(payout.Id),
 		},
 		To: s.cfg.EmailNotificationFinancierRecipient,
 		Attachments: []*postmarkpb.PayloadAttachment{
