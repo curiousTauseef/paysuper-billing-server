@@ -475,7 +475,7 @@ func (s *Service) GetCommonUserProfile(
 	}
 
 	expire := time.Now().Add(time.Minute * 30).Unix()
-	rsp.Profile.Profile.CentrifugoToken = s.centrifugoDashboard.GetChannelToken(profile.UserId, expire)
+	rsp.Profile.Profile.CentrifugoToken = s.centrifugoDashboard.GetChannelToken(profile.Id, expire)
 
 	role := s.findRoleForUser(ctx, req.MerchantId, req.UserId)
 
