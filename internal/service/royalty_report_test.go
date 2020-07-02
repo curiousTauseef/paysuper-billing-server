@@ -34,6 +34,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -1161,10 +1162,15 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_Me
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rspReport.Merchants)
 
+	log.Println(rspReport)
+	log.Println(err)
+
 	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), reports)
 	assert.Len(suite.T(), reports, len(rspReport.Merchants))
+
+	log.Println(reports)
 
 	report := reports[0]
 	assert.Len(suite.T(), report.Summary.ProductsItems, 1)
