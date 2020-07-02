@@ -166,7 +166,7 @@ func (s *Service) AutoAcceptRoyaltyReports(
 			return err
 		}
 
-		err = s.onRoyaltyReportAccepted(ctx, report)
+		err = s.onRoyaltyReportStatusChanged(ctx, report)
 
 		if err != nil {
 			return err
@@ -279,14 +279,14 @@ func (s *Service) MerchantReviewRoyaltyReport(
 			rsp.Message = royaltyReportUpdateBalanceError
 			return nil
 		}
+	}
 
-		err = s.onRoyaltyReportAccepted(ctx, report)
+	err = s.onRoyaltyReportStatusChanged(ctx, report)
 
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = royaltyReportEntryErrorUnknown
-			return nil
-		}
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = royaltyReportEntryErrorUnknown
+		return nil
 	}
 
 	err = s.royaltyReportChangedEmail(ctx, report)
@@ -1144,6 +1144,12 @@ func (s *Service) RoyaltyReportFinanceDone(
 		return nil
 	}
 
+	action := "accept"
+
+	if royaltyReport.Status == billingpb.RoyaltyReportStatusDispute {
+		action = "start dispute for"
+	}
+
 	payload := &postmarkpb.Payload{
 		TemplateAlias: s.cfg.EmailTemplates.RoyaltyReportFinancier,
 		TemplateModel: map[string]string{
@@ -1155,6 +1161,7 @@ func (s *Service) RoyaltyReportFinanceDone(
 			"license_agreement":      req.LicenseAgreementNumber,
 			"status":                 royaltyReport.Status,
 			"operating_company_name": req.OperatingCompanyName,
+			"action":                 action,
 		},
 		To:          s.cfg.EmailNotificationFinancierRecipient,
 		Attachments: attachments,
@@ -1177,7 +1184,7 @@ func (s *Service) RoyaltyReportFinanceDone(
 	return nil
 }
 
-func (s *Service) onRoyaltyReportAccepted(
+func (s *Service) onRoyaltyReportStatusChanged(
 	ctx context.Context,
 	royaltyReport *billingpb.RoyaltyReport,
 ) error {
