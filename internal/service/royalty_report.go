@@ -78,12 +78,17 @@ func (s *Service) CreateRoyaltyReport(
 		return royaltyReportErrorTimezoneIncorrect
 	}
 
-	to := now.Monday().In(loc).Add(time.Duration(s.cfg.RoyaltyReportPeriodEndHour) * time.Hour)
+	tEnd := s.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
+
 	if to.After(time.Now().In(loc)) {
 		return royaltyReportErrorEndOfPeriodIsInFuture
 	}
 
+	tEnd = s.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
+	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
 	var merchants []*pkg2.RoyaltyReportMerchant
 

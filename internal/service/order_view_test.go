@@ -49,7 +49,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 	if err != nil {
 		suite.FailNow("Config load failed", "%v", err)
 	}
-	cfg.RoyaltyReportPeriodEndHour = 0
+	cfg.RoyaltyReportPeriodEnd = []int{0, 0, 0}
 	cfg.CardPayApiUrl = "https://sandbox.cardpay.com"
 	cfg.OrderViewUpdateBatchSize = 20
 
