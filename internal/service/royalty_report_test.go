@@ -1170,7 +1170,6 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_Me
 	assert.Len(suite.T(), report.Summary.ProductsItems, 1)
 	assert.Len(suite.T(), report.Summary.Corrections, 1)
 	assert.Len(suite.T(), report.Summary.RollingReserves, 1)
-	assert.Len(suite.T(), report.Summary.RollingReserves, 1)
 	assert.Equal(suite.T(), report.Totals.RollingReserveAmount, float64(100))
 	assert.Equal(suite.T(), report.Totals.CorrectionAmount, float64(10))
 }
