@@ -1254,9 +1254,21 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Dispu
 	assert.Len(suite.T(), report[0].Summary.Corrections, 0)
 	assert.Equal(suite.T(), report[0].Totals.CorrectionAmount, float64(0))
 
+	merchant, err := suite.service.merchantRepository.GetById(context.TODO(), report[0].MerchantId)
+	assert.NoError(suite.T(), err)
+	counter := 0
+	merchantRepositoryMockGetByIdFn := func(ctx context.Context, id string) error {
+		if counter <= 0 {
+			counter++
+			return nil
+		}
+		counter++
+		return errors.New("some error")
+	}
+
 	merchantRepositoryMock := &mocks.MerchantRepositoryInterface{}
 	merchantRepositoryMock.On("GetById", mock.Anything, mock.Anything).
-		Return(nil, errors.New("some error"))
+		Return(merchant, merchantRepositoryMockGetByIdFn)
 	suite.service.merchantRepository = merchantRepositoryMock
 
 	req1 := &billingpb.MerchantReviewRoyaltyReportRequest{
@@ -1581,7 +1593,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyRepo
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_OnRoyaltyReportAccepted_MerchantNotFound_Error() {
-	err := suite.service.onRoyaltyReportAccepted(
+	err := suite.service.onRoyaltyReportStatusChanged(
 		context.Background(),
 		&billingpb.RoyaltyReport{
 			MerchantId: "ffffffffffffffffffffffff",
