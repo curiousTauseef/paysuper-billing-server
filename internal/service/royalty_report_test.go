@@ -34,7 +34,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
-	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -1096,19 +1095,13 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Fail_EndOfPeriodInFuture() {
-	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
-	if !assert.NoError(suite.T(), err) {
-		suite.FailNow("time.LoadLocation failed", "%v", err)
-	}
-
-	currentTime := time.Now().In(loc)
-	monday := now.Monday().In(loc)
-	suite.service.cfg.RoyaltyReportPeriodEnd = []int{int(math.Ceil(currentTime.Sub(monday).Hours())), 0, 0}
+	suite.service.cfg.RoyaltyReportPeriodEnd = []int{192, 59, 59}
 
 	req := &billingpb.CreateRoyaltyReportRequest{}
 	rsp := &billingpb.CreateRoyaltyReportRequest{}
-	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	err := suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), royaltyReportErrorEndOfPeriodIsInFuture, err)
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_MerchantWithCorrectionAndReserve() {
