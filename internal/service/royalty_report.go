@@ -780,7 +780,7 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 			return err
 		}
 
-		err = h.orderViewRepository.MarkIncludedToRoyaltyReport(ctx, ordersIds, newReport.Id)
+		err = h.markOrdersIncludedToRoyaltyReport(ctx, newReport.Id, ordersIds)
 		if err != nil {
 			return err
 		}
@@ -1208,4 +1208,24 @@ func (s *Service) onRoyaltyReportAccepted(
 
 	req.ReportType = reporterpb.ReportTypeRoyaltyTransactionsAccountant
 	return s.reporterServiceCreateFile(ctx, req)
+}
+
+func (s *Service) markOrdersIncludedToRoyaltyReport(
+	ctx context.Context,
+	royaltyReportId string,
+	orderIds []primitive.ObjectID,
+) error {
+	err := s.orderRepository.IncludeOrdersToRoyaltyReport(ctx, royaltyReportId, orderIds)
+
+	if err != nil {
+		return err
+	}
+
+	orderIdsString := make([]string, 0, len(orderIds))
+
+	for _, id := range orderIds {
+		orderIdsString = append(orderIdsString, id.Hex())
+	}
+
+	return s.updateOrderView(ctx, orderIdsString)
 }

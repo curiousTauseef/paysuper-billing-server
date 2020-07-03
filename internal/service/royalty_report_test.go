@@ -255,10 +255,14 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	suite.service.reporterService = reporterMock
 
 	projects := []*billingpb.Project{suite.project, suite.project1, suite.project2}
+	orderIds := make([]primitive.ObjectID, 0)
 
 	for _, v := range projects {
 		for i := 0; i < 5; i++ {
-			suite.createOrder(v)
+			order := suite.createOrder(v)
+			oid, err := primitive.ObjectIDFromHex(order.Id)
+			assert.NoError(suite.T(), err)
+			orderIds = append(orderIds, oid)
 		}
 	}
 	err := suite.service.updateOrderView(context.TODO(), []string{})
@@ -272,11 +276,39 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	// to prevent counting a calls for sending transaction success mails due to orders creation and payment
 	suite.service.postmarkBroker = postmarkBrokerMock
 
+	orderViews := HelperGetOrdersViewsMap(suite.Suite, suite.service, orderIds)
+	for _, v := range orderViews {
+		assert.Contains(suite.T(), v, "royalty_report_id")
+		assert.Empty(suite.T(), v["royalty_report_id"])
+	}
+
 	req := &billingpb.CreateRoyaltyReportRequest{}
 	rsp := &billingpb.CreateRoyaltyReportRequest{}
 	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	orderViews = HelperGetOrdersViewsMap(suite.Suite, suite.service, orderIds)
+	for _, v := range orderViews {
+		assert.Contains(suite.T(), v, "royalty_report_id")
+		assert.NotEmpty(suite.T(), v["royalty_report_id"])
+	}
+
+	err = suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+	err = suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+	err = suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	orderViewsByReports := make(map[string]int)
+	orderViews = HelperGetOrdersViewsMap(suite.Suite, suite.service, orderIds)
+	for _, v := range orderViews {
+		assert.Contains(suite.T(), v, "royalty_report_id")
+		assert.NotEmpty(suite.T(), v["royalty_report_id"])
+
+		orderViewsByReports[v["royalty_report_id"].(string)]++
+	}
 
 	assert.Contains(suite.T(), rsp.Merchants, suite.merchant.Id)
 	assert.Contains(suite.T(), rsp.Merchants, suite.merchant1.Id)
@@ -322,6 +354,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 		assert.InDelta(suite.T(), suite.service.cfg.RoyaltyReportAcceptTimeout, v.AcceptExpireAt.Seconds-time.Now().Unix(), 10)
 
 		existMerchants = append(existMerchants, v.MerchantId)
+
+		assert.EqualValues(suite.T(), orderViewsByReports[v.Id], v.Totals.TransactionsCount)
 	}
 
 	assert.Contains(suite.T(), existMerchants, suite.merchant.Id)

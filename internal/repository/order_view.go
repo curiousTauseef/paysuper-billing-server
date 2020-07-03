@@ -1030,37 +1030,3 @@ func (r *orderViewRepository) GetById(ctx context.Context, id string) (*billingp
 
 	return obj.(*billingpb.OrderViewPublic), nil
 }
-
-func (r *orderViewRepository) MarkIncludedToRoyaltyReport(
-	ctx context.Context,
-	ordersIds []primitive.ObjectID,
-	royaltyReportId string,
-) error {
-	royaltyReportOid, err := primitive.ObjectIDFromHex(royaltyReportId)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseInvalidObjectId,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
-			zap.String(pkg.ErrorDatabaseFieldQuery, royaltyReportId),
-		)
-		return err
-	}
-
-	filter := bson.M{"_id": bson.M{"$in": ordersIds}}
-	update := bson.M{"$set": bson.M{"royalty_report_id": royaltyReportOid}}
-	_, err = r.db.Collection(CollectionOrderView).UpdateMany(ctx, filter, update)
-
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorDatabaseQueryFailed,
-			zap.Error(err),
-			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
-			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
-			zap.Any(pkg.ErrorDatabaseFieldSet, update),
-		)
-	}
-
-	return err
-}
