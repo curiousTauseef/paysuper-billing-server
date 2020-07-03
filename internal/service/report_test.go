@@ -675,12 +675,13 @@ func (suite *ReportTestSuite) TestReport_FindByRoyaltyReportId_Ok() {
 	res, err := suite.service.db.Collection(repository.CollectionOrder).UpdateMany(
 		context.TODO(),
 		bson.M{},
-		bson.M{"$set": bson.M{"pm_order_close_date": time.Now().Add(-1 * time.Hour)}},
+		bson.M{"$set": bson.M{"pm_order_close_date": time.Now().Add(-24 * time.Hour)}},
 	)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), expectedCount, res.MatchedCount)
 	assert.EqualValues(suite.T(), expectedCount, res.ModifiedCount)
-	suite.service.updateOrderView(context.TODO(), []string{})
+	err = suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
 
 	reporterMock := &reportingMocks.ReporterService{}
 	reporterMock.On("CreateFile", mock.Anything, mock.Anything, mock.Anything).
