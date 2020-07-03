@@ -675,7 +675,7 @@ func (suite *ReportTestSuite) TestReport_FindByRoyaltyReportId_Ok() {
 	res, err := suite.service.db.Collection(repository.CollectionOrder).UpdateMany(
 		context.TODO(),
 		bson.M{},
-		bson.M{"$set": bson.M{"pm_order_close_date": time.Now().Add(-24 * time.Hour)}},
+		bson.M{"$set": bson.M{"pm_order_close_date": time.Now().Add(-3 * time.Hour).Add(-10 * time.Minute)}},
 	)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), expectedCount, res.MatchedCount)
