@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/globalsign/mgo/bson"
 	"github.com/go-redis/redis"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
@@ -9,15 +10,20 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
+	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
+	"github.com/paysuper/paysuper-proto/go/reporterpb"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
@@ -654,4 +660,58 @@ func (suite *ReportTestSuite) TestReport_FindByMerchantId_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+}
+
+func (suite *ReportTestSuite) TestReport_FindByRoyaltyReportId_Ok() {
+	suite.project.Status = billingpb.ProjectStatusInProduction
+	err := suite.service.project.Update(context.TODO(), suite.project)
+	assert.NoError(suite.T(), err)
+
+	expectedCount := 5
+	for i := 0; i < expectedCount; i++ {
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	}
+
+	res, err := suite.service.db.Collection(repository.CollectionOrder).UpdateMany(
+		context.TODO(),
+		bson.M{},
+		bson.M{"$set": bson.M{"pm_order_close_date": time.Now().Add(-1 * time.Hour)}},
+	)
+	assert.NoError(suite.T(), err)
+	assert.EqualValues(suite.T(), expectedCount, res.MatchedCount)
+	assert.EqualValues(suite.T(), expectedCount, res.ModifiedCount)
+	suite.service.updateOrderView(context.TODO(), []string{})
+
+	reporterMock := &reportingMocks.ReporterService{}
+	reporterMock.On("CreateFile", mock.Anything, mock.Anything, mock.Anything).
+		Return(&reporterpb.CreateFileResponse{Status: billingpb.ResponseStatusOk}, nil)
+	suite.service.reporterService = reporterMock
+
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.Anything, mock.Anything).Return(nil, nil)
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
+	assert.NoError(suite.T(), err)
+	t := time.Now().Unix() - now.Monday().In(loc).Unix()
+
+	suite.service.cfg.RoyaltyReportPeriodEnd = []int{0, 0, int(t)}
+	req1 := &billingpb.CreateRoyaltyReportRequest{}
+	rsp1 := &billingpb.CreateRoyaltyReportRequest{}
+	err = suite.service.CreateRoyaltyReport(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), rsp1.Merchants)
+
+	reports, err := suite.service.royaltyReportRepository.GetAll(context.TODO())
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), reports)
+	assert.Len(suite.T(), reports, 1)
+
+	req := &billingpb.ListOrdersRequest{RoyaltyReportId: reports[0].Id}
+	rsp := &billingpb.ListOrdersPublicResponse{}
+	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
+	assert.Len(suite.T(), rsp.Item.Items, expectedCount)
 }

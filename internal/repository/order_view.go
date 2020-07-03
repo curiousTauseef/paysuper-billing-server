@@ -271,6 +271,7 @@ func (r *orderViewRepository) GetRoyaltySummary(
 				"pm_order_close_date":      bson.M{"$gte": from, "$lte": to},
 				"status":                   bson.M{"$in": statusForRoyaltySummary},
 				"is_production":            true,
+				"royalty_report_id":        "",
 			},
 		},
 		{
