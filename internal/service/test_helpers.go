@@ -12,12 +12,14 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
+	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"math/rand"
 	"strconv"
@@ -1359,4 +1361,23 @@ func RandomString(n int) string {
 		b[i] = letter[rand.Intn(len(letter))]
 	}
 	return string(b)
+}
+
+func HelperGetOrdersViewsMap(
+	suite suite.Suite,
+	service *Service,
+	orderIds []primitive.ObjectID,
+) []map[string]interface{} {
+	ctx := context.TODO()
+
+	filter := bson.M{"_id": bson.M{"$in": orderIds}}
+	cursor, err := service.db.Collection(repository.CollectionOrder).Find(ctx, filter)
+	assert.NoError(suite.T(), err)
+
+	orderViews := make([]map[string]interface{}, 0)
+	err = cursor.All(ctx, &orderViews)
+	assert.NoError(suite.T(), err)
+	assert.Len(suite.T(), orderViews, len(orderIds))
+
+	return orderViews
 }
