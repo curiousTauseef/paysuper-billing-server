@@ -1,0 +1,16 @@
+[
+  {
+    "update": "order",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$set": {
+            "royalty_report_id": ""
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]
