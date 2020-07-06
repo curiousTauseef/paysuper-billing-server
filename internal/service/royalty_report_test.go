@@ -34,7 +34,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
-	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -72,7 +71,7 @@ func (suite *RoyaltyReportTestSuite) SetupTest() {
 	if err != nil {
 		suite.FailNow("Config load failed", "%v", err)
 	}
-	cfg.RoyaltyReportPeriodEndHour = 0
+	cfg.RoyaltyReportPeriodEnd = []int{18, 0, 0}
 	cfg.CardPayApiUrl = "https://sandbox.cardpay.com"
 
 	m, err := migrate.New(
@@ -256,10 +255,14 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	suite.service.reporterService = reporterMock
 
 	projects := []*billingpb.Project{suite.project, suite.project1, suite.project2}
+	orderIds := make([]primitive.ObjectID, 0)
 
 	for _, v := range projects {
 		for i := 0; i < 5; i++ {
-			suite.createOrder(v)
+			order := suite.createOrder(v)
+			oid, err := primitive.ObjectIDFromHex(order.Id)
+			assert.NoError(suite.T(), err)
+			orderIds = append(orderIds, oid)
 		}
 	}
 	err := suite.service.updateOrderView(context.TODO(), []string{})
@@ -273,11 +276,39 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	// to prevent counting a calls for sending transaction success mails due to orders creation and payment
 	suite.service.postmarkBroker = postmarkBrokerMock
 
+	orderViews := HelperGetOrdersViewsMap(suite.Suite, suite.service, orderIds)
+	for _, v := range orderViews {
+		assert.Contains(suite.T(), v, "royalty_report_id")
+		assert.Empty(suite.T(), v["royalty_report_id"])
+	}
+
 	req := &billingpb.CreateRoyaltyReportRequest{}
 	rsp := &billingpb.CreateRoyaltyReportRequest{}
 	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), rsp.Merchants)
+
+	orderViews = HelperGetOrdersViewsMap(suite.Suite, suite.service, orderIds)
+	for _, v := range orderViews {
+		assert.Contains(suite.T(), v, "royalty_report_id")
+		assert.NotEmpty(suite.T(), v["royalty_report_id"])
+	}
+
+	err = suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+	err = suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+	err = suite.service.updateOrderView(context.TODO(), []string{})
+	assert.NoError(suite.T(), err)
+
+	orderViewsByReports := make(map[string]int)
+	orderViews = HelperGetOrdersViewsMap(suite.Suite, suite.service, orderIds)
+	for _, v := range orderViews {
+		assert.Contains(suite.T(), v, "royalty_report_id")
+		assert.NotEmpty(suite.T(), v["royalty_report_id"])
+
+		orderViewsByReports[v["royalty_report_id"].(string)]++
+	}
 
 	assert.Contains(suite.T(), rsp.Merchants, suite.merchant.Id)
 	assert.Contains(suite.T(), rsp.Merchants, suite.merchant1.Id)
@@ -286,8 +317,12 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	to := now.Monday().In(loc).Add(time.Duration(suite.service.cfg.RoyaltyReportPeriodEndHour) * time.Hour)
+	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
+	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
+	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
 	reports, err := suite.service.royaltyReportRepository.GetByPeriod(context.TODO(), from, to)
 	assert.NoError(suite.T(), err)
@@ -319,6 +354,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 		assert.InDelta(suite.T(), suite.service.cfg.RoyaltyReportAcceptTimeout, v.AcceptExpireAt.Seconds-time.Now().Unix(), 10)
 
 		existMerchants = append(existMerchants, v.MerchantId)
+
+		assert.EqualValues(suite.T(), orderViewsByReports[v.Id], v.Totals.TransactionsCount)
 	}
 
 	assert.Contains(suite.T(), existMerchants, suite.merchant.Id)
@@ -360,8 +397,12 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Selec
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	to := now.Monday().In(loc).Add(time.Duration(suite.service.cfg.RoyaltyReportPeriodEndHour) * time.Hour)
+	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
+	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
+	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
 	for _, v := range reports {
 		assert.NotZero(suite.T(), v.Id)
@@ -448,8 +489,12 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_Ok() {
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	to := now.Monday().In(loc).Add(time.Duration(suite.service.cfg.RoyaltyReportPeriodEndHour) * time.Hour).Add(-time.Duration(168) * time.Hour)
+	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location()).Add(-time.Duration(168) * time.Hour)
+	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
+	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
 	oid, _ := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	query := bson.M{"merchant_id": oid}
@@ -528,8 +573,12 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	to := now.Monday().In(loc).Add(time.Duration(suite.service.cfg.RoyaltyReportPeriodEndHour) * time.Hour).Add(-time.Duration(168) * time.Hour)
+	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location()).Add(-time.Duration(168) * time.Hour)
+	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
+	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
 	oid, _ := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	query := bson.M{"merchant_id": oid}
@@ -1065,7 +1114,9 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 	if !assert.NoError(suite.T(), err) {
 		suite.FailNow("time.LoadLocation failed", "%v", err)
 	}
-	to := now.Monday().In(loc).Add(time.Duration(suite.service.cfg.RoyaltyReportPeriodEndHour) * time.Hour)
+	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
 	date := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod/2) * time.Second).In(loc)
 
 	order.PaymentMethodOrderClosedAt, _ = ptypes.TimestampProto(date)
@@ -1078,20 +1129,13 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Fail_EndOfPeriodInFuture() {
-
-	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
-	if !assert.NoError(suite.T(), err) {
-		suite.FailNow("time.LoadLocation failed", "%v", err)
-	}
-
-	currentTime := time.Now().In(loc)
-	monday := now.Monday().In(loc)
-	suite.service.cfg.RoyaltyReportPeriodEndHour = int64(math.Ceil(currentTime.Sub(monday).Hours()))
+	suite.service.cfg.RoyaltyReportPeriodEnd = []int{192, 59, 59}
 
 	req := &billingpb.CreateRoyaltyReportRequest{}
 	rsp := &billingpb.CreateRoyaltyReportRequest{}
-	err = suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
+	err := suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
 	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), royaltyReportErrorEndOfPeriodIsInFuture, err)
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_MerchantWithCorrectionAndReserve() {
@@ -1110,7 +1154,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_Me
 		suite.FailNow("time.LoadLocation failed", "%v", err)
 	}
 
-	entryDate := now.Monday().In(loc).Add(time.Duration(suite.service.cfg.RoyaltyReportPeriodEndHour-1) * time.Hour)
+	entryDate := now.Monday().In(loc)
 
 	req := &billingpb.CreateAccountingEntryRequest{
 		Type:       pkg.AccountingEntryTypeMerchantRoyaltyCorrection,
@@ -1159,7 +1203,6 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_Me
 	report := reports[0]
 	assert.Len(suite.T(), report.Summary.ProductsItems, 1)
 	assert.Len(suite.T(), report.Summary.Corrections, 1)
-	assert.Len(suite.T(), report.Summary.RollingReserves, 1)
 	assert.Len(suite.T(), report.Summary.RollingReserves, 1)
 	assert.Equal(suite.T(), report.Totals.RollingReserveAmount, float64(100))
 	assert.Equal(suite.T(), report.Totals.CorrectionAmount, float64(10))

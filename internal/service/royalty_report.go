@@ -78,12 +78,17 @@ func (s *Service) CreateRoyaltyReport(
 		return royaltyReportErrorTimezoneIncorrect
 	}
 
-	to := now.Monday().In(loc).Add(time.Duration(s.cfg.RoyaltyReportPeriodEndHour) * time.Hour)
+	tEnd := s.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
+
 	if to.After(time.Now().In(loc)) {
 		return royaltyReportErrorEndOfPeriodIsInFuture
 	}
 
+	tEnd = s.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
+	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
 	var merchants []*pkg2.RoyaltyReportMerchant
 
@@ -524,6 +529,7 @@ func (s *Service) ListRoyaltyReportOrders(
 		"pm_order_close_date": bson.M{"$gte": from, "$lte": to},
 		"status":              bson.M{"$in": orderStatusForRoyaltyReports},
 		"is_production":       true,
+		"royalty_report_id":   report.Id,
 	}
 
 	ts, err := s.orderViewRepository.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
@@ -775,7 +781,7 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 			return err
 		}
 
-		err = h.orderViewRepository.MarkIncludedToRoyaltyReport(ctx, ordersIds, newReport.Id)
+		err = h.markOrdersIncludedToRoyaltyReport(ctx, newReport.Id, ordersIds)
 		if err != nil {
 			return err
 		}
@@ -1210,4 +1216,24 @@ func (s *Service) onRoyaltyReportStatusChanged(
 
 	req.ReportType = reporterpb.ReportTypeRoyaltyTransactionsAccountant
 	return s.reporterServiceCreateFile(ctx, req)
+}
+
+func (s *Service) markOrdersIncludedToRoyaltyReport(
+	ctx context.Context,
+	royaltyReportId string,
+	orderIds []primitive.ObjectID,
+) error {
+	err := s.orderRepository.IncludeOrdersToRoyaltyReport(ctx, royaltyReportId, orderIds)
+
+	if err != nil {
+		return err
+	}
+
+	orderIdsString := make([]string, 0, len(orderIds))
+
+	for _, id := range orderIds {
+		orderIdsString = append(orderIdsString, id.Hex())
+	}
+
+	return s.updateOrderView(ctx, orderIdsString)
 }

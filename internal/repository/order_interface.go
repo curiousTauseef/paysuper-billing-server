@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // OrderRepositoryInterface is abstraction layer for working with order and representation in database.
@@ -31,4 +32,7 @@ type OrderRepositoryInterface interface {
 
 	// Return order by some conditions
 	GetOneBy(ctx context.Context, filter bson.M) (*billingpb.Order, error)
+
+	// Mark orders as included to royalty report.
+	IncludeOrdersToRoyaltyReport(ctx context.Context, royaltyReportId string, orderIds []primitive.ObjectID) error
 }
