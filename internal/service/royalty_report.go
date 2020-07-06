@@ -1151,9 +1151,11 @@ func (s *Service) RoyaltyReportFinanceDone(
 	}
 
 	action := "accept"
+	disputeReason := ""
 
 	if royaltyReport.Status == billingpb.RoyaltyReportStatusDispute {
 		action = "start dispute for"
+		disputeReason = royaltyReport.DisputeReason
 	}
 
 	payload := &postmarkpb.Payload{
@@ -1168,6 +1170,8 @@ func (s *Service) RoyaltyReportFinanceDone(
 			"status":                 royaltyReport.Status,
 			"operating_company_name": req.OperatingCompanyName,
 			"action":                 action,
+			"dispute_reason":         disputeReason,
+			"royalty_report_url":     s.cfg.GetRoyaltyReportAdminUrl(royaltyReport.Id),
 		},
 		To:          s.cfg.EmailNotificationFinancierRecipient,
 		Attachments: attachments,

@@ -228,6 +228,7 @@ const (
 	EmailConfirmUrl            = "%s/confirm_email"
 	RoyaltyReportsUrl          = "%s/reports"
 	RoyaltyReportUrl           = "%s/reports/%s"
+	RoyaltyReportAdminUrl      = "%s/system-reports/%s"
 	PayoutsUrl                 = "%s/payouts"
 	ReceiptPurchaseUrl         = "%s/pay/receipt/purchase/%s/%s"
 	ReceiptRefundUrl           = "%s/pay/receipt/refund/%s/%s"
