@@ -71,7 +71,7 @@ func (suite *RoyaltyReportTestSuite) SetupTest() {
 	if err != nil {
 		suite.FailNow("Config load failed", "%v", err)
 	}
-	cfg.RoyaltyReportPeriodEnd = []int{18, 0, 0}
+	cfg.RoyaltyReportPeriodEnd = []int{time.Now().Hour(), 0, 0}
 	cfg.CardPayApiUrl = "https://sandbox.cardpay.com"
 
 	m, err := migrate.New(
