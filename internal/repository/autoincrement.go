@@ -33,7 +33,8 @@ func (m *autoincrementRepository) GatPayoutAutoincrementId(ctx context.Context) 
 
 func (m *autoincrementRepository) getAutoincrement(ctx context.Context, collection string) (*models.Autoincrement, error) {
 	opts := options.FindOneAndUpdate().
-		SetReturnDocument(options.After)
+		SetReturnDocument(options.After).
+		SetUpsert(true)
 	doc := new(models.Autoincrement)
 	filter := bson.M{"collection": collection}
 	update := bson.M{

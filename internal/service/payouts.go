@@ -97,6 +97,11 @@ func (s *Service) createPayoutDocument(
 		return err
 	}
 
+	autoincrementId, err := s.autoincrementRepository.GatPayoutAutoincrementId(ctx)
+	if err != nil {
+		return err
+	}
+
 	pd := &billingpb.PayoutDocument{
 		Id:                      primitive.NewObjectID().Hex(),
 		Status:                  pkg.PayoutDocumentStatusPending,
@@ -110,6 +115,7 @@ func (s *Service) createPayoutDocument(
 		Company:                 merchant.Company,
 		MerchantAgreementNumber: merchant.AgreementNumber,
 		OperatingCompanyId:      merchant.OperatingCompanyId,
+		AutoincrementId:         autoincrementId,
 	}
 
 	reports, err := s.getPayoutDocumentSources(ctx, merchant)

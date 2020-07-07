@@ -4,19 +4,16 @@ import (
 	"context"
 	"errors"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
-	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	mongodbMock "gopkg.in/paysuper/paysuper-database-mongo.v2/mocks"
 	"testing"
-	"time"
 )
 
 type AutoincrementTestSuite struct {
@@ -47,20 +44,6 @@ func (suite *AutoincrementTestSuite) SetupTest() {
 
 	suite.repository = NewAutoincrementRepository(suite.db).(*autoincrementRepository)
 	assert.NotNil(suite.T(), suite.repository)
-
-	res, err := suite.db.Collection(collectionAutoincrement).InsertMany(
-		context.TODO(),
-		[]interface{}{
-			&models.Autoincrement{
-				Id:         primitive.NewObjectID(),
-				Collection: collectionPayoutDocuments,
-				Counter:    0,
-				UpdatedAt:  time.Now(),
-			},
-		},
-	)
-	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), res.InsertedIDs, 1)
 }
 
 func (suite *AutoincrementTestSuite) TearDownTest() {
