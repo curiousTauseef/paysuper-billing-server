@@ -228,6 +228,7 @@ const (
 	EmailConfirmUrl            = "%s/confirm_email"
 	RoyaltyReportsUrl          = "%s/reports"
 	RoyaltyReportUrl           = "%s/reports/%s"
+	RoyaltyReportAdminUrl      = "%s/system-reports/%s"
 	PayoutsUrl                 = "%s/payouts"
 	ReceiptPurchaseUrl         = "%s/pay/receipt/purchase/%s/%s"
 	ReceiptRefundUrl           = "%s/pay/receipt/refund/%s/%s"
@@ -235,6 +236,7 @@ const (
 	AdminCompanyUrl            = "%s/merchants/%s/company-info"
 	AdminOnboardingRequestsUrl = "%s/agreement-requests"
 	UserInviteUrl              = "%s/login?invite_token=%s"
+	SystemPayoutUrl            = "%s/system-payouts/%s"
 
 	OrderType_simple         = "simple"
 	OrderType_key            = "key"

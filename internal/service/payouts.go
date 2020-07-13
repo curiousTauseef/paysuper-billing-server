@@ -45,6 +45,7 @@ var (
 	errorPayoutManualPayoutsDisabled   = newBillingServerErrorMsg("po000015", "manual payouts disabled")
 	errorPayoutAutoPayoutsDisabled     = newBillingServerErrorMsg("po000016", "auto payouts disabled")
 	errorPayoutAutoPayoutsWithErrors   = newBillingServerErrorMsg("po000017", "auto payouts creation finished with errors")
+	errorPayoutRequireFailureFields    = newBillingServerErrorMsg("po000018", "fields failure_code and failure_message is required when status changing to failure")
 
 	statusForUpdateBalance = map[string]bool{
 		pkg.PayoutDocumentStatusPending: true,
@@ -474,10 +475,15 @@ func (s *Service) UpdatePayoutDocument(
 	becomeFailed := isReqStatusForBecomeFailed && !isPayoutStatusForBecomeFailed
 
 	if req.Status != "" && pd.Status != req.Status {
-		if pd.Status == pkg.PayoutDocumentStatusPaid || pd.Status == pkg.PayoutDocumentStatusFailed {
+		if pd.Status != pkg.PayoutDocumentStatusPending {
 			res.Status = billingpb.ResponseStatusBadData
 			res.Message = errorPayoutStatusChangeIsForbidden
+			return nil
+		}
 
+		if req.Status == pkg.PayoutDocumentStatusFailed && (req.FailureCode == "" || req.FailureMessage == "") {
+			res.Status = billingpb.ResponseStatusBadData
+			res.Message = errorPayoutRequireFailureFields
 			return nil
 		}
 
@@ -588,8 +594,7 @@ func (s *Service) GetPayoutDocuments(
 	res *billingpb.GetPayoutDocumentsResponse,
 ) error {
 	res.Status = billingpb.ResponseStatusOk
-
-	count, err := s.payoutRepository.FindCount(ctx, req.MerchantId, req.Status, req.DateFrom, req.DateTo)
+	count, err := s.payoutRepository.FindCount(ctx, req)
 
 	if err != nil && err != mongo.ErrNoDocuments {
 		return err
@@ -604,7 +609,7 @@ func (s *Service) GetPayoutDocuments(
 		return nil
 	}
 
-	pds, err := s.payoutRepository.Find(ctx, req.MerchantId, req.Status, req.DateFrom, req.DateTo, req.Offset, req.Limit)
+	pds, err := s.payoutRepository.Find(ctx, req)
 
 	if err != nil {
 		return err
@@ -771,6 +776,7 @@ func (s *Service) PayoutFinanceDone(
 			"license_agreement":      req.LicenseAgreementNumber,
 			"status":                 payout.Status,
 			"operating_company_name": req.OperatingCompanyName,
+			"payout_url":             s.cfg.GetSystemPayoutUrl(payout.Id),
 		},
 		To: s.cfg.EmailNotificationFinancierRecipient,
 		Attachments: []*postmarkpb.PayloadAttachment{

@@ -3186,7 +3186,6 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 				},
 				"type":                                              1,
-				"royalty_report_id":                                 1,
 				"is_vat_deduction":                                  1,
 				"payment_gross_revenue_local":                       1,
 				"payment_gross_revenue_origin":                      1,
@@ -3261,6 +3260,7 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					"$ifNull": []interface{}{"$net_revenue.currency", "$refund_reverse_revenue.currency"},
 				},
 				"payment_method_terminal_id": "$payment_method.params.terminal_id",
+				"royalty_report_id":          1,
 			},
 		},
 		{
@@ -3312,4 +3312,26 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 	}
 
 	return nil
+}
+
+func (h *orderRepository) IncludeOrdersToRoyaltyReport(
+	ctx context.Context,
+	royaltyReportId string,
+	orderIds []primitive.ObjectID,
+) error {
+	filter := bson.M{"_id": bson.M{"$in": orderIds}}
+	update := bson.M{"$set": bson.M{"royalty_report_id": royaltyReportId}}
+	_, err := h.db.Collection(CollectionOrder).UpdateMany(ctx, filter, update)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+			zap.Any(pkg.ErrorDatabaseFieldSet, update),
+		)
+	}
+
+	return err
 }

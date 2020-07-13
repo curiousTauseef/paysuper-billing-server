@@ -78,12 +78,17 @@ func (s *Service) CreateRoyaltyReport(
 		return royaltyReportErrorTimezoneIncorrect
 	}
 
-	to := now.Monday().In(loc).Add(time.Duration(s.cfg.RoyaltyReportPeriodEndHour) * time.Hour)
+	tEnd := s.cfg.RoyaltyReportPeriodEnd
+	to := now.Monday().In(loc)
+	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
+
 	if to.After(time.Now().In(loc)) {
 		return royaltyReportErrorEndOfPeriodIsInFuture
 	}
 
+	tEnd = s.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
+	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
 	var merchants []*pkg2.RoyaltyReportMerchant
 
@@ -166,7 +171,7 @@ func (s *Service) AutoAcceptRoyaltyReports(
 			return err
 		}
 
-		err = s.onRoyaltyReportAccepted(ctx, report)
+		err = s.onRoyaltyReportStatusChanged(ctx, report)
 
 		if err != nil {
 			return err
@@ -279,14 +284,14 @@ func (s *Service) MerchantReviewRoyaltyReport(
 			rsp.Message = royaltyReportUpdateBalanceError
 			return nil
 		}
+	}
 
-		err = s.onRoyaltyReportAccepted(ctx, report)
+	err = s.onRoyaltyReportStatusChanged(ctx, report)
 
-		if err != nil {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = royaltyReportEntryErrorUnknown
-			return nil
-		}
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = royaltyReportEntryErrorUnknown
+		return nil
 	}
 
 	err = s.royaltyReportChangedEmail(ctx, report)
@@ -321,7 +326,7 @@ func (s *Service) GetRoyaltyReport(
 		return nil
 	}
 
-	if report.MerchantId != req.MerchantId {
+	if req.MerchantId != "" && report.MerchantId != req.MerchantId {
 		rsp.Status = billingpb.ResponseStatusBadData
 		rsp.Message = royaltyReportErrorNotOwnedByMerchant
 		return nil
@@ -524,6 +529,7 @@ func (s *Service) ListRoyaltyReportOrders(
 		"pm_order_close_date": bson.M{"$gte": from, "$lte": to},
 		"status":              bson.M{"$in": orderStatusForRoyaltyReports},
 		"is_production":       true,
+		"royalty_report_id":   report.Id,
 	}
 
 	ts, err := s.orderViewRepository.GetTransactionsPublic(ctx, match, req.Limit, req.Offset)
@@ -775,7 +781,7 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 			return err
 		}
 
-		err = h.orderViewRepository.MarkIncludedToRoyaltyReport(ctx, ordersIds, newReport.Id)
+		err = h.markOrdersIncludedToRoyaltyReport(ctx, newReport.Id, ordersIds)
 		if err != nil {
 			return err
 		}
@@ -1144,6 +1150,14 @@ func (s *Service) RoyaltyReportFinanceDone(
 		return nil
 	}
 
+	action := "accept"
+	disputeReason := ""
+
+	if royaltyReport.Status == billingpb.RoyaltyReportStatusDispute {
+		action = "start dispute for"
+		disputeReason = royaltyReport.DisputeReason
+	}
+
 	payload := &postmarkpb.Payload{
 		TemplateAlias: s.cfg.EmailTemplates.RoyaltyReportFinancier,
 		TemplateModel: map[string]string{
@@ -1155,6 +1169,9 @@ func (s *Service) RoyaltyReportFinanceDone(
 			"license_agreement":      req.LicenseAgreementNumber,
 			"status":                 royaltyReport.Status,
 			"operating_company_name": req.OperatingCompanyName,
+			"action":                 action,
+			"dispute_reason":         disputeReason,
+			"royalty_report_url":     s.cfg.GetRoyaltyReportAdminUrl(royaltyReport.Id),
 		},
 		To:          s.cfg.EmailNotificationFinancierRecipient,
 		Attachments: attachments,
@@ -1177,7 +1194,7 @@ func (s *Service) RoyaltyReportFinanceDone(
 	return nil
 }
 
-func (s *Service) onRoyaltyReportAccepted(
+func (s *Service) onRoyaltyReportStatusChanged(
 	ctx context.Context,
 	royaltyReport *billingpb.RoyaltyReport,
 ) error {
@@ -1203,4 +1220,24 @@ func (s *Service) onRoyaltyReportAccepted(
 
 	req.ReportType = reporterpb.ReportTypeRoyaltyTransactionsAccountant
 	return s.reporterServiceCreateFile(ctx, req)
+}
+
+func (s *Service) markOrdersIncludedToRoyaltyReport(
+	ctx context.Context,
+	royaltyReportId string,
+	orderIds []primitive.ObjectID,
+) error {
+	err := s.orderRepository.IncludeOrdersToRoyaltyReport(ctx, royaltyReportId, orderIds)
+
+	if err != nil {
+		return err
+	}
+
+	orderIdsString := make([]string, 0, len(orderIds))
+
+	for _, id := range orderIds {
+		orderIdsString = append(orderIdsString, id.Hex())
+	}
+
+	return s.updateOrderView(ctx, orderIdsString)
 }
