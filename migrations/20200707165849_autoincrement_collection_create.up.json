@@ -1,0 +1,54 @@
+[
+  {
+    "create": "autoincrement"
+  },
+  {
+    "insert": "autoincrement",
+    "documents": [
+      {
+        "collection": "payout_documents",
+        "counter": 0
+      }
+    ]
+  },
+  {
+    "createIndexes": "autoincrement",
+    "indexes": [
+      {
+        "key": {
+          "collection": 1
+        },
+        "name": "autoincrement_collection_uniq",
+        "unique": true
+      }
+    ]
+  },
+  {
+    "update": "autoincrement",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$currentDate": {
+            "updated_at": true
+          }
+        },
+        "multi": true
+      }
+    ]
+  },
+  {
+    "update": "payout_documents",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$set": {
+            "autoincrement_id": 0
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]

@@ -659,6 +659,7 @@ func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Ok_Pending() {
 	assert.Len(suite.T(), res.Items[0].SourceId, 2)
 	assert.Equal(suite.T(), res.Items[0].PeriodFrom, suite.dateFrom1)
 	assert.Equal(suite.T(), res.Items[0].PeriodTo, suite.dateTo2)
+	assert.NotZero(suite.T(), res.Items[0].AutoincrementId)
 }
 
 func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Ok_SkipByAmount() {
@@ -1185,4 +1186,21 @@ func (suite *PayoutsTestSuite) TestPayouts_UpdatePayoutDocument_Failed_RequestNo
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusBadData)
 	assert.Equal(suite.T(), rsp.Message, errorPayoutRequireFailureFields)
+}
+
+func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_AutoincrementError() {
+	autoincrementRepositoryMock := &mocks.AutoincrementRepositoryInterface{}
+	autoincrementRepositoryMock.On("GatPayoutAutoincrementId", mock2.Anything).
+		Return(int64(0), errors.New("GatPayoutAutoincrementId_Error"))
+	suite.service.autoincrementRepository = autoincrementRepositoryMock
+
+	req := &billingpb.CreatePayoutDocumentRequest{
+		MerchantId:  suite.merchant.Id,
+		Description: "test payout",
+		Ip:          "127.0.0.1",
+	}
+	res := &billingpb.CreatePayoutDocumentResponse{}
+	err := suite.service.CreatePayoutDocument(context.TODO(), req, res)
+	assert.Error(suite.T(), err)
+	assert.EqualError(suite.T(), err, "GatPayoutAutoincrementId_Error")
 }
