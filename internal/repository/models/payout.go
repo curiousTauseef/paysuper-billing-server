@@ -43,6 +43,7 @@ type MgoPayoutDocument struct {
 	ArrivalDate             time.Time                      `bson:"arrival_date"`
 	PaidAt                  time.Time                      `bson:"paid_at"`
 	OperatingCompanyId      string                         `bson:"operating_company_id"`
+	AutoincrementId         int64                          `bson:"autoincrement_id"`
 }
 
 type MgoPayoutDocumentChanges struct {
@@ -73,6 +74,7 @@ func (m *payoutMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		Destination:             in.Destination,
 		Company:                 in.Company,
 		OperatingCompanyId:      in.OperatingCompanyId,
+		AutoincrementId:         in.AutoincrementId,
 	}
 
 	merchantOid, err := primitive.ObjectIDFromHex(in.MerchantId)
@@ -184,6 +186,7 @@ func (m *payoutMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 		Destination:             in.Destination,
 		Company:                 in.Company,
 		OperatingCompanyId:      in.OperatingCompanyId,
+		AutoincrementId:         in.AutoincrementId,
 	}
 
 	out.CreatedAt, err = ptypes.TimestampProto(in.CreatedAt)

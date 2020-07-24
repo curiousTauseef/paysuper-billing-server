@@ -113,6 +113,7 @@ type Service struct {
 	feedbackRepository                     repository.FeedbackRepositoryInterface
 	dashboardRepository                    repository.DashboardRepositoryInterface
 	validateUserBroker                     rabbitmq.BrokerInterface
+	autoincrementRepository                repository.AutoincrementRepositoryInterface
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -215,6 +216,7 @@ func (s *Service) Init() (err error) {
 	s.merchantPaymentMethodHistoryRepository = repository.NewMerchantPaymentMethodHistoryRepository(s.db)
 	s.feedbackRepository = repository.NewFeedbackRepository(s.db)
 	s.dashboardRepository = repository.NewDashboardRepository(s.db, s.cacher)
+	s.autoincrementRepository = repository.NewAutoincrementRepository(s.db)
 
 	sCurr, err := s.curService.GetSupportedCurrencies(context.TODO(), &currenciespb.EmptyRequest{})
 	if err != nil {
