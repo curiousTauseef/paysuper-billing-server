@@ -6471,7 +6471,7 @@ func (suite *OrderTestSuite) TestOrder_CreatePayment_ChangeCustomerData_Ok() {
 	assert.Equal(suite.T(), rsp.User.Ip, net.IP(customer1.Ip).String())
 	assert.Len(suite.T(), customer1.Identity, 1)
 	assert.Equal(suite.T(), rsp.User.Email, customer1.Identity[0].Value)
-	assert.Empty(suite.T(), customer1.IpHistory)
+	assert.Len(suite.T(), customer1.IpHistory, 1)
 	assert.Empty(suite.T(), customer1.AcceptLanguage)
 	assert.Empty(suite.T(), customer1.AcceptLanguageHistory)
 	assert.Equal(suite.T(), rsp.User.Locale, customer1.Locale)
@@ -6508,7 +6508,7 @@ func (suite *OrderTestSuite) TestOrder_CreatePayment_ChangeCustomerData_Ok() {
 	assert.Equal(suite.T(), customer1.Email, customer2.Email)
 	assert.Equal(suite.T(), req1.Ip, net.IP(customer2.Ip).String())
 	assert.NotEmpty(suite.T(), customer2.IpHistory)
-	assert.Len(suite.T(), customer2.IpHistory, 1)
+	assert.Len(suite.T(), customer2.IpHistory, 2)
 	assert.Equal(suite.T(), customer2.IpHistory[0].Ip, customer1.Ip)
 	assert.Len(suite.T(), customer2.Identity, 1)
 	assert.Equal(suite.T(), rsp.User.Email, customer2.Identity[0].Value)
@@ -6560,7 +6560,7 @@ func (suite *OrderTestSuite) TestOrder_CreatePayment_ChangeCustomerData_Ok() {
 
 	assert.Equal(suite.T(), order.User.Email, customer3.Email)
 	assert.Equal(suite.T(), order.User.Ip, net.IP(customer3.Ip).String())
-	assert.Len(suite.T(), customer3.IpHistory, 2)
+	assert.Len(suite.T(), customer3.IpHistory, 3)
 	assert.Equal(suite.T(), customer2.Ip, customer3.IpHistory[1].Ip)
 	assert.Equal(suite.T(), customer1.Ip, customer3.IpHistory[0].Ip)
 
