@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"log"
 	"net"
 )
 
@@ -15,10 +14,6 @@ func (s *Service) MigrateCustomers(ctx context.Context) error {
 	}
 
 	for _, customer := range customers {
-		if customer.Id == "5f202981a4479cab56313f60" {
-			log.Println(123)
-		}
-
 		if len(customer.Ip) > 0 {
 			ip := net.IP(customer.Ip).String()
 
