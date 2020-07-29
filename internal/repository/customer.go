@@ -235,3 +235,48 @@ func (r customerRepository) Find(ctx context.Context, merchantId string, user *b
 
 	return obj.(*billingpb.Customer), nil
 }
+
+func (r *customerRepository) FindAll(ctx context.Context) ([]*billingpb.Customer, error) {
+	query := bson.M{}
+	cursor, err := r.db.Collection(collectionCustomer).Find(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionCustomer),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	mgo := make([]*models.MgoCustomer, 0)
+	err = cursor.All(ctx, &mgo)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionCustomer),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	objs := make([]*billingpb.Customer, len(mgo))
+
+	for i, obj := range mgo {
+		v, err := r.mapper.MapMgoToObject(obj)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+			)
+			return nil, err
+		}
+		objs[i] = v.(*billingpb.Customer)
+	}
+
+	return objs, nil
+}

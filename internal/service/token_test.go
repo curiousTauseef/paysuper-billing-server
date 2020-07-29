@@ -33,6 +33,8 @@ type TokenTestSuite struct {
 	product2    *billingpb.Product
 	keyProducts []*billingpb.KeyProduct
 	product3    *billingpb.Product
+
+	defaultTokenReq *billingpb.TokenRequest
 }
 
 func Test_Token(t *testing.T) {
@@ -428,6 +430,31 @@ func (suite *TokenTestSuite) SetupTest() {
 
 	err = suite.service.productRepository.MultipleInsert(context.TODO(), []*billingpb.Product{product1, product2, product3})
 	assert.NoError(suite.T(), err, "Insert product test data failed")
+
+	suite.defaultTokenReq = &billingpb.TokenRequest{
+		User: &billingpb.TokenUser{
+			Id: primitive.NewObjectID().Hex(),
+			Email: &billingpb.TokenUserEmailValue{
+				Value:    "test@unit.test",
+				Verified: true,
+			},
+			Locale: &billingpb.TokenUserLocaleValue{
+				Value: "en",
+			},
+			Ip: &billingpb.TokenUserIpValue{
+				Value: "127.0.0.1",
+			},
+			UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36",
+			AcceptLanguage: "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+		},
+		Settings: &billingpb.TokenSettings{
+			ProjectId:     suite.project.Id,
+			Amount:        100,
+			Currency:      "RUB",
+			Type:          pkg.OrderType_simple,
+			ButtonCaption: "unit test",
+		},
+	}
 }
 
 func (suite *TokenTestSuite) TearDownTest() {
@@ -454,6 +481,9 @@ func (suite *TokenTestSuite) TestToken_CreateToken_NewCustomer_Ok() {
 			},
 			Locale: &billingpb.TokenUserLocaleValue{
 				Value: "en",
+			},
+			Ip: &billingpb.TokenUserIpValue{
+				Value: "127.0.0.1",
 			},
 		},
 		Settings: &billingpb.TokenSettings{
@@ -489,13 +519,30 @@ func (suite *TokenTestSuite) TestToken_CreateToken_NewCustomer_Ok() {
 	assert.Empty(suite.T(), customer.Phone)
 	assert.False(suite.T(), customer.PhoneVerified)
 	assert.Empty(suite.T(), customer.Name)
-	assert.Empty(suite.T(), customer.Ip)
+	assert.NotEmpty(suite.T(), customer.Ip)
+	assert.Equal(suite.T(), req.User.Ip.Value, net.IP(customer.Ip).String())
 	assert.Equal(suite.T(), req.User.Locale.Value, customer.Locale)
 	assert.Empty(suite.T(), customer.AcceptLanguage)
 	assert.Empty(suite.T(), customer.UserAgent)
-	assert.Nil(suite.T(), customer.Address)
-	assert.Empty(suite.T(), customer.IpHistory)
-	assert.Empty(suite.T(), customer.AddressHistory)
+	assert.Len(suite.T(), customer.IpHistory, 1)
+	assert.Equal(suite.T(), req.User.Ip.Value, customer.IpHistory[0].IpString)
+	assert.EqualValues(suite.T(), net.ParseIP(req.User.Ip.Value), customer.IpHistory[0].Ip)
+	assert.NotNil(suite.T(), customer.IpHistory[0].Address)
+	assert.Equal(suite.T(), "RU", customer.IpHistory[0].Address.Country)
+	assert.Equal(suite.T(), "St.Petersburg", customer.IpHistory[0].Address.City)
+	assert.Equal(suite.T(), "190000", customer.IpHistory[0].Address.PostalCode)
+	assert.Equal(suite.T(), "SPE", customer.IpHistory[0].Address.State)
+	assert.NotNil(suite.T(), customer.Address)
+	assert.Equal(suite.T(), "RU", customer.Address.Country)
+	assert.Equal(suite.T(), "St.Petersburg", customer.Address.City)
+	assert.Equal(suite.T(), "190000", customer.Address.PostalCode)
+	assert.Equal(suite.T(), "SPE", customer.Address.State)
+	assert.Len(suite.T(), customer.AddressHistory, 1)
+	assert.NotNil(suite.T(), customer.Address)
+	assert.Equal(suite.T(), "RU", customer.AddressHistory[0].Country)
+	assert.Equal(suite.T(), "St.Petersburg", customer.AddressHistory[0].City)
+	assert.Equal(suite.T(), "190000", customer.AddressHistory[0].PostalCode)
+	assert.Equal(suite.T(), "SPE", customer.AddressHistory[0].State)
 	assert.Empty(suite.T(), customer.AcceptLanguageHistory)
 	assert.Empty(suite.T(), customer.Metadata)
 
@@ -711,7 +758,7 @@ func (suite *TokenTestSuite) TestToken_CreateToken_ExistCustomer_UpdateExistIden
 	assert.Equal(suite.T(), req.User.Locale.Value, customer.Locale)
 	assert.Equal(suite.T(), req.User.Address, customer.Address)
 
-	assert.Empty(suite.T(), customer.IpHistory)
+	assert.Len(suite.T(), customer.IpHistory, 1)
 	assert.NotEmpty(suite.T(), customer.LocaleHistory)
 	assert.NotEmpty(suite.T(), customer.AddressHistory)
 
@@ -1125,4 +1172,108 @@ func (suite *TokenTestSuite) TestToken_CreateToken_ProjectWithVirtualCurrency_Ok
 
 	assert.Len(suite.T(), rep.token.Settings.ProductsIds, 1)
 	assert.True(suite.T(), rep.token.Settings.IsBuyForVirtualCurrency)
+}
+
+func (suite *TokenTestSuite) TestToken_CreateToken_Customer_AddressReplaceGeoAddress_Ok() {
+	suite.defaultTokenReq.User.Address = &billingpb.OrderBillingAddress{
+		Country:    "US",
+		State:      "AK",
+		City:       "Metlakatla",
+		PostalCode: "99926",
+	}
+	rsp := &billingpb.TokenResponse{}
+	err := suite.service.CreateToken(context.TODO(), suite.defaultTokenReq, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.Empty(suite.T(), rsp.Message)
+	assert.NotEmpty(suite.T(), rsp.Token)
+
+	rep := &tokenRepository{
+		service: suite.service,
+		token:   &Token{},
+	}
+	err = rep.getToken(rsp.Token)
+	assert.NoError(suite.T(), err)
+
+	customer, err := suite.service.customerRepository.GetById(context.TODO(), rep.token.CustomerId)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), customer)
+
+	assert.Len(suite.T(), customer.IpHistory, 1)
+	assert.Equal(suite.T(), suite.defaultTokenReq.User.Ip.Value, customer.IpHistory[0].IpString)
+	assert.EqualValues(suite.T(), net.ParseIP(suite.defaultTokenReq.User.Ip.Value), customer.IpHistory[0].Ip)
+	assert.NotNil(suite.T(), customer.IpHistory[0].Address)
+	assert.Equal(suite.T(), "RU", customer.IpHistory[0].Address.Country)
+	assert.Equal(suite.T(), "St.Petersburg", customer.IpHistory[0].Address.City)
+	assert.Equal(suite.T(), "190000", customer.IpHistory[0].Address.PostalCode)
+	assert.Equal(suite.T(), "SPE", customer.IpHistory[0].Address.State)
+	assert.NotNil(suite.T(), customer.Address)
+	assert.Equal(suite.T(), "US", customer.Address.Country)
+	assert.Equal(suite.T(), "Metlakatla", customer.Address.City)
+	assert.Equal(suite.T(), "99926", customer.Address.PostalCode)
+	assert.Equal(suite.T(), "AK", customer.Address.State)
+	assert.Len(suite.T(), customer.AddressHistory, 1)
+	assert.NotNil(suite.T(), customer.Address)
+	assert.Equal(suite.T(), "US", customer.AddressHistory[0].Country)
+	assert.Equal(suite.T(), "Metlakatla", customer.AddressHistory[0].City)
+	assert.Equal(suite.T(), "99926", customer.AddressHistory[0].PostalCode)
+	assert.Equal(suite.T(), "AK", customer.AddressHistory[0].State)
+
+	suite.defaultTokenReq.User.Ip.Value = "127.0.0.2"
+	suite.defaultTokenReq.User.Address = nil
+	err = suite.service.CreateToken(context.TODO(), suite.defaultTokenReq, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.Empty(suite.T(), rsp.Message)
+	assert.NotEmpty(suite.T(), rsp.Token)
+
+	customer, err = suite.service.customerRepository.GetById(context.TODO(), rep.token.CustomerId)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), customer)
+
+	assert.Len(suite.T(), customer.IpHistory, 2)
+	assert.Equal(suite.T(), "127.0.0.1", customer.IpHistory[0].IpString)
+	assert.EqualValues(suite.T(), net.ParseIP("127.0.0.1"), customer.IpHistory[0].Ip)
+	assert.Equal(suite.T(), "127.0.0.2", customer.IpHistory[1].IpString)
+	assert.EqualValues(suite.T(), net.ParseIP("127.0.0.2"), customer.IpHistory[1].Ip)
+
+	assert.NotNil(suite.T(), customer.IpHistory[0].Address)
+	assert.Equal(suite.T(), "RU", customer.IpHistory[0].Address.Country)
+	assert.Equal(suite.T(), "St.Petersburg", customer.IpHistory[0].Address.City)
+	assert.Equal(suite.T(), "190000", customer.IpHistory[0].Address.PostalCode)
+	assert.Equal(suite.T(), "SPE", customer.IpHistory[0].Address.State)
+	assert.NotNil(suite.T(), customer.IpHistory[1].Address)
+	assert.Equal(suite.T(), "US", customer.IpHistory[1].Address.Country)
+	assert.Equal(suite.T(), "New York", customer.IpHistory[1].Address.City)
+	assert.Equal(suite.T(), "14905", customer.IpHistory[1].Address.PostalCode)
+	assert.Equal(suite.T(), "NY", customer.IpHistory[1].Address.State)
+
+	assert.NotNil(suite.T(), customer.Address)
+	assert.Equal(suite.T(), "US", customer.Address.Country)
+	assert.Equal(suite.T(), "New York", customer.Address.City)
+	assert.Equal(suite.T(), "14905", customer.Address.PostalCode)
+	assert.Equal(suite.T(), "NY", customer.Address.State)
+
+	assert.Len(suite.T(), customer.AddressHistory, 2)
+	assert.Equal(suite.T(), "US", customer.AddressHistory[0].Country)
+	assert.Equal(suite.T(), "Metlakatla", customer.AddressHistory[0].City)
+	assert.Equal(suite.T(), "99926", customer.AddressHistory[0].PostalCode)
+	assert.Equal(suite.T(), "AK", customer.AddressHistory[0].State)
+	assert.Equal(suite.T(), "US", customer.AddressHistory[1].Country)
+	assert.Equal(suite.T(), "New York", customer.AddressHistory[1].City)
+	assert.Equal(suite.T(), "14905", customer.AddressHistory[1].PostalCode)
+	assert.Equal(suite.T(), "NY", customer.AddressHistory[1].State)
+
+	err = suite.service.CreateToken(context.TODO(), suite.defaultTokenReq, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.Empty(suite.T(), rsp.Message)
+	assert.NotEmpty(suite.T(), rsp.Token)
+
+	customer, err = suite.service.customerRepository.GetById(context.TODO(), rep.token.CustomerId)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), customer)
+
+	assert.Len(suite.T(), customer.IpHistory, 2)
+	assert.Len(suite.T(), customer.AddressHistory, 2)
 }

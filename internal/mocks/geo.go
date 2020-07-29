@@ -49,6 +49,9 @@ func (s *GeoIpServiceTestOk) GetIpData(
 					Names:     map[string]string{"en": "St.Petersburg", "ru": "Санкт-Петербург"},
 				},
 			},
+			Postal: &proto.GeoIpPostal{
+				Code: "190000",
+			},
 		}
 		break
 
@@ -70,6 +73,9 @@ func (s *GeoIpServiceTestOk) GetIpData(
 					IsoCode:   "NY",
 					Names:     map[string]string{"en": "New York", "ru": "Нью-Йорк"},
 				},
+			},
+			Postal: &proto.GeoIpPostal{
+				Code: "14905",
 			},
 		}
 		break

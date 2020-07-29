@@ -47,6 +47,9 @@ func main() {
 		case "create_payout":
 			err = app.TaskCreatePayout()
 			break
+		case "migrate_customers":
+			err = app.MigrateCustomers()
+			break
 		}
 
 		if err != nil {

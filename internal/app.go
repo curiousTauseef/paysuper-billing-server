@@ -404,6 +404,10 @@ func (app *Application) TaskRebuildPayouts() error {
 	return app.svc.TaskRebuildPayoutsRoyalties()
 }
 
+func (app *Application) MigrateCustomers() error {
+	return app.svc.MigrateCustomers(context.Background())
+}
+
 func (app *Application) TaskCreatePayout() error {
 	rsp := &billingpb.CreatePayoutDocumentResponse{}
 	err := app.svc.CreatePayoutDocument(

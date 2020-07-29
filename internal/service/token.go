@@ -356,7 +356,7 @@ func (s *Service) createCustomer(
 		CreatedAt: ptypes.TimestampNow(),
 		UpdatedAt: ptypes.TimestampNow(),
 	}
-	s.processCustomer(req, project, customer)
+	s.processCustomer(ctx, req, project, customer)
 
 	if err := s.customerRepository.Insert(ctx, customer); err != nil {
 		return nil, tokenErrorUnknown
@@ -371,7 +371,7 @@ func (s *Service) updateCustomer(
 	project *billingpb.Project,
 	customer *billingpb.Customer,
 ) (*billingpb.Customer, error) {
-	s.processCustomer(req, project, customer)
+	s.processCustomer(ctx, req, project, customer)
 
 	if err := s.customerRepository.Update(ctx, customer); err != nil {
 		return nil, tokenErrorUnknown
@@ -381,10 +381,12 @@ func (s *Service) updateCustomer(
 }
 
 func (s *Service) processCustomer(
+	ctx context.Context,
 	req *billingpb.TokenRequest,
 	project *billingpb.Project,
 	customer *billingpb.Customer,
 ) {
+	exists := false
 	user := req.User
 
 	if user.Id != "" && user.Id != customer.ExternalId {
@@ -436,14 +438,30 @@ func (s *Service) processCustomer(
 	}
 
 	if user.Ip != nil && user.Ip.Value != "" {
-		ip := net.IP(customer.Ip)
 		customer.Ip = net.ParseIP(user.Ip.Value)
+		customer.IpString = user.Ip.Value
 
-		if len(ip) > 0 && ip.String() != user.Ip.Value {
+		for _, val := range customer.IpHistory {
+			if val.IpString == user.Ip.Value {
+				exists = true
+			}
+		}
+
+		if !exists {
 			history := &billingpb.CustomerIpHistory{
-				Ip:        ip,
+				Ip:        customer.Ip,
+				IpString:  user.Ip.Value,
 				CreatedAt: ptypes.TimestampNow(),
 			}
+
+			if address, err := s.getAddressByIp(ctx, user.Ip.Value); err == nil {
+				history.Address = address
+
+				if user.Address == nil {
+					user.Address = address
+				}
+			}
+
 			customer.IpHistory = append(customer.IpHistory, history)
 		}
 	}
@@ -461,18 +479,25 @@ func (s *Service) processCustomer(
 	}
 
 	if user.Address != nil && customer.Address != user.Address {
-		if customer.Address != nil {
+		customer.Address = user.Address
+		exists = false
+
+		for _, val := range customer.AddressHistory {
+			if val.Country == user.Address.Country && val.PostalCode == user.Address.PostalCode {
+				exists = true
+			}
+		}
+
+		if !exists {
 			history := &billingpb.CustomerAddressHistory{
-				Country:    customer.Address.Country,
-				City:       customer.Address.City,
-				PostalCode: customer.Address.PostalCode,
-				State:      customer.Address.State,
+				Country:    user.Address.Country,
+				City:       user.Address.City,
+				PostalCode: user.Address.PostalCode,
+				State:      user.Address.State,
 				CreatedAt:  ptypes.TimestampNow(),
 			}
 			customer.AddressHistory = append(customer.AddressHistory, history)
 		}
-
-		customer.Address = user.Address
 	}
 
 	if user.UserAgent != "" && customer.UserAgent != user.UserAgent {

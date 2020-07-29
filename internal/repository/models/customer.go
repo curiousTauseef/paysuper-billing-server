@@ -23,6 +23,7 @@ type MgoCustomer struct {
 	PhoneVerified         bool                             `bson:"phone_verified"`
 	Name                  string                           `bson:"name"`
 	Ip                    []byte                           `bson:"ip"`
+	IpString              string                           `bson:"ip_string"`
 	Locale                string                           `bson:"locale"`
 	AcceptLanguage        string                           `bson:"accept_language"`
 	UserAgent             string                           `bson:"user_agent"`
@@ -51,8 +52,10 @@ type MgoCustomerIdentity struct {
 }
 
 type MgoCustomerIpHistory struct {
-	Ip        []byte    `bson:"ip"`
-	CreatedAt time.Time `bson:"created_at"`
+	Ip        []byte                         `bson:"ip"`
+	IpString  string                         `bson:"ip_string"`
+	Address   *billingpb.OrderBillingAddress `bson:"address"`
+	CreatedAt time.Time                      `bson:"created_at"`
 }
 
 type MgoCustomerAddressHistory struct {
@@ -80,6 +83,7 @@ func (m *customerMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		PhoneVerified:         in.PhoneVerified,
 		Name:                  in.Name,
 		Ip:                    in.Ip,
+		IpString:              in.IpString,
 		Locale:                in.Locale,
 		AcceptLanguage:        in.AcceptLanguage,
 		UserAgent:             in.UserAgent,
@@ -158,7 +162,11 @@ func (m *customerMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 	}
 
 	for _, v := range in.IpHistory {
-		mgoIdentity := &MgoCustomerIpHistory{Ip: v.Ip}
+		mgoIdentity := &MgoCustomerIpHistory{
+			Ip:       v.Ip,
+			IpString: v.IpString,
+			Address:  v.Address,
+		}
 		mgoIdentity.CreatedAt, _ = ptypes.Timestamp(v.CreatedAt)
 		out.IpHistory = append(out.IpHistory, mgoIdentity)
 	}
@@ -203,6 +211,7 @@ func (m *customerMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 		PhoneVerified:         in.PhoneVerified,
 		Name:                  in.Name,
 		Ip:                    in.Ip,
+		IpString:              in.IpString,
 		Locale:                in.Locale,
 		AcceptLanguage:        in.AcceptLanguage,
 		UserAgent:             in.UserAgent,
@@ -245,7 +254,11 @@ func (m *customerMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 	}
 
 	for _, v := range in.IpHistory {
-		identity := &billingpb.CustomerIpHistory{Ip: v.Ip}
+		identity := &billingpb.CustomerIpHistory{
+			Ip:       v.Ip,
+			IpString: v.IpString,
+			Address:  v.Address,
+		}
 		identity.CreatedAt, _ = ptypes.TimestampProto(v.CreatedAt)
 		out.IpHistory = append(out.IpHistory, identity)
 	}
