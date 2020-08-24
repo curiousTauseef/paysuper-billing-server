@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"github.com/globalsign/mgo/bson"
 	"github.com/go-redis/redis"
 	"github.com/golang-migrate/migrate/v4"
@@ -798,64 +797,4 @@ func (suite *ReportTestSuite) TestReport_FindByInvoiceId_Ok() {
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 	assert.EqualValues(suite.T(), int32(1), rsp.Item.Count)
 	assert.Equal(suite.T(), metadata, rsp.Item.Items[0].Metadata)
-}
-
-func (suite *ReportTestSuite) TestReport_FindOrder_Ok() {
-	invoiceId := uuid.New().String()
-	order := HelperCreateAndPayOrder2(
-		suite.Suite,
-		suite.service,
-		555.55,
-		"RUB",
-		"RU",
-		suite.project,
-		suite.pmBankCard,
-		time.Now(),
-		nil,
-		nil,
-		"",
-		map[string]string{"order_identifier": invoiceId},
-	)
-
-	req := &billingpb.FindOrderRequest{
-		MerchantId: suite.project.MerchantId,
-		InvoiceId:  invoiceId,
-	}
-	rsp := &billingpb.FindOrderResponse{}
-	err := suite.service.FindOrder(context.Background(), req, rsp)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
-	assert.NotNil(suite.T(), rsp.Item)
-	assert.Equal(suite.T(), order.Uuid, rsp.Item.Uuid)
-	assert.Equal(suite.T(), order.Metadata, rsp.Item.Metadata)
-
-	order = HelperCreateAndPayOrder2(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, time.Now(), nil, nil, "", nil)
-	req = &billingpb.FindOrderRequest{
-		MerchantId: suite.project.MerchantId,
-		Uuid:       order.Uuid,
-	}
-	err = suite.service.FindOrder(context.Background(), req, rsp)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
-	assert.NotNil(suite.T(), rsp.Item)
-	assert.Equal(suite.T(), order.Uuid, rsp.Item.Uuid)
-}
-
-func (suite *ReportTestSuite) TestReport_FindOrder_NotFound_Error() {
-	orderRepositoryMock := &mocks.OrderRepositoryInterface{}
-	orderRepositoryMock.On("GetOneBy", mock.Anything, mock.Anything).
-		Return(nil, errors.New("TestReport_FindOrder_NotFound_Error"))
-	suite.service.orderRepository = orderRepositoryMock
-
-	req := &billingpb.FindOrderRequest{
-		MerchantId: suite.project.MerchantId,
-		InvoiceId:  uuid.New().String(),
-	}
-	rsp := &billingpb.FindOrderResponse{}
-	err := suite.service.FindOrder(context.Background(), req, rsp)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
-	assert.Equal(suite.T(), orderErrorNotFound, rsp.Message)
-	assert.Nil(suite.T(), rsp.Item)
-
 }

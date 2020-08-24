@@ -341,34 +341,3 @@ func (s *Service) getOrdersList(
 
 	return count, receiver, nil
 }
-
-func (s *Service) FindOrder(
-	ctx context.Context,
-	req *billingpb.FindOrderRequest,
-	rsp *billingpb.FindOrderResponse,
-) error {
-	merchantOid, _ := primitive.ObjectIDFromHex(req.MerchantId)
-	filter := bson.M{
-		"project.merchant_id": merchantOid,
-	}
-
-	if req.Uuid != "" {
-		filter["uuid"] = req.Uuid
-	} else {
-		filter["metadata_values"] = req.InvoiceId
-	}
-
-	order, err := s.orderRepository.GetOneBy(ctx, filter)
-
-	if err != nil {
-		rsp.Status = billingpb.ResponseStatusNotFound
-		rsp.Message = orderErrorNotFound
-
-		return nil
-	}
-
-	rsp.Item = order
-	rsp.Status = billingpb.ResponseStatusOk
-
-	return nil
-}
