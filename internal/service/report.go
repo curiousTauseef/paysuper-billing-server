@@ -319,7 +319,7 @@ func (s *Service) getOrdersList(
 	} else if _, ok := receiver.([]*billingpb.Order); ok {
 		res := make([]*models.MgoOrder, 0)
 		err = cursor.All(ctx, &res)
-		items := make([]*billingpb.Order, count)
+		items := make([]*billingpb.Order, len(res))
 
 		for i, mgo := range res {
 			obj, _ := orderMapper.MapMgoToObject(mgo)
