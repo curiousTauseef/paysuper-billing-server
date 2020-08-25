@@ -694,7 +694,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 		return err
 	}
 	if restricted {
-		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Status = billingpb.ResponseStatusForbidden
 		rsp.Message = orderCountryPaymentRestricted
 		rsp.Item.Id = order.Uuid
 		return nil
