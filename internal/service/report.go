@@ -24,6 +24,7 @@ var (
 	reportErrorUnknown = newBillingServerErrorMsg("rp000001", "request processing failed. try request later")
 	privateOrderMapper = models.NewOrderViewPrivateMapper()
 	publicOrderMapper  = models.NewOrderViewPublicMapper()
+	orderMapper        = models.NewOrderMapper()
 )
 
 func (s *Service) FindAllOrdersPublic(
@@ -77,7 +78,7 @@ func (s *Service) FindAllOrders(
 	req *billingpb.ListOrdersRequest,
 	rsp *billingpb.ListOrdersResponse,
 ) error {
-	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrder, make([]*billingpb.Order, 1))
+	count, orders, err := s.getOrdersList(ctx, req, repository.CollectionOrder, make([]*billingpb.Order, 0))
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -258,6 +259,10 @@ func (s *Service) getOrdersList(
 		if req.RoyaltyReportId != "" {
 			query["royalty_report_id"] = req.RoyaltyReportId
 		}
+
+		if req.InvoiceId != "" {
+			query["metadata_values"] = req.InvoiceId
+		}
 	}
 
 	if req.HideTest == true {
@@ -311,9 +316,17 @@ func (s *Service) getOrdersList(
 			temp[i] = obj.(*billingpb.OrderViewPrivate)
 		}
 		receiver = temp
-	} else if res, ok := receiver.([]*billingpb.Order); ok {
+	} else if _, ok := receiver.([]*billingpb.Order); ok {
+		res := make([]*models.MgoOrder, 0)
 		err = cursor.All(ctx, &res)
-		receiver = res
+		items := make([]*billingpb.Order, count)
+
+		for i, mgo := range res {
+			obj, _ := orderMapper.MapMgoToObject(mgo)
+			items[i] = obj.(*billingpb.Order)
+		}
+
+		receiver = items
 	}
 
 	if err != nil {

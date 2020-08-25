@@ -716,3 +716,85 @@ func (suite *ReportTestSuite) TestReport_FindByRoyaltyReportId_Ok() {
 	assert.EqualValues(suite.T(), expectedCount, rsp.Item.Count)
 	assert.Len(suite.T(), rsp.Item.Items, expectedCount)
 }
+
+func (suite *ReportTestSuite) TestReport_FindByInvoiceId_Ok() {
+	invoiceId := uuid.New().String()
+	metadata := map[string]string{"invoiceId": invoiceId}
+	_ = HelperCreateAndPayOrder2(
+		suite.Suite,
+		suite.service,
+		555.55,
+		"RUB",
+		"RU",
+		suite.project,
+		suite.pmBankCard,
+		time.Now(),
+		nil,
+		nil,
+		"",
+		metadata,
+	)
+
+	req := &billingpb.ListOrdersRequest{
+		InvoiceId: invoiceId,
+		Merchant:  []string{suite.project.MerchantId},
+	}
+	rsp := &billingpb.ListOrdersResponse{}
+	err := suite.service.FindAllOrders(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.EqualValues(suite.T(), int32(1), rsp.Item.Count)
+	assert.Equal(suite.T(), metadata, rsp.Item.Items[0].Metadata)
+
+	invoiceId = uuid.New().String()
+	metadata = map[string]string{"order_identifier": invoiceId}
+	_ = HelperCreateAndPayOrder2(
+		suite.Suite,
+		suite.service,
+		555.55,
+		"RUB",
+		"RU",
+		suite.project,
+		suite.pmBankCard,
+		time.Now(),
+		nil,
+		nil,
+		"",
+		metadata,
+	)
+
+	req.InvoiceId = invoiceId
+	err = suite.service.FindAllOrders(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.EqualValues(suite.T(), int32(1), rsp.Item.Count)
+	assert.Equal(suite.T(), metadata, rsp.Item.Items[0].Metadata)
+
+	invoiceId = uuid.New().String()
+	metadata = map[string]string{"xxxxx": invoiceId}
+	order := HelperCreateAndPayOrder2(
+		suite.Suite,
+		suite.service,
+		555.55,
+		"RUB",
+		"RU",
+		suite.project,
+		suite.pmBankCard,
+		time.Now(),
+		nil,
+		nil,
+		"",
+		metadata,
+	)
+	order.IsProduction = true
+	err = suite.service.orderRepository.Update(context.Background(), order)
+	assert.NoError(suite.T(), err)
+
+	req.InvoiceId = invoiceId
+	req.HideTest = true
+	err = suite.service.FindAllOrders(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.EqualValues(suite.T(), int32(1), rsp.Item.Count)
+	assert.Equal(suite.T(), metadata, rsp.Item.Items[0].Metadata)
+}
