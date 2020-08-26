@@ -1231,6 +1231,7 @@ func HelperCreateAndPayOrder2(
 	product *billingpb.Product,
 	keyProduct *billingpb.KeyProduct,
 	issuerUrl string,
+	metadata map[string]string,
 ) *billingpb.Order {
 	centrifugoMock := &mocks.CentrifugoInterface{}
 	centrifugoMock.On("GetChannelToken", mock.Anything, mock.Anything).Return("token")
@@ -1250,6 +1251,7 @@ func HelperCreateAndPayOrder2(
 			},
 		},
 		IssuerUrl: issuerUrl,
+		Metadata:  metadata,
 	}
 
 	if product != nil {

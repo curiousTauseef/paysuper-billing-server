@@ -18,4 +18,7 @@ type CustomerRepositoryInterface interface {
 
 	// Find return customer by merchant id and token user (user id or email or phone).
 	Find(context.Context, string, *billingpb.TokenUser) (*billingpb.Customer, error)
+
+	//Return all customers
+	FindAll(ctx context.Context) ([]*billingpb.Customer, error)
 }

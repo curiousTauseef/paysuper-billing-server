@@ -619,7 +619,7 @@ func (suite *DashboardRepositoryTestSuite) createOrdersForPeriod(
 		}
 
 		for j := 0; j < rnd; j++ {
-			HelperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1")
+			HelperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1", nil)
 		}
 	}
 }
