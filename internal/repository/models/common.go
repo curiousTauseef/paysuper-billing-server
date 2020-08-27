@@ -32,6 +32,7 @@ type MgoOrderProject struct {
 	Status                  int32                              `bson:"status"`
 	MerchantRoyaltyCurrency string                             `bson:"merchant_royalty_currency"`
 	RedirectSettings        *billingpb.ProjectRedirectSettings `bson:"redirect_settings"`
+	FirstPaymentAt 			time.Time 						   `bson:"first_payment_at"`
 }
 
 type MgoOrderPaymentMethod struct {
@@ -116,6 +117,8 @@ func getOrderProject(in *MgoOrderProject) *billingpb.ProjectOrder {
 		MerchantRoyaltyCurrency: in.MerchantRoyaltyCurrency,
 		RedirectSettings:        in.RedirectSettings,
 	}
+
+	project.FirstPaymentAt, _ = ptypes.TimestampProto(in.FirstPaymentAt)
 
 	if len(in.Name) > 0 {
 		project.Name = make(map[string]string)

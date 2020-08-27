@@ -2,12 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 	"time"
@@ -20,11 +22,42 @@ const (
 
 type orderRepository repository
 
+
 // NewOrderRepository create and return an object for working with the order repository.
 // The returned object implements the OrderRepositoryInterface interface.
 func NewOrderRepository(db mongodb.SourceInterface) OrderRepositoryInterface {
 	s := &orderRepository{db: db, mapper: models.NewOrderMapper()}
 	return s
+}
+
+func (h *orderRepository) GetFirstPaymentForMerchant(ctx context.Context, merchantId string) (*billingpb.Order, error) {
+	filter := bson.M{
+	}
+
+	if len(merchantId) == 0 {
+		return nil, errors.New("merchant_id must be provided")
+	}
+
+	oid, err := primitive.ObjectIDFromHex(merchantId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
+			zap.String(pkg.ErrorDatabaseFieldQuery, merchantId),
+		)
+		return nil, err
+	}
+
+	filter["project.merchant_id"] = oid
+	filter["status"] = "processed"
+	filter["canceled"] = false
+
+	opts := options.FindOne()
+	opts.SetSort(bson.D{{"pm_order_close_date", 1}})
+
+	return h.GetOneBy(ctx, filter, opts)
 }
 
 func (h *orderRepository) Insert(ctx context.Context, order *billingpb.Order) error {
@@ -121,9 +154,9 @@ func (h *orderRepository) GetByUuidAndMerchantId(
 	return h.GetOneBy(ctx, filter)
 }
 
-func (h *orderRepository) GetOneBy(ctx context.Context, filter bson.M) (*billingpb.Order, error) {
+func (h *orderRepository) GetOneBy(ctx context.Context, filter bson.M, opts ...*options.FindOneOptions) (*billingpb.Order, error) {
 	mgo := &models.MgoOrder{}
-	err := h.db.Collection(CollectionOrder).FindOne(ctx, filter).Decode(mgo)
+	err := h.db.Collection(CollectionOrder).FindOne(ctx, filter, opts...).Decode(mgo)
 
 	if err != nil {
 		zap.L().Error(

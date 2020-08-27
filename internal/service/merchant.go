@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinProto "github.com/paysuper/paysuper-proto/go/casbinpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
+	"time"
 )
 
 func (s *Service) MerchantsMigrate(ctx context.Context) error {
@@ -131,4 +133,47 @@ func (s *Service) getMerchantPaymentMethod(ctx context.Context, merchantId, meth
 	}
 
 	return merchantPaymentMethods[method], nil
+}
+
+
+func (s *Service) UpdateFirstPayments(ctx context.Context) error {
+	zap.L().Info("start updating first payments for merchants")
+
+	merchants, err := s.merchantRepository.GetAll(ctx)
+
+	if err != nil {
+		zap.L().Error("[task update first payments] Unable to get merchants", zap.Error(err))
+		return err
+	}
+
+	count := 0
+	for _, merchant := range merchants {
+		defaultTime, _ := ptypes.TimestampProto(time.Time{})
+		if merchant.FirstPaymentAt != nil && merchant.FirstPaymentAt != defaultTime {
+			continue
+		}
+
+		order, err := s.orderRepository.GetFirstPaymentForMerchant(ctx, merchant.Id)
+		if err != nil {
+			zap.L().Error("can't get first order for merchant", zap.Error(err), zap.String("merchant_id", merchant.Id))
+			continue
+		}
+
+		if order == nil {
+			zap.L().Info("merchant does not have any order", zap.String("merchant_id", merchant.Id))
+			continue
+		}
+
+		merchant.FirstPaymentAt = order.PaymentMethodOrderClosedAt
+		err = s.merchantRepository.Update(ctx, merchant)
+		if err != nil {
+			zap.L().Error("can't update merchant", zap.Error(err), zap.String("merchant_id", merchant.Id))
+			continue
+		}
+
+		count++
+	}
+
+	zap.L().Info("updated merchants", zap.Int("count", count), zap.Int("merchants_in_db", len(merchants)))
+	return nil
 }

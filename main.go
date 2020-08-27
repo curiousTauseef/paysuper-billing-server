@@ -50,6 +50,9 @@ func main() {
 		case "migrate_customers":
 			err = app.MigrateCustomers()
 			break
+		case "update_merchants_first_payment":
+			err = app.UpdateFirstPayments()
+			break
 		}
 
 		if err != nil {

@@ -749,6 +749,8 @@ func (s *Service) PaymentFormJsonDataProcess(
 	}
 	order.Issuer.ReferrerHost = getHostFromUrl(order.Issuer.Url)
 
+
+
 	err = p1.processOrderVat(order)
 	if err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error(), "method", "processOrderVat")
@@ -1175,6 +1177,27 @@ func (s *Service) PaymentCallbackProcess(
 			return err
 		}
 		break
+	}
+
+	merchant, err := s.merchantRepository.GetById(ctx, order.GetMerchantId())
+	if err != nil {
+		return err
+	}
+
+	defaultTime, _ := ptypes.TimestampProto(time.Time{})
+	if merchant.FirstPaymentAt == nil || merchant.FirstPaymentAt == defaultTime {
+		currentTimeOrder := order.PaymentMethodOrderClosedAt
+		merchant.FirstPaymentAt = currentTimeOrder
+		order.Project.FirstPaymentAt = currentTimeOrder
+		err = s.merchantRepository.Update(ctx, merchant)
+		if err != nil {
+			zap.L().Error("can't update first_payment_at field", zap.Error(err), zap.String("merchant_id", merchant.Id), zap.Any("time", currentTimeOrder))
+			return err
+		}
+	} else {
+		if order.Project.FirstPaymentAt == nil || order.Project.FirstPaymentAt == defaultTime {
+			order.Project.FirstPaymentAt = merchant.FirstPaymentAt
+		}
 	}
 
 	err = s.updateOrder(ctx, order)
@@ -2110,6 +2133,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			Status:                  v.checked.project.Status,
 			MerchantRoyaltyCurrency: v.checked.merchant.GetPayoutCurrency(),
 			RedirectSettings:        v.checked.project.RedirectSettings,
+			FirstPaymentAt: 		 v.checked.merchant.FirstPaymentAt,
 		},
 		Description:   fmt.Sprintf(orderDefaultDescription, id),
 		PrivateStatus: recurringpb.OrderStatusNew,

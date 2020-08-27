@@ -76,3 +76,4 @@ func (s *Service) MigrateCustomers(ctx context.Context) error {
 
 	return nil
 }
+

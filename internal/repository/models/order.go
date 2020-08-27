@@ -352,6 +352,13 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		}
 	}
 
+	if m.Project != nil && m.Project.FirstPaymentAt != nil {
+		st.Project.FirstPaymentAt, err = ptypes.Timestamp(m.Project.FirstPaymentAt)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if m.CanceledAt != nil {
 		t, err := ptypes.Timestamp(m.CanceledAt)
 
