@@ -1,6 +1,30 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2020-08-26
+
+### Added
+- The payouts list and detailed information for the PaySuper admin. ([2b0ca2f](https://github.com/paysuper/paysuper-billing-server/commit/2b0ca2fa9ba1249e66dad3edc4a008a08f509036)) ([4c09387](https://github.com/paysuper/paysuper-billing-server/commit/4c09387328565857c443f0c4ba1ce99e7f229996)) ([537515](https://github.com/paysuper/paysuper-billing-server/commit/0537515e3ab7a82fa48483106693da3a02ea149a))
+- If a dispute started by a royalty report then email to a financier. ([4a2c682](https://github.com/paysuper/paysuper-billing-server/commit/4a2c68242c4569e3ddaec287d9c10e4647314c18))
+- Add a migration to set the default ID for the royalty report in an order. ([0dec064](https://github.com/paysuper/paysuper-billing-server/commit/0dec064919d2e85c63406ee2c6bf64582e1305fb))
+- S2S APIs. ([a16fc3d](https://github.com/paysuper/paysuper-billing-server/commit/a16fc3d215bb0a3abe356bfdddf149346d579a91)) ([91f3aef](https://github.com/paysuper/paysuper-billing-server/commit/91f3aef22b9c4b74625cef5dcb62af6f3e57da51)) ([ac329c7](https://github.com/paysuper/paysuper-billing-server/commit/ac329c7be98845452029edb62da859237361c029)) ([a39de65](https://github.com/paysuper/paysuper-billing-server/commit/a39de654057621f0661e8ab906a0eb6a6093579c)) ([b5cc7c8](https://github.com/paysuper/paysuper-billing-server/commit/b5cc7c8c55d5752029c268c8f360c14dca762e9d)) 
+
+### Changed
+- The Centrifugo user token uses the user identifier. ([b9e5e37](https://github.com/paysuper/paysuper-billing-server/commit/b9e5e37bc166fc3c92ebe46af4becee12e0bd409))
+- The Centrifugo user token uses the profile identifier. ([745ce2b](https://github.com/paysuper/paysuper-billing-server/commit/745ce2b5188364703c76cf67ad14f8bca856b6fc))
+- Change the royalty report's time period. ([d8ef404](https://github.com/paysuper/paysuper-billing-server/commit/d8ef404e37871044b253bb028a27488b0fe2525d)) ([993e48c](https://github.com/paysuper/paysuper-billing-server/commit/993e48cb3c38e996e9be2b9cdef90b38a866f610)) ([aa250e2](https://github.com/paysuper/paysuper-billing-server/commit/aa250e249ceff47f00e73339dd8d5defdff71e95)) ([2242654](https://github.com/paysuper/paysuper-billing-server/commit/22426540577327992d9046f607f103c3a4b7b488)) ([190b506](https://github.com/paysuper/paysuper-billing-server/commit/190b5069624a5aac472026cc4ba66d8b0c5e1064)) ([1477e86](https://github.com/paysuper/paysuper-billing-server/commit/1477e86d915d16a3ae663acf2fb8cda23ee542cd)) 
+- Mark the order included to the royalty report. ([5e66851](https://github.com/paysuper/paysuper-billing-server/commit/5e66851f309ebb094ba1ca700ef0916f8c80ff63)) ([dd765e9](https://github.com/paysuper/paysuper-billing-server/commit/dd765e97a25fa04b7825e354cc786979b6585f51)) ([27312e4](https://github.com/paysuper/paysuper-billing-server/commit/27312e46bb5c9acedb553f49a6c84eeeb9fdc998)) ([b7973dd](https://github.com/paysuper/paysuper-billing-server/commit/b7973dd1733152b97613bc859b90526ded188618)) ([e68defd](https://github.com/paysuper/paysuper-billing-server/commit/e68defdc8d58e013dfb39da23b5783207877ede9))
+- The dispute reason and link to the royalty report in a financier email. ([ad3d220](https://github.com/paysuper/paysuper-billing-server/commit/ad3d2203bb24bebd79379e316e0a9bd552dfbee2))
+- Autoincrement repository. ([86349f4](https://github.com/paysuper/paysuper-billing-server/commit/86349f407ebbcf434421abc4a1e323696ead183f))
+- Autoincrement ID in payouts. ([ed58be4](https://github.com/paysuper/paysuper-billing-server/commit/ed58be48fc589e3bf403ebfbda4cec7cbe7f5622))
+- History about the customer IP and address. ([f636e78](https://github.com/paysuper/paysuper-billing-server/commit/f636e789fc227bfbdf9289fe4f0c7e8e22d22cbc)) ([f6c2cca](https://github.com/paysuper/paysuper-billing-server/commit/f6c2cca712d287d9962d7f89c12c82b56d8a32fe)) ([04c0871](https://github.com/paysuper/paysuper-billing-server/commit/04c0871158215392f20b1e63acaa1f12f073f815)) ([49147d5](https://github.com/paysuper/paysuper-billing-server/commit/49147d5729c075c06222b20b9e6952bddb39483a))
+- Update dependencies. ([e6f2ff0](https://github.com/paysuper/paysuper-billing-server/commit/e6f2ff0a1a4b079bc59aa96e064d8f0f941d91d7)) ([18c8fa8](https://github.com/paysuper/paysuper-billing-server/commit/18c8fa8e42b878c7f2fefdb819724d193244ad6b)) ([086f617](https://github.com/paysuper/paysuper-billing-server/commit/086f6172943b121ce1f502f6370bcc61693edb14)) ([39d90c5](https://github.com/paysuper/paysuper-billing-server/commit/39d90c51367712fcd47f40a70a7900edffc4324c))
+
+### Fixed
+- Change a sign in a balance calculation. ([df505af](https://github.com/paysuper/paysuper-billing-server/commit/df505af6198bdbc57f88b249d5ab1f7f8ac7ad05))
+
+***
+
 ## [1.3.0] - 2020-06-23
 
 ### Added
