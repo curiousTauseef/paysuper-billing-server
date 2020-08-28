@@ -903,6 +903,7 @@ func (s *Service) TaskRebuildPayoutsRoyalties() error {
 			merchant.GetPayoutCurrency(),
 			periodFrom,
 			periodTo,
+			true,
 		)
 
 		if err != nil {

@@ -45,6 +45,8 @@ func (suite *OrderTestSuite) Test_MapToMgo_Ok() {
 	original.CountryCode = "US"
 	original.ReceiptEmail = original.User.Email
 	original.ReceiptPhone = original.User.Phone
+	original.Fee = nil
+	original.NetRevenue = nil
 
 	mgo, err := suite.mapper.MapObjectToMgo(original)
 	assert.NoError(suite.T(), err)
