@@ -749,8 +749,6 @@ func (s *Service) PaymentFormJsonDataProcess(
 	}
 	order.Issuer.ReferrerHost = getHostFromUrl(order.Issuer.Url)
 
-
-
 	err = p1.processOrderVat(order)
 	if err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error(), "method", "processOrderVat")
@@ -2133,7 +2131,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			Status:                  v.checked.project.Status,
 			MerchantRoyaltyCurrency: v.checked.merchant.GetPayoutCurrency(),
 			RedirectSettings:        v.checked.project.RedirectSettings,
-			FirstPaymentAt: 		 v.checked.merchant.FirstPaymentAt,
+			FirstPaymentAt:          v.checked.merchant.FirstPaymentAt,
 		},
 		Description:   fmt.Sprintf(orderDefaultDescription, id),
 		PrivateStatus: recurringpb.OrderStatusNew,
@@ -4294,7 +4292,7 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 		TotalCharge:         totalCharge,
 		ReceiptId:           order.ReceiptId,
 		Url:                 order.ReceiptUrl,
-		VatRate:             fmt.Sprintf("%g", order.Tax.Rate*100) + "%",
+		VatRate:             fmt.Sprintf("%.2f", order.Tax.Rate*100) + "%",
 		CustomerEmail:       order.User.Email,
 	}
 
