@@ -350,11 +350,12 @@ func (s *Service) createCustomer(
 	id := primitive.NewObjectID().Hex()
 
 	customer := &billingpb.Customer{
-		Id:        id,
-		TechEmail: id + pkg.TechEmailDomain,
-		Metadata:  req.User.Metadata,
-		CreatedAt: ptypes.TimestampNow(),
-		UpdatedAt: ptypes.TimestampNow(),
+		Id:              id,
+		TechEmail:       id + pkg.TechEmailDomain,
+		Metadata:        req.User.Metadata,
+		PaymentActivity: make(map[string]*billingpb.PaymentActivityItem),
+		CreatedAt:       ptypes.TimestampNow(),
+		UpdatedAt:       ptypes.TimestampNow(),
 	}
 	s.processCustomer(ctx, req, project, customer)
 
@@ -513,6 +514,14 @@ func (s *Service) processCustomer(
 
 		if history.Value != "" {
 			customer.AcceptLanguageHistory = append(customer.AcceptLanguageHistory, history)
+		}
+	}
+
+	if _, ok := customer.PaymentActivity[project.MerchantId]; !ok {
+		customer.PaymentActivity[project.MerchantId] = &billingpb.PaymentActivityItem{
+			Count:     &billingpb.PaymentActivityItemCount{},
+			LastTxnAt: &billingpb.PaymentActivityItemLastTxnAt{},
+			Revenue:   &billingpb.PaymentActivityItemRevenue{},
 		}
 	}
 }

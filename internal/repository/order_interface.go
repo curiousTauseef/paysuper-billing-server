@@ -39,4 +39,7 @@ type OrderRepositoryInterface interface {
 
 	// Get first payment for merchant
 	GetFirstPaymentForMerchant(ctx context.Context, merchantId string) (*billingpb.Order, error)
+
+	// Return orders by some conditions and with options
+	GetManyBy(ctx context.Context, filter bson.M, opts ...*options.FindOptions) ([]*billingpb.Order, error)
 }

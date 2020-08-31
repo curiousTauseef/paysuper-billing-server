@@ -93,6 +93,8 @@ type MgoOrder struct {
 	MetadataValues              []string                                 `bson:"metadata_values" json:"-"`
 	MerchantInfo                *billingpb.OrderViewMerchantInfo         `bson:"merchant_info"`
 	RoyaltyReportId             string                                   `bson:"royalty_report_id"`
+	NetRevenue                  *billingpb.OrderViewMoney                `bson:"net_revenue"`
+	Fee                         *billingpb.OrderViewMoney                `bson:"fee"`
 }
 
 type orderMapper struct{}
@@ -192,6 +194,8 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		FormMode:                    m.FormMode,
 		MerchantInfo:                m.MerchantInfo,
 		RoyaltyReportId:             m.RoyaltyReportId,
+		NetRevenue:                  m.NetRevenue,
+		Fee:                         m.Fee,
 	}
 
 	if m.Refund != nil {
@@ -447,6 +451,8 @@ func (o *orderMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 	m.IsRefundAllowed = decoded.IsRefundAllowed
 	m.FormMode = decoded.FormMode
 	m.IsCurrencyPredefined = decoded.IsCurrencyPredefined
+	m.Fee = decoded.Fee
+	m.NetRevenue = decoded.NetRevenue
 
 	if decoded.Refund != nil {
 		m.Refund = &billingpb.OrderNotificationRefund{

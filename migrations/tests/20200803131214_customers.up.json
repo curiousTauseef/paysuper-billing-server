@@ -1,0 +1,89 @@
+[
+  {
+    "insert": "customer",
+    "documents": [
+      {
+        "_id": {"$oid": "ffffffffffffffffffffffff"},
+        "tech_email": "ffffffffffffffffffffffff@paysuper.com",
+        "external_id": "1234567890",
+        "email": "test@unit.test",
+        "email_verified": false,
+        "phone": "",
+        "phone_verified": false,
+        "name": "",
+        "ip": {"$binary": {"base64": "AAAAAAAAAAAAAP//gErprQ==", "subType": "0"}},
+        "ip_string" : "127.0.0.1",
+        "locale": "en-US",
+        "accept_language": "en-US,en;q=0.5",
+        "user_agent": "Mozilla/5.0 (Windows NT 6.2; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
+        "address": {
+          "country": "RU",
+          "state": "SPE",
+          "city": "St.Petersburg",
+          "postal_code": "190000"
+        },
+        "identity": [
+          {
+            "merchant_id": {"$oid": "fffffffffffffffffffffff0"},
+            "project_id": {"$oid": "fffffffffffffffffffffff1"},
+            "type": "external",
+            "value": "1234567890",
+            "verified": true,
+            "created_at": {"$date":{"$numberLong":"1560813945000"}}
+          },
+          {
+            "merchant_id": {"$oid": "fffffffffffffffffffffff0"},
+            "project_id": {"$oid": "fffffffffffffffffffffff1"},
+            "type": "email",
+            "value": "test@unit.test",
+            "verified": false,
+            "created_at": {"$date":{"$numberLong":"1560813945000"}}
+          }
+        ],
+        "ip_history": [
+          {
+            "ip": {"$binary": {"base64": "AAAAAAAAAAAAAP//gErprQ==", "subType": "0"}},
+            "ip_string" : "127.0.0.1",
+            "address" : {
+              "country": "RU",
+              "state": "SPE",
+              "city": "St.Petersburg",
+              "postal_code": "190000"
+            },
+            "created_at": {"$date":{"$numberLong":"1560813945000"}}
+          }
+        ],
+        "address_history": [
+          {
+            "country": "RU",
+            "state": "SPE",
+            "city": "St.Petersburg",
+            "postal_code": "190000",
+            "created_at": {"$date":{"$numberLong":"1560813945000"}}
+          }
+        ],
+        "locale_history": [
+          {"value": "en-US", "created_at": {"$date":{"$numberLong":"1560813945000"}}}
+        ],
+        "accept_language_history": [
+          {"value": "en-US,en;q=0.5", "created_at": {"$date":{"$numberLong":"1560813945000"}}}
+        ],
+        "metadata": null,
+        "payment_activity": [
+          {
+            "merchant_id": "fffffffffffffffffffffff0",
+            "count": {"payment":  0, "refund":  0},
+            "last_txn_at": {"payment":  {"$date":{"$numberLong":"0"}}, "refund":  {"$date":{"$numberLong":"0"}}},
+            "revenue": {"payment":  0.00, "refund":  0.00, "total":  0.00}
+          }
+        ],
+        "created_at": {"$date":{"$numberLong":"1560813945000"}},
+        "updated_at": {"$date":{"$numberLong":"1560813945000"}},
+        "notify_sale": false,
+        "notify_sale_email": "",
+        "notify_new_region": false,
+        "notify_new_region_email": ""
+      }
+    ]
+  }
+]

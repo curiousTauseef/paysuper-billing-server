@@ -40,6 +40,7 @@ type MgoCustomer struct {
 	NotifySaleEmail       string                           `bson:"notify_sale_email"`
 	NotifyNewRegion       bool                             `bson:"notify_new_region"`
 	NotifyNewRegionEmail  string                           `bson:"notify_new_region_email"`
+	PaymentActivity       []*MgoCustomerPaymentActivity    `bson:"payment_activity"`
 }
 
 type MgoCustomerIdentity struct {
@@ -69,6 +70,18 @@ type MgoCustomerAddressHistory struct {
 type MgoCustomerStringValueHistory struct {
 	Value     string    `bson:"value"`
 	CreatedAt time.Time `bson:"created_at"`
+}
+
+type MgoCustomerPaymentActivity struct {
+	MerchantId string                                `bson:"merchant_id"`
+	Count      *billingpb.PaymentActivityItemCount   `bson:"count"`
+	LastTxnAt  *MgoPaymentActivityItemLastTxnAt      `bson:"last_txn_at"`
+	Revenue    *billingpb.PaymentActivityItemRevenue `bson:"revenue"`
+}
+
+type MgoPaymentActivityItemLastTxnAt struct {
+	Payment time.Time `bson:"payment"`
+	Refund  time.Time `bson:"refund"`
 }
 
 func (m *customerMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
@@ -194,6 +207,37 @@ func (m *customerMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		out.AcceptLanguageHistory = append(out.AcceptLanguageHistory, mgoIdentity)
 	}
 
+	for key, val := range in.PaymentActivity {
+		item := &MgoCustomerPaymentActivity{
+			MerchantId: key,
+			Count:      val.Count,
+			LastTxnAt:  &MgoPaymentActivityItemLastTxnAt{},
+			Revenue:    val.Revenue,
+		}
+
+		if val.LastTxnAt.Payment != nil {
+			t, err := ptypes.Timestamp(val.LastTxnAt.Payment)
+
+			if err != nil {
+				return nil, err
+			}
+
+			item.LastTxnAt.Payment = t
+		}
+
+		if val.LastTxnAt.Refund != nil {
+			t, err := ptypes.Timestamp(val.LastTxnAt.Refund)
+
+			if err != nil {
+				return nil, err
+			}
+
+			item.LastTxnAt.Refund = t
+		}
+
+		out.PaymentActivity = append(out.PaymentActivity, item)
+	}
+
 	return out, nil
 }
 
@@ -226,6 +270,7 @@ func (m *customerMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 		AddressHistory:        []*billingpb.CustomerAddressHistory{},
 		LocaleHistory:         []*billingpb.CustomerStringValueHistory{},
 		AcceptLanguageHistory: []*billingpb.CustomerStringValueHistory{},
+		PaymentActivity:       make(map[string]*billingpb.PaymentActivityItem),
 	}
 
 	out.CreatedAt, err = ptypes.TimestampProto(in.CreatedAt)
@@ -284,6 +329,29 @@ func (m *customerMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 		identity := &billingpb.CustomerStringValueHistory{Value: v.Value}
 		identity.CreatedAt, _ = ptypes.TimestampProto(v.CreatedAt)
 		out.AcceptLanguageHistory = append(out.AcceptLanguageHistory, identity)
+	}
+
+	for _, val := range in.PaymentActivity {
+		out.PaymentActivity[val.MerchantId] = &billingpb.PaymentActivityItem{
+			Count:     val.Count,
+			LastTxnAt: &billingpb.PaymentActivityItemLastTxnAt{},
+			Revenue:   val.Revenue,
+		}
+
+		t, err := ptypes.TimestampProto(val.LastTxnAt.Payment)
+
+		if err != nil {
+			return nil, err
+		}
+
+		out.PaymentActivity[val.MerchantId].LastTxnAt.Payment = t
+		t, err = ptypes.TimestampProto(val.LastTxnAt.Refund)
+
+		if err != nil {
+			return nil, err
+		}
+
+		out.PaymentActivity[val.MerchantId].LastTxnAt.Refund = t
 	}
 
 	return out, nil

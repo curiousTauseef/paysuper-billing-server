@@ -6,6 +6,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
 )
 
@@ -58,4 +59,7 @@ type OrderViewRepositoryInterface interface {
 
 	// GetRoyaltyForMerchants returns orders for merchants royal report by statuses and dates.
 	GetRoyaltyForMerchants(context.Context, []string, time.Time, time.Time) ([]*pkg.RoyaltyReportMerchant, error)
+
+	// Return orders by some conditions and with options
+	GetManyBy(ctx context.Context, filter bson.M, opts ...*options.FindOptions) ([]*billingpb.OrderViewPrivate, error)
 }

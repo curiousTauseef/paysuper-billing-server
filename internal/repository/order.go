@@ -22,7 +22,6 @@ const (
 
 type orderRepository repository
 
-
 // NewOrderRepository create and return an object for working with the order repository.
 // The returned object implements the OrderRepositoryInterface interface.
 func NewOrderRepository(db mongodb.SourceInterface) OrderRepositoryInterface {
@@ -3367,4 +3366,46 @@ func (h *orderRepository) IncludeOrdersToRoyaltyReport(
 	}
 
 	return err
+}
+
+func (h *orderRepository) GetManyBy(ctx context.Context, filter bson.M, opts ...*options.FindOptions) ([]*billingpb.Order, error) {
+	var mgo []*models.MgoOrder
+	cursor, err := h.db.Collection(CollectionOrder).Find(ctx, filter, opts...)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+		)
+		return nil, err
+	}
+
+	err = cursor.All(ctx, &mgo)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrder),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+		)
+		return nil, err
+	}
+
+	orders := make([]*billingpb.Order, len(mgo))
+	for i, order := range mgo {
+		obj, err := h.mapper.MapMgoToObject(order)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorMapModelFailed,
+				zap.Error(err),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, mgo),
+			)
+			return nil, err
+		}
+		orders[i] = obj.(*billingpb.Order)
+	}
+
+	return orders, nil
 }

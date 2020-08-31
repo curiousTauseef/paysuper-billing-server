@@ -7,15 +7,19 @@ import (
 )
 
 type Money struct {
-	money *tools.Money
+	money     *tools.Money
+	Precision int64
 }
 
 func NewMoney() *Money {
-	return &Money{money: tools.New()}
+	return &Money{
+		money:     tools.New(),
+		Precision: billingpb.AmountPrecisionDefault,
+	}
 }
 
 func (m *Money) Round(val float64) (float64, error) {
-	rounded, err := m.money.Round(val, 2)
+	rounded, err := m.money.Round(val, m.Precision)
 
 	if err != nil {
 		zap.L().Error(

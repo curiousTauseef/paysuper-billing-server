@@ -26,9 +26,9 @@ require (
 	github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
-	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200828113456-48c00a5a5ea1
+	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200831113431-b8d2b94f7600
 	github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b
-	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200303091345-2cee0f7f84c1
+	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200831113431-b8d2b94f7600
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200406132246-777573b2beed
 	github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200622151400-1714a8ed580b
@@ -46,6 +46,7 @@ require (
 	go.mongodb.org/mongo-driver v1.2.1
 	go.uber.org/zap v1.13.0
 	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
+	google.golang.org/protobuf v1.23.0
 	gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20200420150553-75bf4f6f572d
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df

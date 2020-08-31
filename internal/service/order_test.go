@@ -2465,7 +2465,9 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptyEmailAndPhone_Ok() 
 	processor := &OrderCreateRequestProcessor{
 		Service: suite.service,
 		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
+		checked: &orderCreateRequestProcessorChecked{
+			project: suite.project,
+		},
 	}
 	assert.Nil(suite.T(), processor.checked.user)
 
@@ -2490,7 +2492,9 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptySubdivision_Ok() {
 	processor := &OrderCreateRequestProcessor{
 		Service: suite.service,
 		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
+		checked: &orderCreateRequestProcessorChecked{
+			project: suite.project,
+		},
 	}
 	assert.Nil(suite.T(), processor.checked.user)
 
@@ -2548,7 +2552,9 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_Error() {
 	processor := &OrderCreateRequestProcessor{
 		Service: suite.service,
 		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
+		checked: &orderCreateRequestProcessorChecked{
+			project: suite.project,
+		},
 	}
 	assert.Nil(suite.T(), processor.checked.user)
 
