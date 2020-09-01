@@ -3,14 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinProto "github.com/paysuper/paysuper-proto/go/casbinpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
-	"time"
 )
 
 func (s *Service) MerchantsMigrate(ctx context.Context) error {
@@ -148,11 +146,6 @@ func (s *Service) UpdateFirstPayments(ctx context.Context) error {
 
 	count := 0
 	for _, merchant := range merchants {
-		defaultTime, _ := ptypes.TimestampProto(time.Time{})
-		if merchant.FirstPaymentAt != nil && merchant.FirstPaymentAt != defaultTime {
-			continue
-		}
-
 		order, err := s.orderRepository.GetFirstPaymentForMerchant(ctx, merchant.Id)
 		if err != nil {
 			zap.L().Error("can't get first order for merchant", zap.Error(err), zap.String("merchant_id", merchant.Id))

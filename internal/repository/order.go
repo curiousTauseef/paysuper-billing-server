@@ -51,6 +51,7 @@ func (h *orderRepository) GetFirstPaymentForMerchant(ctx context.Context, mercha
 
 	filter["project.merchant_id"] = oid
 	filter["status"] = "processed"
+	filter["is_production"] = true
 	filter["canceled"] = false
 
 	opts := options.FindOne()
