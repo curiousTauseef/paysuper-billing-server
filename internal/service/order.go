@@ -1182,19 +1182,21 @@ func (s *Service) PaymentCallbackProcess(
 		return err
 	}
 
-	defaultTime, _ := ptypes.TimestampProto(time.Time{})
-	if merchant.FirstPaymentAt == nil || merchant.FirstPaymentAt == defaultTime {
-		currentTimeOrder := order.PaymentMethodOrderClosedAt
-		merchant.FirstPaymentAt = currentTimeOrder
-		order.Project.FirstPaymentAt = currentTimeOrder
-		err = s.merchantRepository.Update(ctx, merchant)
-		if err != nil {
-			zap.L().Error("can't update first_payment_at field", zap.Error(err), zap.String("merchant_id", merchant.Id), zap.Any("time", currentTimeOrder))
-			return err
-		}
-	} else {
-		if order.Project.FirstPaymentAt == nil || order.Project.FirstPaymentAt == defaultTime {
-			order.Project.FirstPaymentAt = merchant.FirstPaymentAt
+	if order.IsProduction {
+		defaultTime, _ := ptypes.TimestampProto(time.Time{})
+		if merchant.FirstPaymentAt == nil || merchant.FirstPaymentAt == defaultTime {
+			currentTimeOrder := order.PaymentMethodOrderClosedAt
+			merchant.FirstPaymentAt = currentTimeOrder
+			order.Project.FirstPaymentAt = currentTimeOrder
+			err = s.merchantRepository.Update(ctx, merchant)
+			if err != nil {
+				zap.L().Error("can't update first_payment_at field", zap.Error(err), zap.String("merchant_id", merchant.Id), zap.Any("time", currentTimeOrder))
+				return err
+			}
+		} else {
+			if order.Project.FirstPaymentAt == nil || order.Project.FirstPaymentAt == defaultTime {
+				order.Project.FirstPaymentAt = merchant.FirstPaymentAt
+			}
 		}
 	}
 
