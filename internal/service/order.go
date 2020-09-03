@@ -1183,8 +1183,8 @@ func (s *Service) PaymentCallbackProcess(
 	}
 
 	if order.IsProduction {
-		defaultTime, _ := ptypes.TimestampProto(time.Time{})
-		if merchant.FirstPaymentAt == nil || merchant.FirstPaymentAt == defaultTime {
+		zap.L().Info("debug info", zap.Any("merchant_first_payment_at", merchant.FirstPaymentAt))
+		if merchant.FirstPaymentAt == nil || merchant.FirstPaymentAt.Seconds <= 0 {
 			currentTimeOrder := order.PaymentMethodOrderClosedAt
 			merchant.FirstPaymentAt = currentTimeOrder
 			order.Project.FirstPaymentAt = currentTimeOrder
@@ -1194,7 +1194,7 @@ func (s *Service) PaymentCallbackProcess(
 				return err
 			}
 		} else {
-			if order.Project.FirstPaymentAt == nil || order.Project.FirstPaymentAt == defaultTime {
+			if order.Project.FirstPaymentAt == nil || merchant.FirstPaymentAt.Seconds <= 0 {
 				order.Project.FirstPaymentAt = merchant.FirstPaymentAt
 			}
 		}
