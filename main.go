@@ -47,9 +47,11 @@ func main() {
 		case "create_payout":
 			err = app.TaskCreatePayout()
 			break
+
 		case "migrate_customers":
 			err = app.MigrateCustomers()
 			break
+
 		case "update_merchants_first_payment":
 			err = app.UpdateFirstPayments()
 			break

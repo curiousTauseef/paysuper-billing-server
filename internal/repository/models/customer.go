@@ -41,6 +41,7 @@ type MgoCustomer struct {
 	NotifyNewRegion       bool                             `bson:"notify_new_region"`
 	NotifyNewRegionEmail  string                           `bson:"notify_new_region_email"`
 	PaymentActivity       []*MgoCustomerPaymentActivity    `bson:"payment_activity"`
+	Uuid                  string                           `bson:"uuid"`
 }
 
 type MgoCustomerIdentity struct {
@@ -111,6 +112,7 @@ func (m *customerMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		AddressHistory:        []*MgoCustomerAddressHistory{},
 		LocaleHistory:         []*MgoCustomerStringValueHistory{},
 		AcceptLanguageHistory: []*MgoCustomerStringValueHistory{},
+		Uuid:                  in.Uuid,
 	}
 
 	if len(in.Id) <= 0 {
@@ -271,6 +273,7 @@ func (m *customerMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 		LocaleHistory:         []*billingpb.CustomerStringValueHistory{},
 		AcceptLanguageHistory: []*billingpb.CustomerStringValueHistory{},
 		PaymentActivity:       make(map[string]*billingpb.PaymentActivityItem),
+		Uuid:                  in.Uuid,
 	}
 
 	out.CreatedAt, err = ptypes.TimestampProto(in.CreatedAt)

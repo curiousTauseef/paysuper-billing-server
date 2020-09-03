@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -168,6 +169,10 @@ func (s *Service) MigrateCustomers(ctx context.Context) error {
 			customer.AddressHistory = append(customer.AddressHistory, it)
 		}
 
+		if customer.Uuid == "" {
+			customer.Uuid = uuid.New().String()
+		}
+
 		if err := s.customerRepository.Update(ctx, customer); err != nil {
 			return err
 		}
@@ -222,7 +227,7 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 				}
 
 				for _, order := range orders {
-					if order.Refund != nil &&  order.Refund.Amount > 0 {
+					if order.Refund != nil && order.Refund.Amount > 0 {
 						paymentActivity.Count.Refund++
 						paymentActivity.Revenue.Refund += order.GrossRevenue.Amount
 					} else if order.Cancellation == nil {

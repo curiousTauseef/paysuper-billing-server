@@ -545,6 +545,7 @@ func (suite *TokenTestSuite) TestToken_CreateToken_NewCustomer_Ok() {
 	assert.Equal(suite.T(), "SPE", customer.AddressHistory[0].State)
 	assert.Empty(suite.T(), customer.AcceptLanguageHistory)
 	assert.Empty(suite.T(), customer.Metadata)
+	assert.NotEmpty(suite.T(), customer.Uuid)
 
 	assert.Len(suite.T(), customer.Identity, 2)
 	assert.Equal(suite.T(), customer.Identity[0].Value, customer.ExternalId)
@@ -645,6 +646,8 @@ func (suite *TokenTestSuite) TestToken_CreateToken_ExistCustomer_Ok() {
 	assert.Equal(suite.T(), pkg.UserIdentityTypeExternal, customer.Identity[0].Type)
 	assert.Equal(suite.T(), suite.project.Id, customer.Identity[0].ProjectId)
 	assert.Equal(suite.T(), suite.project.MerchantId, customer.Identity[0].MerchantId)
+
+	assert.NotEmpty(suite.T(), customer.Uuid)
 }
 
 func (suite *TokenTestSuite) TestToken_CreateToken_ExistCustomer_UpdateExistIdentity_Ok() {
