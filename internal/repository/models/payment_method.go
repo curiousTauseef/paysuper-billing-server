@@ -31,6 +31,7 @@ type MgoPaymentMethod struct {
 	Type               string                   `bson:"type"`
 	AccountRegexp      string                   `bson:"account_regexp"`
 	RefundAllowed      bool                     `bson:"refund_allowed"`
+	RecurringAllowed   bool                     `bson:"recurring_allowed"`
 }
 
 type MgoPaymentMethodParam struct {
@@ -57,6 +58,7 @@ func (m *paymentMethodMapper) MapObjectToMgo(obj interface{}) (interface{}, erro
 		AccountRegexp:    in.AccountRegexp,
 		IsActive:         in.IsActive,
 		RefundAllowed:    in.RefundAllowed,
+		RecurringAllowed: in.RecurringAllowed,
 	}
 
 	if len(in.Id) <= 0 {
@@ -175,6 +177,7 @@ func (m *paymentMethodMapper) MapMgoToObject(obj interface{}) (interface{}, erro
 		AccountRegexp:    in.AccountRegexp,
 		IsActive:         in.IsActive,
 		RefundAllowed:    in.RefundAllowed,
+		RecurringAllowed: in.RecurringAllowed,
 		PaymentSystemId:  in.PaymentSystemId.Hex(),
 	}
 
