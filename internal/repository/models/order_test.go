@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"testing"
+	"time"
 )
 
 type OrderTestSuite struct {
@@ -47,6 +48,12 @@ func (suite *OrderTestSuite) Test_MapToMgo_Ok() {
 	original.ReceiptPhone = original.User.Phone
 	original.Fee = nil
 	original.NetRevenue = nil
+	original.RecurringSettings = &billingpb.OrderRecurringSettings{
+		Period:  "week",
+		DateEnd: &timestamp.Timestamp{Seconds: time.Now().Unix()},
+	}
+	original.Recurring = true
+	original.RecurringId = "12"
 
 	mgo, err := suite.mapper.MapObjectToMgo(original)
 	assert.NoError(suite.T(), err)

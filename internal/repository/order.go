@@ -30,8 +30,7 @@ func NewOrderRepository(db mongodb.SourceInterface) OrderRepositoryInterface {
 }
 
 func (h *orderRepository) GetFirstPaymentForMerchant(ctx context.Context, merchantId string) (*billingpb.Order, error) {
-	filter := bson.M{
-	}
+	filter := bson.M{}
 
 	if len(merchantId) == 0 {
 		return nil, errors.New("merchant_id must be provided")
@@ -3294,6 +3293,8 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 				},
 				"payment_method_terminal_id": "$payment_method.params.terminal_id",
 				"royalty_report_id":          1,
+				"recurring":                  1,
+				"recurring_id":               1,
 			},
 		},
 		{

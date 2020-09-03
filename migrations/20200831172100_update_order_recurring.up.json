@@ -1,0 +1,18 @@
+[
+  {
+    "update": "order",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$set": {
+            "recurring_settings": null,
+            "recurring": false,
+            "recurring_id": ""
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]
