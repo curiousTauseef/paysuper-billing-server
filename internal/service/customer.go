@@ -59,12 +59,12 @@ func (s *Service) SetCustomerPaymentActivity(
 	if req.Type == billingpb.OrderTypeOrder {
 		paymentActivity.Count.Payment++
 		paymentActivity.LastTxnAt.Payment = req.ProcessingAt
-		paymentActivity.Revenue.Payment = req.Amount
+		paymentActivity.Revenue.Payment += req.Amount
 		paymentActivity.Revenue.Total += req.Amount
 	} else {
 		paymentActivity.Count.Refund++
 		paymentActivity.LastTxnAt.Refund = req.ProcessingAt
-		paymentActivity.Revenue.Refund = req.Amount
+		paymentActivity.Revenue.Refund += req.Amount
 		paymentActivity.Revenue.Total -= req.Amount
 	}
 
