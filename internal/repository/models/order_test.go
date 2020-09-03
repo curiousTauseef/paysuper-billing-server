@@ -85,6 +85,7 @@ func (suite *OrderTestSuite) Test_Error_Items_CreatedAt() {
 func (suite *OrderTestSuite) Test_Error_Items_UpdatedAt() {
 	original := &billingpb.Order{}
 	err := faker.FakeData(original)
+	assert.NoError(suite.T(), err)
 	original.Items[0].UpdatedAt = &timestamp.Timestamp{Seconds: -1, Nanos: -1}
 	_, err = suite.mapper.MapObjectToMgo(original)
 	assert.Error(suite.T(), err)
