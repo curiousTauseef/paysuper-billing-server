@@ -2700,6 +2700,7 @@ func (v *OrderCreateRequestProcessor) processCustomerToken(ctx context.Context) 
 	v.request.ButtonCaption = token.Settings.ButtonCaption
 
 	v.checked.user.Id = customer.Id
+	v.checked.user.Uuid = customer.Uuid
 	v.checked.user.Object = pkg.ObjectTypeUser
 	v.checked.user.TechEmail = customer.TechEmail
 
@@ -2726,6 +2727,7 @@ func (v *OrderCreateRequestProcessor) processUserData() (err error) {
 
 	v.checked.user = v.request.User
 	v.checked.user.Id = customer.Id
+	v.checked.user.Uuid = customer.Uuid
 	v.checked.user.Object = pkg.ObjectTypeUser
 	v.checked.user.TechEmail = customer.TechEmail
 
@@ -4451,6 +4453,7 @@ func (s *Service) OrderReCreateProcess(
 
 	newOrder.User = &billingpb.OrderUser{
 		Id:            order.User.Id,
+		Uuid:          order.User.Uuid,
 		Phone:         order.User.Phone,
 		PhoneVerified: order.User.PhoneVerified,
 		Metadata:      order.Metadata,
