@@ -69,7 +69,7 @@ func (s *Service) SetCustomerPaymentActivity(
 		paymentActivity.Revenue.Total -= req.Amount
 	}
 
-	paymentActivity.Revenue.Payment, err = s.round(roundKeyCustomerPaymentActivityRevenuePayment, paymentActivity.Revenue.Payment)
+	paymentActivity.Revenue.Payment, err = s.round(req.MerchantId, roundKeyCustomerPaymentActivityRevenuePayment, paymentActivity.Revenue.Payment)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -77,7 +77,7 @@ func (s *Service) SetCustomerPaymentActivity(
 		return nil
 	}
 
-	paymentActivity.Revenue.Refund, err = s.round(roundKeyCustomerPaymentActivityRevenueRefund, paymentActivity.Revenue.Refund)
+	paymentActivity.Revenue.Refund, err = s.round(req.MerchantId, roundKeyCustomerPaymentActivityRevenueRefund, paymentActivity.Revenue.Refund)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -85,7 +85,7 @@ func (s *Service) SetCustomerPaymentActivity(
 		return nil
 	}
 
-	paymentActivity.Revenue.Total, err = s.round(roundKeyCustomerPaymentActivityRevenueTotal, paymentActivity.Revenue.Total)
+	paymentActivity.Revenue.Total, err = s.round(req.MerchantId, roundKeyCustomerPaymentActivityRevenueTotal, paymentActivity.Revenue.Total)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError

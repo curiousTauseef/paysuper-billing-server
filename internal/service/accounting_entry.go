@@ -50,6 +50,7 @@ var (
 	accountingEntryBalanceUpdateFailed             = newBillingServerErrorMsg("ae00015", "balance update failed after create accounting entry")
 	accountingEntryOriginalTaxNotFound             = newBillingServerErrorMsg("ae00016", "real_tax_fee entry from original order not found, refund processing failed")
 	accountingEntryVatCurrencyNotSet               = newBillingServerErrorMsg("ae00017", "vat currency not set")
+	accountingEntryErrorRoundFailed                = newBillingServerErrorMsg("ae00018", "amount rounding failed")
 
 	availableAccountingEntries = map[string]bool{
 		pkg.AccountingEntryTypeRealGrossRevenue:                    true,
@@ -1054,6 +1055,28 @@ func (h *accountingEntry) addEntry(entry *billingpb.AccountingEntry) error {
 	entry.Amount = tools.ToPrecise(entry.Amount)
 	entry.OriginalAmount = tools.ToPrecise(entry.OriginalAmount)
 	entry.LocalAmount = tools.ToPrecise(entry.LocalAmount)
+
+	amountRounded, err := h.round(entry.MerchantId, "accounting_entry_amount", entry.Amount)
+
+	if err != nil {
+		return accountingEntryErrorRoundFailed
+	}
+
+	originalAmountRounded, err := h.round(entry.MerchantId, "accounting_entry_original_amount", entry.OriginalAmount)
+
+	if err != nil {
+		return accountingEntryErrorRoundFailed
+	}
+
+	localAmountRounded, err := h.round(entry.MerchantId, "accounting_entry_local_amount", entry.LocalAmount)
+
+	if err != nil {
+		return accountingEntryErrorRoundFailed
+	}
+
+	entry.AmountRounded = amountRounded
+	entry.OriginalAmountRounded = originalAmountRounded
+	entry.LocalAmountRounded = localAmountRounded
 
 	h.accountingEntries = append(h.accountingEntries, entry)
 
