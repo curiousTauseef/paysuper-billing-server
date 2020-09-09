@@ -1077,7 +1077,7 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					{
 						"$project": bson.M{
 							"amount":         "$original_amount",
-							"amount_rounded": bson.M{"$round": []interface{}{"$original_currency_rounded", 2}},
+							"amount_rounded": bson.M{"$round": []interface{}{"$original_amount_rounded", 2}},
 							"currency":       "$original_currency",
 							"_id":            0,
 						},
