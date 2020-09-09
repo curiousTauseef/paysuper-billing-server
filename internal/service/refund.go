@@ -232,14 +232,13 @@ func (s *Service) ProcessRefundCallback(
 
 		if rsp.Status == billingpb.ResponseStatusTemporary {
 			rsp.Status = billingpb.ResponseStatusOk
-
-			return nil
 		}
+		return nil
 	}
 
 	refundOrder := &billingpb.Order{}
 
-	if pErr == nil {
+	if refund.Status == pkg.RefundStatusCompleted {
 		if refund.CreatedOrderId == "" {
 			refundOrder, err = s.createOrderByRefund(ctx, order, refund)
 
@@ -267,6 +266,22 @@ func (s *Service) ProcessRefundCallback(
 				return nil
 			}
 		}
+	} else {
+		order.IsRefundAllowed = order.PaymentMethod.RefundAllowed
+
+		if err := s.orderRepository.Update(ctx, order); err != nil {
+			rsp.Error = orderErrorUnknown.Error()
+			rsp.Status = billingpb.ResponseStatusSystemError
+
+			return nil
+		}
+
+		if err := s.updateOrderView(ctx, []string{order.Id}); err != nil {
+			rsp.Error = orderErrorUnknown.Error()
+			rsp.Status = billingpb.ResponseStatusSystemError
+
+			return nil
+		}
 	}
 
 	if err = s.refundRepository.Update(ctx, refund); err != nil {
@@ -276,58 +291,61 @@ func (s *Service) ProcessRefundCallback(
 		return nil
 	}
 
-	if pErr == nil {
-		processor := &createRefundProcessor{service: s, ctx: ctx}
-		refundedAmount, _ := processor.service.refundRepository.GetAmountByOrderId(ctx, order.Id)
+	if refund.Status != pkg.RefundStatusCompleted {
+		rsp.Status = billingpb.ResponseStatusOk
+		return nil
+	}
 
-		if refundedAmount == order.ChargeAmount {
-			if refund.IsChargeback == true {
-				order.PrivateStatus = recurringpb.OrderStatusChargeback
-				order.Status = recurringpb.OrderPublicStatusChargeback
-			} else {
-				order.PrivateStatus = recurringpb.OrderStatusRefund
-				order.Status = recurringpb.OrderPublicStatusRefunded
-			}
+	processor := &createRefundProcessor{service: s, ctx: ctx}
+	refundedAmount, _ := processor.service.refundRepository.GetAmountByOrderId(ctx, order.Id)
 
-			order.UpdatedAt = ptypes.TimestampNow()
-			order.RefundedAt = ptypes.TimestampNow()
-			order.Refunded = true
-			order.IsRefundAllowed = false
-			order.Refund = &billingpb.OrderNotificationRefund{
-				Amount:        refundedAmount,
-				Currency:      order.ChargeCurrency,
-				Reason:        refund.Reason,
-				ReceiptNumber: refund.Id,
-			}
-
-			err = s.updateOrder(ctx, order)
-
-			if err != nil {
-				zap.S().Errorf("Update order data failed", "err", err.Error(), "order", order)
-			}
+	if refundedAmount == order.ChargeAmount {
+		if refund.IsChargeback == true {
+			order.PrivateStatus = recurringpb.OrderStatusChargeback
+			order.Status = recurringpb.OrderPublicStatusChargeback
+		} else {
+			order.PrivateStatus = recurringpb.OrderStatusRefund
+			order.Status = recurringpb.OrderPublicStatusRefunded
 		}
 
-		err = s.onRefundNotify(ctx, refund, order)
+		order.UpdatedAt = ptypes.TimestampNow()
+		order.RefundedAt = ptypes.TimestampNow()
+		order.Refunded = true
+		order.IsRefundAllowed = false
+		order.Refund = &billingpb.OrderNotificationRefund{
+			Amount:        refundedAmount,
+			Currency:      order.ChargeCurrency,
+			Reason:        refund.Reason,
+			ReceiptNumber: refund.Id,
+		}
+
+		err = s.updateOrder(ctx, order)
 
 		if err != nil {
-			zap.L().Error(
-				pkg.MethodFinishedWithError,
-				zap.String("method", "onRefundNotify"),
-				zap.Error(err),
-				zap.String("refundId", refund.Id),
-				zap.String("refund-orderId", refundOrder.Id),
-			)
-
-			rsp.Error = err.Error()
-			rsp.Status = billingpb.ResponseStatusSystemError
-
-			return nil
+			zap.S().Errorf("Update order data failed", "err", err.Error(), "order", order)
 		}
-
-		s.sendMailWithReceipt(ctx, refundOrder)
-
-		rsp.Status = billingpb.ResponseStatusOk
 	}
+
+	err = s.onRefundNotify(ctx, refund, order)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.MethodFinishedWithError,
+			zap.String("method", "onRefundNotify"),
+			zap.Error(err),
+			zap.String("refundId", refund.Id),
+			zap.String("refund-orderId", refundOrder.Id),
+		)
+
+		rsp.Error = err.Error()
+		rsp.Status = billingpb.ResponseStatusSystemError
+
+		return nil
+	}
+
+	s.sendMailWithReceipt(ctx, refundOrder)
+
+	rsp.Status = billingpb.ResponseStatusOk
 
 	return nil
 }
