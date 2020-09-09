@@ -9,18 +9,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"math"
 	"net"
 )
 
 var (
 	errorCustomerOrderTypeNotSupport = newBillingServerErrorMsg("cm000001", "order type is not support")
 	errorCustomerUnknown             = newBillingServerErrorMsg("cm000002", "unknown error")
-)
-
-const (
-	roundKeyCustomerPaymentActivityRevenuePayment = "customer_payment_activity_revenue_payment"
-	roundKeyCustomerPaymentActivityRevenueRefund  = "customer_payment_activity_revenue_refund"
-	roundKeyCustomerPaymentActivityRevenueTotal   = "customer_payment_activity_revenue_total"
 )
 
 func (s *Service) SetCustomerPaymentActivity(
@@ -69,29 +64,9 @@ func (s *Service) SetCustomerPaymentActivity(
 		paymentActivity.Revenue.Total -= req.Amount
 	}
 
-	paymentActivity.Revenue.Payment, err = s.round(roundKeyCustomerPaymentActivityRevenuePayment, paymentActivity.Revenue.Payment)
-
-	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = errorCustomerUnknown
-		return nil
-	}
-
-	paymentActivity.Revenue.Refund, err = s.round(roundKeyCustomerPaymentActivityRevenueRefund, paymentActivity.Revenue.Refund)
-
-	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = errorCustomerUnknown
-		return nil
-	}
-
-	paymentActivity.Revenue.Total, err = s.round(roundKeyCustomerPaymentActivityRevenueTotal, paymentActivity.Revenue.Total)
-
-	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = errorCustomerUnknown
-		return nil
-	}
+	paymentActivity.Revenue.Payment = math.Round(paymentActivity.Revenue.Payment*100) / 100
+	paymentActivity.Revenue.Refund = math.Round(paymentActivity.Revenue.Refund*100) / 100
+	paymentActivity.Revenue.Total = math.Round(paymentActivity.Revenue.Total*100) / 100
 
 	customer.PaymentActivity[req.MerchantId] = paymentActivity
 	err = s.customerRepository.Update(ctx, customer)

@@ -32,7 +32,7 @@ type MgoOrderProject struct {
 	Status                  int32                              `bson:"status"`
 	MerchantRoyaltyCurrency string                             `bson:"merchant_royalty_currency"`
 	RedirectSettings        *billingpb.ProjectRedirectSettings `bson:"redirect_settings"`
-	FirstPaymentAt 			time.Time 						   `bson:"first_payment_at"`
+	FirstPaymentAt          time.Time                          `bson:"first_payment_at"`
 }
 
 type MgoOrderPaymentMethod struct {
@@ -137,8 +137,9 @@ func getOrderViewMoney(in *billingpb.OrderViewMoney) *billingpb.OrderViewMoney {
 	}
 
 	return &billingpb.OrderViewMoney{
-		Amount:   tools.ToPrecise(in.Amount),
-		Currency: in.Currency,
+		Amount:        tools.ToPrecise(in.Amount),
+		Currency:      in.Currency,
+		AmountRounded: in.AmountRounded,
 	}
 }
 
@@ -173,4 +174,3 @@ func getOrderViewItems(in []*MgoOrderItem) []*billingpb.OrderItem {
 
 	return items
 }
-
