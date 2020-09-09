@@ -266,9 +266,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$local_amount",
-							"currency": "$local_currency",
-							"_id":      0,
+							"amount":         "$local_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$local_amount_rounded", 2}},
+							"currency":       "$local_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -310,9 +311,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$original_amount",
-							"currency": "$original_currency",
-							"_id":      0,
+							"amount":         "$original_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$original_amount_rounded", 2}},
+							"currency":       "$original_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -354,9 +356,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -398,9 +401,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -442,9 +446,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$local_amount",
-							"currency": "$local_currency",
-							"_id":      0,
+							"amount":         "$local_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$local_amount_rounded", 2}},
+							"currency":       "$local_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -486,9 +491,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$original_amount",
-							"currency": "$original_currency",
-							"_id":      0,
+							"amount":         "$original_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$original_amount_rounded", 2}},
+							"currency":       "$original_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -530,9 +536,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -574,9 +581,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -618,9 +626,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -662,9 +671,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -706,9 +716,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -750,9 +761,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -794,9 +806,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -838,9 +851,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -882,9 +896,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -926,9 +941,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -970,9 +986,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1014,9 +1031,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$local_amount",
-							"currency": "$local_currency",
-							"_id":      0,
+							"amount":         "$local_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$local_amount_rounded", 2}},
+							"currency":       "$local_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -1058,9 +1076,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$original_amount",
-							"currency": "$original_currency",
-							"_id":      0,
+							"amount":         "$original_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$original_amount_rounded", 2}},
+							"currency":       "$original_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -1102,9 +1121,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1146,9 +1166,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$local_amount",
-							"currency": "$local_currency",
-							"_id":      0,
+							"amount":         "$local_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$local_amount_rounded", 2}},
+							"currency":       "$local_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -1190,9 +1211,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   "$original_amount",
-							"currency": "$original_currency",
-							"_id":      0,
+							"amount":         "$original_amount",
+							"amount_rounded": bson.M{"$round": []interface{}{"$original_amount_rounded", 2}},
+							"currency":       "$original_currency",
+							"_id":            0,
 						},
 					},
 				},
@@ -1234,9 +1256,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1278,9 +1301,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1322,9 +1346,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1366,9 +1391,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1410,9 +1436,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1454,9 +1481,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1498,9 +1526,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1542,9 +1571,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1586,9 +1616,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1630,9 +1661,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1683,6 +1715,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 							"amount": bson.M{
 								"$sum": "$amount",
 							},
+							"amount_rounded": bson.M{
+								"$sum": "$amount_rounded",
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -1690,9 +1725,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1743,6 +1779,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 							"amount": bson.M{
 								"$sum": "$amount",
 							},
+							"amount_rounded": bson.M{
+								"$sum": "$amount_rounded",
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -1750,9 +1789,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1803,6 +1843,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 							"amount": bson.M{
 								"$sum": "$amount",
 							},
+							"amount_rounded": bson.M{
+								"$sum": "$amount_rounded",
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -1810,9 +1853,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1863,6 +1907,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 							"amount": bson.M{
 								"$sum": "$amount",
 							},
+							"amount_rounded": bson.M{
+								"$sum": "$amount_rounded",
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -1870,9 +1917,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1923,6 +1971,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 							"amount": bson.M{
 								"$sum": "$local_amount",
 							},
+							"amount_rounded": bson.M{
+								"$sum": "$amount_rounded",
+							},
 							"currency": bson.M{
 								"$first": "$local_currency",
 							},
@@ -1930,9 +1981,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -1983,6 +2035,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 							"amount": bson.M{
 								"$sum": "$amount",
 							},
+							"amount_rounded": bson.M{
+								"$sum": "$amount_rounded",
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -1990,9 +2045,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2043,6 +2099,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 							"amount": bson.M{
 								"$sum": "$local_amount",
 							},
+							"amount_rounded": bson.M{
+								"$sum": "$amount_rounded",
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2050,9 +2109,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2119,6 +2179,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"ps_gross_revenue_fx_tax_fee",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2126,9 +2205,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2196,6 +2276,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"ps_gross_revenue_fx",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2203,9 +2302,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2273,6 +2373,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"merchant_method_fee_cost_value",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2280,9 +2399,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2350,6 +2470,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"real_merchant_method_fixed_fee",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2357,9 +2496,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2426,6 +2566,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"real_merchant_method_fixed_fee_cost_value",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2433,9 +2592,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2502,6 +2662,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"real_merchant_ps_fixed_fee",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2509,9 +2688,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2578,6 +2758,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"real_refund",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2585,9 +2784,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2655,6 +2855,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"real_refund_fee",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2662,9 +2881,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2731,6 +2951,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"real_refund_fixed_fee",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2738,9 +2977,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2815,6 +3055,29 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$in": []interface{}{"$type", []string{
+												"ps_gross_revenue_fx",
+												"merchant_tax_fee_central_bank_fx",
+												"merchant_tax_fee_cost_value",
+												"ps_method_fee",
+												"merchant_ps_fixed_fee",
+											},
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2822,9 +3085,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2894,6 +3158,26 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$in": []interface{}{"$type", []string{
+												"merchant_method_fee_cost_value",
+												"real_merchant_method_fixed_fee_cost_value",
+											},
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2901,9 +3185,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -2979,6 +3264,28 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$in": []interface{}{"$type", []string{
+												"central_bank_tax_fee",
+												"ps_gross_revenue_fx_tax_fee",
+												"merchant_method_fee_cost_value",
+												"real_merchant_method_fixed_fee_cost_value",
+											},
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -2986,9 +3293,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -3058,6 +3366,25 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$eq": []string{
+												"$type",
+												"reverse_tax_fee",
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -3065,9 +3392,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -3139,6 +3467,26 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 									},
 								},
 							},
+							"amount_rounded": bson.M{
+								"$sum": bson.M{
+									"$cond": []interface{}{
+										bson.M{
+											"$in": []interface{}{"$type", []string{
+												"real_refund_fixed_fee",
+												"real_refund_fee",
+											},
+											},
+										},
+										bson.M{
+											"$subtract": []interface{}{
+												0,
+												"$amount_rounded",
+											},
+										},
+										"$amount_rounded",
+									},
+								},
+							},
 							"currency": bson.M{
 								"$first": "$currency",
 							},
@@ -3146,9 +3494,10 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 					},
 					{
 						"$project": bson.M{
-							"amount":   1,
-							"currency": 1,
-							"_id":      0,
+							"amount":         1,
+							"amount_rounded": bson.M{"$round": []interface{}{"$amount_rounded", 2}},
+							"currency":       1,
+							"_id":            0,
 						},
 					},
 				},
@@ -3164,8 +3513,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 		{
 			"$addFields": bson.M{
 				"order_charge": bson.M{
-					"amount":   "$charge_amount",
-					"currency": "$charge_currency",
+					"amount":         "$charge_amount",
+					"amount_rounded": bson.M{"$round": []interface{}{"$charge_amount", 2}},
+					"currency":       "$charge_currency",
 				},
 			},
 		},
@@ -3283,11 +3633,15 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 				"payment_ip_country":                                1,
 				"is_ip_country_mismatch_bin":                        1,
 				"order_charge":                                      1,
-				"order_charge_before_vat":                           1,
-				"billing_country_changed_by_user":                   1,
-				"refund_allowed":                                    "$is_refund_allowed",
-				"vat_payer":                                         1,
-				"is_production":                                     1,
+				"order_charge_before_vat": bson.M{
+					"amount":         "$order_charge_before_vat.amount",
+					"amount_rounded": bson.M{"$round": []interface{}{"$order_charge_before_vat.amount", 2}},
+					"currency":       "$order_charge_before_vat.currency",
+				},
+				"billing_country_changed_by_user": 1,
+				"refund_allowed":                  "$is_refund_allowed",
+				"vat_payer":                       1,
+				"is_production":                   1,
 				"merchant_payout_currency": bson.M{
 					"$ifNull": []interface{}{"$net_revenue.currency", "$refund_reverse_revenue.currency"},
 				},

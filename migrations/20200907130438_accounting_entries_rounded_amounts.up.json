@@ -1,0 +1,18 @@
+[
+  {
+    "update": "accounting_entry",
+    "updates": [
+      {
+        "q": {},
+        "u": [
+          {"$set": {
+            "amount_rounded": {"$round": ["$amount", 2]},
+            "original_amount_rounded": {"$round": ["$original_amount", 2]},
+            "local_amount_rounded": {"$round": ["$local_amount", 2]}
+          }}
+        ],
+        "multi": true
+      }
+    ]
+  }
+]

@@ -365,7 +365,8 @@ func (s *Service) reporterServiceCreateFile(ctx context.Context, req *reporterpb
 	return err
 }
 
-func (s *Service) round(key string, val float64) (float64, error) {
+func (s *Service) round(merchantId, fieldKey string, val float64) (float64, error) {
+	key := merchantId + "_" + fieldKey
 	money, ok := s.moneyRegistry[key]
 
 	if !ok {
