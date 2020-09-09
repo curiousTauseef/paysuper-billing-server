@@ -224,7 +224,8 @@ func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_Customer
 func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentActivity_Revenue_Payment_Round_Error() {
 	money := helper.NewMoney()
 	money.Precision = -1
-	suite.service.moneyRegistry[roundKeyCustomerPaymentActivityRevenuePayment] = money
+	registryKey := "fffffffffffffffffffffff0_" + roundKeyCustomerPaymentActivityRevenuePayment
+	suite.service.moneyRegistry[registryKey] = money
 
 	req := &billingpb.SetCustomerPaymentActivityRequest{
 		CustomerId:   "ffffffffffffffffffffffff",
@@ -243,7 +244,8 @@ func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentA
 func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentActivity_Revenue_Refund_Error() {
 	money := helper.NewMoney()
 	money.Precision = -1
-	suite.service.moneyRegistry[roundKeyCustomerPaymentActivityRevenueRefund] = money
+	registryKey := "fffffffffffffffffffffff0_" + roundKeyCustomerPaymentActivityRevenuePayment
+	suite.service.moneyRegistry[registryKey] = money
 
 	req := &billingpb.SetCustomerPaymentActivityRequest{
 		CustomerId:   "ffffffffffffffffffffffff",
@@ -262,7 +264,8 @@ func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentA
 func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentActivity_Revenue_Total_Error() {
 	money := helper.NewMoney()
 	money.Precision = -1
-	suite.service.moneyRegistry[roundKeyCustomerPaymentActivityRevenueTotal] = money
+	registryKey := "fffffffffffffffffffffff0_" + roundKeyCustomerPaymentActivityRevenuePayment
+	suite.service.moneyRegistry[registryKey] = money
 
 	req := &billingpb.SetCustomerPaymentActivityRequest{
 		CustomerId:   "ffffffffffffffffffffffff",
