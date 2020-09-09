@@ -3513,8 +3513,9 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 		{
 			"$addFields": bson.M{
 				"order_charge": bson.M{
-					"amount":   "$charge_amount",
-					"currency": "$charge_currency",
+					"amount":         "$charge_amount",
+					"amount_rounded": bson.M{"$round": []interface{}{"$charge_amount", 2}},
+					"currency":       "$charge_currency",
 				},
 			},
 		},
@@ -3632,11 +3633,15 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 				"payment_ip_country":                                1,
 				"is_ip_country_mismatch_bin":                        1,
 				"order_charge":                                      1,
-				"order_charge_before_vat":                           1,
-				"billing_country_changed_by_user":                   1,
-				"refund_allowed":                                    "$is_refund_allowed",
-				"vat_payer":                                         1,
-				"is_production":                                     1,
+				"order_charge_before_vat": bson.M{
+					"amount":         "$order_charge_before_vat.amount",
+					"amount_rounded": bson.M{"$round": []interface{}{"$order_charge_before_vat.amount", 2}},
+					"currency":       "$order_charge_before_vat.currency",
+				},
+				"billing_country_changed_by_user": 1,
+				"refund_allowed":                  "$is_refund_allowed",
+				"vat_payer":                       1,
+				"is_production":                   1,
 				"merchant_payout_currency": bson.M{
 					"$ifNull": []interface{}{"$net_revenue.currency", "$refund_reverse_revenue.currency"},
 				},
