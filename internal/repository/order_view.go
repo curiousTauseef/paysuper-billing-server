@@ -202,7 +202,7 @@ func (r *orderViewRepository) GetTransactionsPrivate(
 	return result, nil
 }
 
-func (r *orderViewRepository) getRoyaltySummaryGroupingQuery(isTotal bool) []bson.M {
+func (r *orderViewRepository) getRoyaltySummaryGroupingQuery(isTotal, needRound bool) []bson.M {
 	var groupingId bson.M
 	if !isTotal {
 		groupingId = bson.M{"product": "$product", "region": "$region"}
@@ -210,7 +210,7 @@ func (r *orderViewRepository) getRoyaltySummaryGroupingQuery(isTotal bool) []bso
 		groupingId = nil
 	}
 
-	return []bson.M{
+	result := []bson.M{
 		{
 			"$group": bson.M{
 				"_id":                          groupingId,
@@ -238,10 +238,39 @@ func (r *orderViewRepository) getRoyaltySummaryGroupingQuery(isTotal bool) []bso
 				"payout_amount":      bson.M{"$subtract": []interface{}{"$net_revenue_total", "$refund_reverse_revenue_total"}},
 			},
 		},
-		{
-			"$sort": bson.M{"product": 1, "region": 1},
-		},
 	}
+
+	if needRound {
+		round := bson.M{
+			"$project": bson.M{
+				"_id":                          1,
+				"product":                      1,
+				"region":                       1,
+				"currency":                     1,
+				"total_transactions":           1,
+				"gross_sales_amount":           bson.M{"$round": []interface{}{"$gross_sales_amount", 2}},
+				"gross_returns_amount":         bson.M{"$round": []interface{}{"$gross_returns_amount", 2}},
+				"purchase_fees":                bson.M{"$round": []interface{}{"$purchase_fees", 2}},
+				"refund_fees":                  bson.M{"$round": []interface{}{"$refund_fees", 2}},
+				"purchase_tax":                 bson.M{"$round": []interface{}{"$purchase_tax", 2}},
+				"refund_tax":                   bson.M{"$round": []interface{}{"$refund_tax", 2}},
+				"net_revenue_total":            bson.M{"$round": []interface{}{"$net_revenue_total", 2}},
+				"refund_reverse_revenue_total": bson.M{"$round": []interface{}{"$refund_reverse_revenue_total", 2}},
+				"sales_count":                  1,
+				"returns_count":                1,
+				"gross_total_amount":           bson.M{"$round": []interface{}{"$gross_total_amount", 2}},
+				"total_fees":                   bson.M{"$round": []interface{}{"$total_fees", 2}},
+				"total_vat":                    bson.M{"$round": []interface{}{"$total_vat", 2}},
+				"payout_amount":                bson.M{"$round": []interface{}{"$payout_amount", 2}},
+			},
+		}
+
+		result = append(result, round)
+	}
+
+	result = append(result, bson.M{"$sort": bson.M{"product": 1, "region": 1}})
+
+	return result
 }
 
 func (r *orderViewRepository) GetRoyaltySummary(
@@ -366,8 +395,8 @@ func (r *orderViewRepository) GetRoyaltySummary(
 		},
 		{
 			"$facet": bson.M{
-				"top":        r.getRoyaltySummaryGroupingQuery(false),
-				"total":      r.getRoyaltySummaryGroupingQuery(true),
+				"top":        r.getRoyaltySummaryGroupingQuery(false, false),
+				"total":      r.getRoyaltySummaryGroupingQuery(true, false),
 				"orders_ids": []bson.M{{"$project": bson.M{"id": 1}}},
 			},
 		},
@@ -1222,8 +1251,8 @@ func (r *orderViewRepository) GetRoyaltySummaryRoundedAmounts(
 		},
 		{
 			"$facet": bson.M{
-				"top":        r.getRoyaltySummaryGroupingQuery(false),
-				"total":      r.getRoyaltySummaryGroupingQuery(true),
+				"top":        r.getRoyaltySummaryGroupingQuery(false, true),
+				"total":      r.getRoyaltySummaryGroupingQuery(true, true),
 				"orders_ids": []bson.M{{"$project": bson.M{"id": 1}}},
 			},
 		},

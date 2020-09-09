@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.uber.org/zap"
 	"math"
@@ -61,35 +60,12 @@ func (s *Service) GetActOfCompletion(
 		from:    dateFrom,
 		to:      dateTo,
 	}
-	report, _, err := royaltyHandler.buildMerchantRoyaltyReport(ctx, merchant, false)
+	report, _, err := royaltyHandler.buildMerchantRoyaltyReportRoundedAmounts(ctx, merchant, false)
 	if err != nil {
 		return err
 	}
 
-	grossTotalAmountMoney := helper.NewMoney()
-	totalFeesMoney := helper.NewMoney()
-	totalVatMoney := helper.NewMoney()
-
-	grossTotalAmount, err := grossTotalAmountMoney.Round(report.Summary.ProductsTotal.GrossTotalAmount)
-
-	if err != nil {
-		return err
-	}
-
-	totalFees, err := totalFeesMoney.Round(report.Summary.ProductsTotal.TotalFees)
-
-	if err != nil {
-		return err
-	}
-
-	totalVat, err := totalVatMoney.Round(report.Summary.ProductsTotal.TotalVat)
-
-	if err != nil {
-
-		return err
-	}
-
-	payoutAmount := grossTotalAmount - totalFees - totalVat
+	payoutAmount := report.Summary.ProductsTotal.GrossTotalAmount - report.Summary.ProductsTotal.TotalFees - report.Summary.ProductsTotal.TotalVat
 	totalFeesAmount := payoutAmount + report.Totals.CorrectionAmount
 	balanceAmount := payoutAmount + report.Totals.CorrectionAmount - report.Totals.RollingReserveAmount
 

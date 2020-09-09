@@ -1258,7 +1258,7 @@ func (h *royaltyHandler) buildMerchantRoyaltyReportRoundedAmounts(
 	ctx context.Context, merchant *billingpb.Merchant, hasExistsReportId bool,
 ) (*billingpb.RoyaltyReport, []primitive.ObjectID, error) {
 	merchantPayoutCurrency := merchant.GetPayoutCurrency()
-	summaryItems, summaryTotal, ordersIds, err := h.orderViewRepository.GetRoyaltySummary(
+	summaryItems, summaryTotal, ordersIds, err := h.orderViewRepository.GetRoyaltySummaryRoundedAmounts(
 		ctx,
 		merchant.Id,
 		merchantPayoutCurrency,
