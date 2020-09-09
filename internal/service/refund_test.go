@@ -1564,7 +1564,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 	assert.NotNil(suite.T(), originalOrderViewPublicFromJson)
 	assert.NotNil(suite.T(), originalOrderViewPublicFromJson.OrderCharge)
 	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.Currency, originalOrderViewPublicFromJson.OrderCharge.Currency)
-	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.AmountRounded, originalOrderViewPublicFromJson.OrderCharge.Amount)
+	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.AmountRounded, originalOrderViewPublicFromJson.OrderCharge.AmountRounded)
 }
 
 func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() {

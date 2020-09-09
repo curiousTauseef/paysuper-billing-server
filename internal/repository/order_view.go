@@ -1080,3 +1080,221 @@ func (r *orderViewRepository) GetManyBy(ctx context.Context, filter bson.M, opts
 
 	return orders, nil
 }
+
+func (r *orderViewRepository) GetRoyaltySummaryRoundedAmounts(
+	ctx context.Context,
+	merchantId, currency string,
+	from, to time.Time,
+	notExistsReportId bool,
+) (
+	items []*billingpb.RoyaltyReportProductSummaryItem,
+	total *billingpb.RoyaltyReportProductSummaryItem,
+	orderIds []primitive.ObjectID,
+	err error,
+) {
+	items = []*billingpb.RoyaltyReportProductSummaryItem{}
+	total = &billingpb.RoyaltyReportProductSummaryItem{}
+	merchantOid, _ := primitive.ObjectIDFromHex(merchantId)
+
+	statusForRoyaltySummary := []string{
+		recurringpb.OrderPublicStatusProcessed,
+		recurringpb.OrderPublicStatusRefunded,
+		recurringpb.OrderPublicStatusChargeback,
+	}
+
+	match := bson.M{
+		"merchant_id":              merchantOid,
+		"merchant_payout_currency": currency,
+		"pm_order_close_date":      bson.M{"$gte": from, "$lte": to},
+		"status":                   bson.M{"$in": statusForRoyaltySummary},
+		"is_production":            true,
+	}
+
+	if notExistsReportId {
+		match["royalty_report_id"] = ""
+	}
+
+	query := []bson.M{
+		{
+			"$match": match,
+		},
+		{
+			"$project": bson.M{
+				"id": "$_id",
+				"names": bson.M{
+					"$filter": bson.M{
+						"input": "$project.name",
+						"as":    "name",
+						"cond":  bson.M{"$eq": []interface{}{"$$name.lang", "en"}},
+					},
+				},
+				"items": bson.M{
+					"$cond": []interface{}{
+						bson.M{"$ne": []interface{}{"$items", []interface{}{}}}, "$items", []string{""}},
+				},
+				"region":                 "$country_code",
+				"status":                 1,
+				"type":                   1,
+				"purchase_gross_revenue": "$gross_revenue.amount_rounded",
+				"refund_gross_revenue":   "$refund_gross_revenue.amount_rounded",
+				"purchase_tax_fee_total": "$tax_fee_total.amount_rounded",
+				"refund_tax_fee_total":   "$refund_tax_fee_total.amount_rounded",
+				"purchase_fees_total":    "$fees_total.amount_rounded",
+				"refund_fees_total":      "$refund_fees_total.amount_rounded",
+				"net_revenue":            "$net_revenue.amount_rounded",
+				"refund_reverse_revenue": "$refund_reverse_revenue.amount_rounded",
+				"amount_before_vat":      1,
+				"currency":               "$merchant_payout_currency",
+			},
+		},
+		{
+			"$unwind": "$items",
+		},
+		{
+			"$project": bson.M{
+				"id":                       1,
+				"region":                   1,
+				"status":                   1,
+				"type":                     1,
+				"purchase_gross_revenue":   1,
+				"refund_gross_revenue":     1,
+				"purchase_tax_fee_total":   1,
+				"refund_tax_fee_total":     1,
+				"purchase_fees_total":      1,
+				"refund_fees_total":        1,
+				"net_revenue":              1,
+				"refund_reverse_revenue":   1,
+				"order_amount_without_vat": 1,
+				"currency":                 1,
+				"product": bson.M{
+					"$cond": []interface{}{
+						bson.M{"$eq": []string{"$items", ""}},
+						bson.M{"$arrayElemAt": []interface{}{"$names.value", 0}},
+						"$items.name",
+					},
+				},
+				"correction": bson.M{
+					"$cond": []interface{}{
+						bson.M{"$eq": []string{"$items", ""}},
+						1,
+						bson.M{"$divide": []interface{}{"$items.amount", "$amount_before_vat"}},
+					},
+				},
+			},
+		},
+		{
+			"$project": bson.M{
+				"id":                       1,
+				"product":                  1,
+				"region":                   1,
+				"status":                   1,
+				"type":                     1,
+				"currency":                 1,
+				"purchase_gross_revenue":   bson.M{"$multiply": []interface{}{"$purchase_gross_revenue", "$correction"}},
+				"refund_gross_revenue":     bson.M{"$multiply": []interface{}{"$refund_gross_revenue", "$correction"}},
+				"purchase_tax_fee_total":   bson.M{"$multiply": []interface{}{"$purchase_tax_fee_total", "$correction"}},
+				"refund_tax_fee_total":     bson.M{"$multiply": []interface{}{"$refund_tax_fee_total", "$correction"}},
+				"purchase_fees_total":      bson.M{"$multiply": []interface{}{"$purchase_fees_total", "$correction"}},
+				"refund_fees_total":        bson.M{"$multiply": []interface{}{"$refund_fees_total", "$correction"}},
+				"net_revenue":              bson.M{"$multiply": []interface{}{"$net_revenue", "$correction"}},
+				"refund_reverse_revenue":   bson.M{"$multiply": []interface{}{"$refund_reverse_revenue", "$correction"}},
+				"order_amount_without_vat": bson.M{"$multiply": []interface{}{"$order_amount_without_vat", "$correction"}},
+			},
+		},
+		{
+			"$project": bson.M{
+				"id":                       1,
+				"product":                  1,
+				"region":                   1,
+				"status":                   1,
+				"type":                     1,
+				"currency":                 1,
+				"purchase_gross_revenue":   bson.M{"$round": []interface{}{"$purchase_gross_revenue", 2}},
+				"refund_gross_revenue":     bson.M{"$round": []interface{}{"$refund_gross_revenue", 2}},
+				"purchase_tax_fee_total":   bson.M{"$round": []interface{}{"$purchase_tax_fee_total", 2}},
+				"refund_tax_fee_total":     bson.M{"$round": []interface{}{"$refund_tax_fee_total", 2}},
+				"purchase_fees_total":      bson.M{"$round": []interface{}{"$purchase_fees_total", 2}},
+				"refund_fees_total":        bson.M{"$round": []interface{}{"$refund_fees_total", 2}},
+				"net_revenue":              bson.M{"$round": []interface{}{"$net_revenue", 2}},
+				"refund_reverse_revenue":   bson.M{"$round": []interface{}{"$refund_reverse_revenue", 2}},
+				"order_amount_without_vat": bson.M{"$round": []interface{}{"$order_amount_without_vat", 2}},
+			},
+		},
+		{
+			"$facet": bson.M{
+				"top":        r.getRoyaltySummaryGroupingQuery(false),
+				"total":      r.getRoyaltySummaryGroupingQuery(true),
+				"orders_ids": []bson.M{{"$project": bson.M{"id": 1}}},
+			},
+		},
+		{
+			"$project": bson.M{
+				"top":        "$top",
+				"total":      bson.M{"$arrayElemAt": []interface{}{"$total", 0}},
+				"orders_ids": "$orders_ids.id",
+			},
+		},
+	}
+
+	cursor, err := r.db.Collection(CollectionOrderView).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, nil, nil, err
+	}
+
+	defer func() {
+		err := cursor.Close(ctx)
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorQueryCursorCloseFailed,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
+			)
+		}
+	}()
+
+	var result *pkg2.RoyaltySummaryResult
+	if cursor.Next(ctx) {
+		err = cursor.Decode(&result)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorDatabaseQueryFailed,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			)
+			return nil, nil, nil, err
+		}
+	}
+
+	if result == nil {
+		return nil, nil, nil, err
+	}
+
+	if result.Items != nil {
+		items = result.Items
+	}
+
+	if result.Total != nil {
+		total = result.Total
+		total.Product = ""
+		total.Region = ""
+	}
+
+	for _, item := range items {
+		r.royaltySummaryItemPrecise(item)
+	}
+
+	r.royaltySummaryItemPrecise(total)
+
+	orderIds = result.OrdersIds
+
+	return
+}
