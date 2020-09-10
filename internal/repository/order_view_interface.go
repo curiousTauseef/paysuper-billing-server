@@ -6,6 +6,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
 )
 
@@ -23,8 +24,8 @@ type OrderViewRepositoryInterface interface {
 	// GetTransactionsPrivate returns list of private view transactions by dynamic query.
 	GetTransactionsPrivate(ctx context.Context, match bson.M, limit, offset int64) (result []*billingpb.OrderViewPrivate, err error)
 
-	// GetRoyaltySummary returns orders for summary royal report by merchant id, currency and dates.
-	GetRoyaltySummary(ctx context.Context, merchantId, currency string, from, to time.Time) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, ordersIds []primitive.ObjectID, err error)
+	// GetRoyaltySummary returns orders for summary royal report by merchant id, currency and dates with checking exists royalty report.
+	GetRoyaltySummary(ctx context.Context, merchantId, currency string, from, to time.Time, hasExistsReportId bool) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, ordersIds []primitive.ObjectID, err error)
 
 	// GetPublicOrderBy returns orders for order identity, order public identity, merchant id.
 	GetPublicOrderBy(ctx context.Context, id, uuid, merchantId string) (*billingpb.OrderViewPublic, error)
@@ -58,4 +59,10 @@ type OrderViewRepositoryInterface interface {
 
 	// GetRoyaltyForMerchants returns orders for merchants royal report by statuses and dates.
 	GetRoyaltyForMerchants(context.Context, []string, time.Time, time.Time) ([]*pkg.RoyaltyReportMerchant, error)
+
+	// Return orders by some conditions and with options
+	GetManyBy(ctx context.Context, filter bson.M, opts ...*options.FindOptions) ([]*billingpb.OrderViewPrivate, error)
+
+	// GetRoyaltySummary returns orders for summary royal report by merchant id, currency and dates with checking exists royalty report.
+	GetRoyaltySummaryRoundedAmounts(ctx context.Context, merchantId, currency string, from, to time.Time, hasExistsReportId bool) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, ordersIds []primitive.ObjectID, err error)
 }

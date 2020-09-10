@@ -5,6 +5,7 @@ import (
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // OrderRepositoryInterface is abstraction layer for working with order and representation in database.
@@ -31,8 +32,14 @@ type OrderRepositoryInterface interface {
 	UpdateOrderView(context.Context, []string) error
 
 	// Return order by some conditions
-	GetOneBy(ctx context.Context, filter bson.M) (*billingpb.Order, error)
+	GetOneBy(ctx context.Context, filter bson.M, opts ...*options.FindOneOptions) (*billingpb.Order, error)
 
 	// Mark orders as included to royalty report.
 	IncludeOrdersToRoyaltyReport(ctx context.Context, royaltyReportId string, orderIds []primitive.ObjectID) error
+
+	// Get first payment for merchant
+	GetFirstPaymentForMerchant(ctx context.Context, merchantId string) (*billingpb.Order, error)
+
+	// Return orders by some conditions and with options
+	GetManyBy(ctx context.Context, filter bson.M, opts ...*options.FindOptions) ([]*billingpb.Order, error)
 }

@@ -694,7 +694,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 		return err
 	}
 	if restricted {
-		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Status = billingpb.ResponseStatusForbidden
 		rsp.Message = orderCountryPaymentRestricted
 		rsp.Item.Id = order.Uuid
 		return nil
@@ -1175,6 +1175,29 @@ func (s *Service) PaymentCallbackProcess(
 			return err
 		}
 		break
+	}
+
+	merchant, err := s.merchantRepository.GetById(ctx, order.GetMerchantId())
+	if err != nil {
+		return err
+	}
+
+	if order.IsProduction {
+		zap.L().Info("debug info", zap.Any("merchant_first_payment_at", merchant.FirstPaymentAt))
+		if merchant.FirstPaymentAt == nil || merchant.FirstPaymentAt.Seconds <= 0 {
+			currentTimeOrder := order.PaymentMethodOrderClosedAt
+			merchant.FirstPaymentAt = currentTimeOrder
+			order.Project.FirstPaymentAt = currentTimeOrder
+			err = s.merchantRepository.Update(ctx, merchant)
+			if err != nil {
+				zap.L().Error("can't update first_payment_at field", zap.Error(err), zap.String("merchant_id", merchant.Id), zap.Any("time", currentTimeOrder))
+				return err
+			}
+		} else {
+			if order.Project.FirstPaymentAt == nil || merchant.FirstPaymentAt.Seconds <= 0 {
+				order.Project.FirstPaymentAt = merchant.FirstPaymentAt
+			}
+		}
 	}
 
 	err = s.updateOrder(ctx, order)
@@ -2110,6 +2133,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			Status:                  v.checked.project.Status,
 			MerchantRoyaltyCurrency: v.checked.merchant.GetPayoutCurrency(),
 			RedirectSettings:        v.checked.project.RedirectSettings,
+			FirstPaymentAt:          v.checked.merchant.FirstPaymentAt,
 		},
 		Description:   fmt.Sprintf(orderDefaultDescription, id),
 		PrivateStatus: recurringpb.OrderStatusNew,
@@ -2676,6 +2700,7 @@ func (v *OrderCreateRequestProcessor) processCustomerToken(ctx context.Context) 
 	v.request.ButtonCaption = token.Settings.ButtonCaption
 
 	v.checked.user.Id = customer.Id
+	v.checked.user.Uuid = customer.Uuid
 	v.checked.user.Object = pkg.ObjectTypeUser
 	v.checked.user.TechEmail = customer.TechEmail
 
@@ -2702,6 +2727,7 @@ func (v *OrderCreateRequestProcessor) processUserData() (err error) {
 
 	v.checked.user = v.request.User
 	v.checked.user.Id = customer.Id
+	v.checked.user.Uuid = customer.Uuid
 	v.checked.user.Object = pkg.ObjectTypeUser
 	v.checked.user.TechEmail = customer.TechEmail
 
@@ -4270,7 +4296,7 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 		TotalCharge:         totalCharge,
 		ReceiptId:           order.ReceiptId,
 		Url:                 order.ReceiptUrl,
-		VatRate:             fmt.Sprintf("%g", order.Tax.Rate*100) + "%",
+		VatRate:             fmt.Sprintf("%.2f", order.Tax.Rate*100) + "%",
 		CustomerEmail:       order.User.Email,
 	}
 
@@ -4427,6 +4453,7 @@ func (s *Service) OrderReCreateProcess(
 
 	newOrder.User = &billingpb.OrderUser{
 		Id:            order.User.Id,
+		Uuid:          order.User.Uuid,
 		Phone:         order.User.Phone,
 		PhoneVerified: order.User.PhoneVerified,
 		Metadata:      order.Metadata,

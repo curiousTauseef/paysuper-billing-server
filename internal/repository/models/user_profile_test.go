@@ -2,7 +2,6 @@ package models
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/bxcodec/faker"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -53,10 +52,6 @@ func (suite *UserProfileTestSuite) Test_UserProfile_MapUserProfileToMgo_Ok() {
 
 	assert.NoError(suite.T(), marshaler.Marshal(buf1, original))
 	assert.NoError(suite.T(), marshaler.Marshal(buf2, obj.(*billingpb.UserProfile)))
-
-	fmt.Println(string(buf1.Bytes()))
-	fmt.Println()
-	fmt.Println(string(buf2.Bytes()))
 
 	assert.JSONEq(suite.T(), string(buf1.Bytes()), string(buf2.Bytes()))
 }

@@ -1,0 +1,14 @@
+[
+  {
+    "update": "customer",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$set": {"payment_activity":  []}
+        },
+        "multi": true
+      }
+    ]
+  }
+]

@@ -2465,7 +2465,9 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptyEmailAndPhone_Ok() 
 	processor := &OrderCreateRequestProcessor{
 		Service: suite.service,
 		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
+		checked: &orderCreateRequestProcessorChecked{
+			project: suite.project,
+		},
 	}
 	assert.Nil(suite.T(), processor.checked.user)
 
@@ -2490,7 +2492,9 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_EmptySubdivision_Ok() {
 	processor := &OrderCreateRequestProcessor{
 		Service: suite.service,
 		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
+		checked: &orderCreateRequestProcessorChecked{
+			project: suite.project,
+		},
 	}
 	assert.Nil(suite.T(), processor.checked.user)
 
@@ -2548,7 +2552,9 @@ func (suite *OrderTestSuite) TestOrder_ProcessPayerData_Error() {
 	processor := &OrderCreateRequestProcessor{
 		Service: suite.service,
 		request: req,
-		checked: &orderCreateRequestProcessorChecked{},
+		checked: &orderCreateRequestProcessorChecked{
+			project: suite.project,
+		},
 	}
 	assert.Nil(suite.T(), processor.checked.user)
 
@@ -6498,6 +6504,7 @@ func (suite *OrderTestSuite) TestOrder_CreatePayment_ChangeCustomerData_Ok() {
 	assert.NotNil(suite.T(), order)
 	assert.NotNil(suite.T(), order.User)
 	assert.Equal(suite.T(), customer2.Id, order.User.Id)
+	assert.Equal(suite.T(), customer2.Uuid, order.User.Uuid)
 	assert.Equal(suite.T(), order.User.Ip, "127.0.0.1")
 	assert.Equal(suite.T(), order.User.Locale, customer2.LocaleHistory[0].Value)
 	assert.Equal(suite.T(), order.User.Email, customer2.Email)
@@ -6554,6 +6561,7 @@ func (suite *OrderTestSuite) TestOrder_CreatePayment_ChangeCustomerData_Ok() {
 
 	assert.Equal(suite.T(), customer2.Id, customer3.Id)
 	assert.Equal(suite.T(), customer3.Id, order.User.Id)
+	assert.Equal(suite.T(), customer3.Uuid, order.User.Uuid)
 	assert.Equal(suite.T(), order.User.Ip, req2.Ip)
 	assert.Equal(suite.T(), req.User.Locale, order.User.Locale)
 	assert.Equal(suite.T(), "test123@unit.unit", order.User.Email)

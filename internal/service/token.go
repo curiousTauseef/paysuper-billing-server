@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -350,11 +351,13 @@ func (s *Service) createCustomer(
 	id := primitive.NewObjectID().Hex()
 
 	customer := &billingpb.Customer{
-		Id:        id,
-		TechEmail: id + pkg.TechEmailDomain,
-		Metadata:  req.User.Metadata,
-		CreatedAt: ptypes.TimestampNow(),
-		UpdatedAt: ptypes.TimestampNow(),
+		Id:              id,
+		Uuid:            uuid.New().String(),
+		TechEmail:       id + pkg.TechEmailDomain,
+		Metadata:        req.User.Metadata,
+		PaymentActivity: make(map[string]*billingpb.PaymentActivityItem),
+		CreatedAt:       ptypes.TimestampNow(),
+		UpdatedAt:       ptypes.TimestampNow(),
 	}
 	s.processCustomer(ctx, req, project, customer)
 
@@ -514,6 +517,18 @@ func (s *Service) processCustomer(
 		if history.Value != "" {
 			customer.AcceptLanguageHistory = append(customer.AcceptLanguageHistory, history)
 		}
+	}
+
+	if _, ok := customer.PaymentActivity[project.MerchantId]; !ok {
+		customer.PaymentActivity[project.MerchantId] = &billingpb.PaymentActivityItem{
+			Count:     &billingpb.PaymentActivityItemCount{},
+			LastTxnAt: &billingpb.PaymentActivityItemLastTxnAt{},
+			Revenue:   &billingpb.PaymentActivityItemRevenue{},
+		}
+	}
+
+	if customer.Uuid == "" {
+		customer.Uuid = uuid.New().String()
 	}
 }
 

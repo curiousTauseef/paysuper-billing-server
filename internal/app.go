@@ -408,6 +408,10 @@ func (app *Application) MigrateCustomers() error {
 	return app.svc.MigrateCustomers(context.Background())
 }
 
+func (app *Application) UpdateFirstPayments() error {
+	return app.svc.UpdateFirstPayments(context.Background())
+}
+
 func (app *Application) TaskCreatePayout() error {
 	rsp := &billingpb.CreatePayoutDocumentResponse{}
 	err := app.svc.CreatePayoutDocument(

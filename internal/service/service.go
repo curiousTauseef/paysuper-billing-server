@@ -8,6 +8,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
+	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-i18n"
@@ -114,6 +115,8 @@ type Service struct {
 	dashboardRepository                    repository.DashboardRepositoryInterface
 	validateUserBroker                     rabbitmq.BrokerInterface
 	autoincrementRepository                repository.AutoincrementRepositoryInterface
+	moneyRegistry                          map[string]*helper.Money
+	moneyRegistryMx                        sync.Mutex
 }
 
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
@@ -168,6 +171,7 @@ func NewBillingService(
 		casbinService:      casbinService,
 		notifier:           notifier,
 		validateUserBroker: validateUserBroker,
+		moneyRegistry:      make(map[string]*helper.Money),
 	}
 }
 
@@ -359,4 +363,29 @@ func (s *Service) reporterServiceCreateFile(ctx context.Context, req *reporterpb
 	}
 
 	return err
+}
+
+func (s *Service) round(merchantId, fieldKey string, val float64) (float64, error) {
+	key := merchantId + "_" + fieldKey
+	money, ok := s.moneyRegistry[key]
+
+	if !ok {
+		s.moneyRegistryMx.Lock()
+		money = helper.NewMoney()
+		s.moneyRegistry[key] = money
+		s.moneyRegistryMx.Unlock()
+	}
+
+	rounded, err := money.Round(val)
+
+	if err != nil {
+		zap.L().Error(
+			billingpb.ErrorUnableRound,
+			zap.Error(err),
+			zap.String(billingpb.ErrorFieldKey, key),
+			zap.Float64(billingpb.ErrorFieldValue, val),
+		)
+	}
+
+	return rounded, err
 }

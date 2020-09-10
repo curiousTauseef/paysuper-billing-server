@@ -1,0 +1,14 @@
+[
+  {
+    "update": "payment_method",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$set": {"recurring_allowed": false}
+        },
+        "multi": true
+      }
+    ]
+  }
+]

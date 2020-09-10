@@ -93,6 +93,11 @@ type MgoOrder struct {
 	MetadataValues              []string                                 `bson:"metadata_values" json:"-"`
 	MerchantInfo                *billingpb.OrderViewMerchantInfo         `bson:"merchant_info"`
 	RoyaltyReportId             string                                   `bson:"royalty_report_id"`
+	NetRevenue                  *billingpb.OrderViewMoney                `bson:"net_revenue"`
+	Fee                         *billingpb.OrderViewMoney                `bson:"fee"`
+	RecurringSettings           *billingpb.OrderRecurringSettings        `bson:"recurring_settings"`
+	Recurring                   bool                                     `bson:"recurring"`
+	RecurringId                 string                                   `bson:"recurring_id"`
 }
 
 type orderMapper struct{}
@@ -192,6 +197,11 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		FormMode:                    m.FormMode,
 		MerchantInfo:                m.MerchantInfo,
 		RoyaltyReportId:             m.RoyaltyReportId,
+		NetRevenue:                  m.NetRevenue,
+		Fee:                         m.Fee,
+		RecurringSettings:           m.RecurringSettings,
+		Recurring:                   m.Recurring,
+		RecurringId:                 m.RecurringId,
 	}
 
 	if m.Refund != nil {
@@ -352,6 +362,13 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		}
 	}
 
+	if m.Project != nil && m.Project.FirstPaymentAt != nil {
+		st.Project.FirstPaymentAt, err = ptypes.Timestamp(m.Project.FirstPaymentAt)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if m.CanceledAt != nil {
 		t, err := ptypes.Timestamp(m.CanceledAt)
 
@@ -440,6 +457,11 @@ func (o *orderMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
 	m.IsRefundAllowed = decoded.IsRefundAllowed
 	m.FormMode = decoded.FormMode
 	m.IsCurrencyPredefined = decoded.IsCurrencyPredefined
+	m.Fee = decoded.Fee
+	m.NetRevenue = decoded.NetRevenue
+	m.RecurringSettings = decoded.RecurringSettings
+	m.Recurring = decoded.Recurring
+	m.RecurringId = decoded.RecurringId
 
 	if decoded.Refund != nil {
 		m.Refund = &billingpb.OrderNotificationRefund{

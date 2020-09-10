@@ -189,6 +189,8 @@ func (suite *OrderTestSuite) TestOrder_GetById_Ok() {
 	order.ProjectLastRequestedAt = order2.ProjectLastRequestedAt
 	order.PaymentMethodOrderClosedAt = order2.PaymentMethodOrderClosedAt
 	order.ExpireDateToFormInput = order2.ExpireDateToFormInput
+	order.Project.FirstPaymentAt = order2.Project.FirstPaymentAt
+
 	assert.Equal(suite.T(), order, order2)
 }
 
@@ -217,6 +219,7 @@ func (suite *OrderTestSuite) TestOrder_GetByUuid_Ok() {
 	order.ProjectLastRequestedAt = order2.ProjectLastRequestedAt
 	order.PaymentMethodOrderClosedAt = order2.PaymentMethodOrderClosedAt
 	order.ExpireDateToFormInput = order2.ExpireDateToFormInput
+	order.Project.FirstPaymentAt = order2.Project.FirstPaymentAt
 	assert.Equal(suite.T(), order, order2)
 }
 
@@ -246,6 +249,7 @@ func (suite *OrderTestSuite) TestOrder_GetByRefundReceiptNumber_Ok() {
 	order.ProjectLastRequestedAt = order2.ProjectLastRequestedAt
 	order.PaymentMethodOrderClosedAt = order2.PaymentMethodOrderClosedAt
 	order.ExpireDateToFormInput = order2.ExpireDateToFormInput
+	order.Project.FirstPaymentAt = order2.Project.FirstPaymentAt
 	assert.Equal(suite.T(), order, order2)
 }
 
@@ -260,6 +264,7 @@ func (suite *OrderTestSuite) TestOrder_GetByRefundReceiptNumber_Error() {
 }
 
 func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
+
 	return &billingpb.Order{
 		Id: primitive.NewObjectID().Hex(),
 		Project: &billingpb.ProjectOrder{
@@ -280,6 +285,7 @@ func (suite *OrderTestSuite) getOrderTemplate() *billingpb.Order {
 			UrlProcessPayment:       "UrlProcessPayment",
 			UrlRefundPayment:        "UrlRefundPayment",
 			UrlSuccess:              "UrlSuccess",
+			FirstPaymentAt: 		&timestamp.Timestamp{Seconds: 100},
 		},
 		Uuid:                        "Uuid",
 		Status:                      "processed",

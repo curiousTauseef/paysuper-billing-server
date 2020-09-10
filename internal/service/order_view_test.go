@@ -379,7 +379,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_NoTransacti
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, ordersIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, ordersIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to, true)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 0)
@@ -432,7 +432,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, orderIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, orderIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to, true)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 2)
@@ -485,6 +485,52 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 	assert.Equal(suite.T(), tools.FormatAmount(summaryTotal.PayoutAmount), tools.FormatAmount(controlTotal))
 }
 
+func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_HasExistsReportId() {
+	countries := []string{"RU", "FI"}
+	var orders []*billingpb.Order
+	numberOfOrders := 3
+
+	suite.projectFixedAmount.Status = billingpb.ProjectStatusInProduction
+	if err := suite.service.project.Update(context.TODO(), suite.projectFixedAmount); err != nil {
+		suite.FailNow("Update project test data failed", "%v", err)
+	}
+
+	count := 0
+	for count < numberOfOrders {
+		order := HelperCreateAndPayOrder(
+			suite.Suite,
+			suite.service,
+			10,
+			"USD",
+			countries[count%2],
+			suite.projectFixedAmount,
+			suite.paymentMethod,
+		)
+		assert.NotNil(suite.T(), order)
+		orders = append(orders, order)
+
+		count++
+	}
+
+	to := time.Now().Add(time.Duration(5) * time.Hour)
+	from := to.Add(-time.Duration(10) * time.Hour)
+
+	id, _ := primitive.ObjectIDFromHex(orders[0].Id)
+	err := suite.service.orderRepository.IncludeOrdersToRoyaltyReport(ctx, "report_id", []primitive.ObjectID{id})
+	assert.NoError(suite.T(), err)
+
+	err = suite.service.updateOrderView(ctx, []string{orders[0].Id})
+	assert.NoError(suite.T(), err)
+
+	_, _, orderIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to, true)
+	assert.NoError(suite.T(), err)
+	assert.Len(suite.T(), orderIds, numberOfOrders-1)
+
+	_, _, orderIds, err = suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to, false)
+	assert.NoError(suite.T(), err)
+	assert.Len(suite.T(), orderIds, numberOfOrders)
+}
+
 func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRefunds() {
 	countries := []string{"RU", "FI"}
 	var orders []*billingpb.Order
@@ -524,7 +570,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
-	summaryItems, summaryTotal, orderIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to)
+	summaryItems, summaryTotal, orderIds, err := suite.service.orderViewRepository.GetRoyaltySummary(context.TODO(), suite.merchant.Id, suite.merchant.GetPayoutCurrency(), from, to, true)
 	assert.NoError(suite.T(), err)
 
 	assert.Len(suite.T(), summaryItems, 2)

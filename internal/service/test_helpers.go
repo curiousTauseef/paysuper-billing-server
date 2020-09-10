@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
@@ -910,6 +911,7 @@ func HelperCreateAndPayOrder(
 		Description: "unit test",
 		User: &billingpb.OrderUser{
 			Id:    primitive.NewObjectID().Hex(),
+			Uuid:  uuid.New().String(),
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
 			Address: &billingpb.OrderBillingAddress{
