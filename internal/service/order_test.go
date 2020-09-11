@@ -76,6 +76,8 @@ type OrderTestSuite struct {
 	paylink3                               *billingpb.Paylink // expired paylink
 	operatingCompany                       *billingpb.OperatingCompany
 	productWithProcessingDefaultCurrency   *billingpb.Product
+	customer                               *billingpb.Customer
+	cookie                                 string
 
 	logObserver *zap.Logger
 	zapRecorder *observer.ObservedLogs
@@ -2341,6 +2343,53 @@ func (suite *OrderTestSuite) SetupTest() {
 	}
 
 	suite.merchant = merchant
+
+	customerRequest := &billingpb.TokenRequest{
+		User: &billingpb.TokenUser{
+			Id: primitive.NewObjectID().Hex(),
+			Email: &billingpb.TokenUserEmailValue{
+				Value: "test@unit.test",
+			},
+			Phone: &billingpb.TokenUserPhoneValue{
+				Value: "1234567890",
+			},
+			Name: &billingpb.TokenUserValue{
+				Value: "Unit Test",
+			},
+			Ip: &billingpb.TokenUserIpValue{
+				Value: "127.0.0.1",
+			},
+			Locale: &billingpb.TokenUserLocaleValue{
+				Value: "ru",
+			},
+			Address: &billingpb.OrderBillingAddress{
+				Country:    "RU",
+				City:       "St.Petersburg",
+				PostalCode: "190000",
+				State:      "SPE",
+			},
+		},
+		Settings: &billingpb.TokenSettings{
+			ProjectId:   projectFixedAmount.Id,
+			Currency:    "RUB",
+			Amount:      100,
+			Description: "test payment",
+		},
+	}
+	suite.customer, err = suite.service.createCustomer(context.TODO(), customerRequest, projectFixedAmount)
+	if err != nil {
+		suite.FailNow("Create customer failed", "%v", err)
+	}
+
+	browserCustomer := &BrowserCookieCustomer{
+		CustomerId: suite.customer.Id,
+		Ip:         "127.0.0.1",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	suite.cookie, err = suite.service.generateBrowserCookie(browserCustomer)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.cookie)
 }
 
 func (suite *OrderTestSuite) TearDownTest() {
@@ -4845,6 +4894,13 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_Ok() {
 
 	expireYear := time.Now().AddDate(1, 0, 0)
 
+	browserCustomer := &BrowserCookieCustomer{
+		Ip:        "127.0.0.1",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	suite.cookie, err = suite.service.generateBrowserCookie(browserCustomer)
+
 	createPaymentRequest := &billingpb.PaymentCreateRequest{
 		Data: map[string]string{
 			billingpb.PaymentCreateFieldOrderId:         order.Uuid,
@@ -4856,7 +4912,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -4867,10 +4924,16 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_Ok() {
 	assert.True(suite.T(), len(rsp.RedirectUrl) > 0)
 	assert.Nil(suite.T(), rsp.Message)
 	assert.True(suite.T(), rsp.NeedRedirect)
+	assert.NotEmpty(suite.T(), rsp.Cookie)
 
 	order1, err := suite.service.orderRepository.GetById(context.TODO(), order.Id)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), order1)
+	assert.NotEmpty(suite.T(), order1.User.Id)
+	assert.NotEmpty(suite.T(), order1.User.Uuid)
+
+	decryptedBrowserCustomer, _ := suite.service.decryptBrowserCookie(rsp.Cookie)
+	assert.NotEmpty(suite.T(), decryptedBrowserCustomer.CustomerId)
 }
 
 func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_ProcessValidation_Error() {
@@ -4904,6 +4967,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_ProcessValidation_Er
 			billingpb.PaymentCreateFieldMonth:           "02",
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -4914,6 +4978,31 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_ProcessValidation_Er
 	assert.Len(suite.T(), rsp.RedirectUrl, 0)
 	assert.True(suite.T(), len(rsp.Message.Message) > 0)
 	assert.Equal(suite.T(), bankCardExpireYearIsRequired, rsp.Message)
+}
+
+func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_EmptyCookie_Error() {
+	req := &billingpb.PaymentCreateRequest{}
+	rsp := &billingpb.PaymentCreateResponse{}
+	err := suite.service.PaymentCreateProcess(context.TODO(), req, rsp)
+
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
+	assert.True(suite.T(), len(rsp.Message.Message) > 0)
+	assert.Equal(suite.T(), orderErrorCookieIsEmpty, rsp.Message)
+}
+
+func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_InvalidCookie_Error() {
+	req := &billingpb.PaymentCreateRequest{
+		Cookie: "test",
+	}
+
+	rsp := &billingpb.PaymentCreateResponse{}
+	err := suite.service.PaymentCreateProcess(context.TODO(), req, rsp)
+
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
+	assert.True(suite.T(), len(rsp.Message.Message) > 0)
+	assert.Equal(suite.T(), orderErrorCookieInvalid, rsp.Message)
 }
 
 func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_ChangeTerminalData_Ok() {
@@ -4950,7 +5039,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_ChangeTerminalData_O
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -4991,6 +5081,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_CreatePaymentSystemH
 			billingpb.PaymentCreateFieldEmail:           "test@unit.unit",
 			billingpb.PaymentCreateFieldCrypto:          "bitcoin_address",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -5047,6 +5138,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_FormInputTimeExpired
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp2 := &billingpb.PaymentCreateResponse{}
@@ -5090,7 +5182,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -5215,7 +5308,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Recurring_Ok() {
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 			billingpb.PaymentCreateFieldStoreData:       "1",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -5977,7 +6071,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_UserAddressDataRequi
 			billingpb.PaymentCreateFieldUserCity:        "Washington",
 			billingpb.PaymentCreateFieldUserZip:         "98001",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -6043,6 +6138,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_UserAddressDataRequi
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -6338,6 +6434,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_NotOwnBankCard_Error
 			billingpb.PaymentCreateFieldCvv:             "123",
 			billingpb.PaymentCreateFieldStoredCardId:    primitive.NewObjectID().Hex(),
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -6545,6 +6642,7 @@ func (suite *OrderTestSuite) TestOrder_CreatePayment_ChangeCustomerData_Ok() {
 		Ip:             "127.0.0.3",
 		AcceptLanguage: "fr-CA",
 		UserAgent:      "windows",
+		Cookie:         suite.cookie,
 	}
 	rsp2 := &billingpb.PaymentCreateResponse{}
 	err = suite.service.PaymentCreateProcess(context.TODO(), req2, rsp2)
@@ -7163,7 +7261,8 @@ func (suite *OrderTestSuite) TestBillingService_PaymentCreateProcess_CountryRest
 	}
 
 	createPaymentRequest := &billingpb.PaymentCreateRequest{
-		Data: data,
+		Data:   data,
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -7218,6 +7317,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_UserAddressDataRequi
 			billingpb.PaymentCreateFieldUserCountry:     "US",
 			billingpb.PaymentCreateFieldUserZip:         "",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -7258,7 +7358,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_AccountingEntries_
 			billingpb.PaymentCreateFieldYear:            time.Now().AddDate(1, 0, 0).Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -7371,7 +7472,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Error() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -7910,6 +8012,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_CostsNotFound_Error(
 			Email: "test@unit.unit",
 			Ip:    "127.0.0.1",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.OrderCreateProcessResponse{}
@@ -7926,6 +8029,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_CostsNotFound_Error(
 			billingpb.PaymentCreateFieldEmail:           "test@unit.unit",
 			billingpb.PaymentCreateFieldEWallet:         "bitcoin_address",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp := &billingpb.PaymentCreateResponse{}
@@ -7948,7 +8052,7 @@ func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_Ok() {
 	postmarkBrokerMock := &mocks.BrokerInterface{}
 	postmarkBrokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(postmarkBrokerMockFn, nil)
 	suite.service.postmarkBroker = postmarkBrokerMock
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
 	assert.Nil(suite.T(), order.Cancellation)
@@ -7975,7 +8079,7 @@ func (suite *OrderTestSuite) TestOrder_RefundReceipt_Ok() {
 	postmarkBrokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(postmarkBrokerMockFn, nil)
 	suite.service.postmarkBroker = postmarkBrokerMock
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
 	assert.Nil(suite.T(), order.Cancellation)
@@ -8045,7 +8149,8 @@ func (suite *OrderTestSuite) TestOrder_DeclineOrder_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 	rsp1 := &billingpb.PaymentCreateResponse{}
 	err = suite.service.PaymentCreateProcess(context.TODO(), req1, rsp1)
@@ -8174,7 +8279,8 @@ func (suite *OrderTestSuite) TestOrder_SuccessOrderCentrifugoPaymentSystemError_
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: suite.cookie,
 	}
 	rsp1 := &billingpb.PaymentCreateResponse{}
 	err = suite.service.PaymentCreateProcess(context.TODO(), req1, rsp1)
@@ -8720,7 +8826,7 @@ func (suite *OrderTestSuite) TestOrder_BankCardAccountRegexp() {
 }
 
 func (suite *OrderTestSuite) TestOrder_OrderReceipt_Ok() {
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod, suite.cookie)
 
 	req := &billingpb.OrderReceiptRequest{
 		OrderId:   order.Uuid,
@@ -8949,7 +9055,8 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
 			billingpb.PaymentCreateFieldUserCountry:     "US",
 		},
-		Ip: "127.0.0.2",
+		Ip:     "127.0.0.2",
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}

@@ -129,6 +129,8 @@ var (
 	orderErrorWrongPrivateStatus                              = newBillingServerErrorMsg("fm000077", "order has wrong private status and cannot be recreated")
 	orderCountryChangeRestrictedError                         = newBillingServerErrorMsg("fm000078", "change country is not allowed")
 	orderErrorVatPayerUnknown                                 = newBillingServerErrorMsg("fm000079", "vat payer unknown")
+	orderErrorCookieIsEmpty                                   = newBillingServerErrorMsg("fm000080", "can't get payment cookie")
+	orderErrorCookieInvalid                                   = newBillingServerErrorMsg("fm000081", "unable to read payment cookie")
 
 	virtualCurrencyPayoutCurrencyMissed = newBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
@@ -866,7 +868,20 @@ func (s *Service) PaymentCreateProcess(
 		userAgent:      req.UserAgent,
 	}
 
-	err := processor.processPaymentFormData(ctx)
+	if req.Cookie == "" {
+		rsp.Message = orderErrorCookieIsEmpty
+		rsp.Status = billingpb.ResponseStatusBadData
+		return nil
+	}
+
+	decryptedBrowserCustomer, err := s.decryptBrowserCookie(req.Cookie)
+	if err != nil {
+		rsp.Message = orderErrorCookieInvalid
+		rsp.Status = billingpb.ResponseStatusBadData
+		return nil
+	}
+
+	err = processor.processPaymentFormData(ctx)
 	if err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
 		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
@@ -878,6 +893,16 @@ func (s *Service) PaymentCreateProcess(
 	}
 
 	order := processor.checked.order
+
+	if decryptedBrowserCustomer.CustomerId == "" && order.User.Uuid != "" {
+		decryptedBrowserCustomer.CustomerId = order.User.Id
+	}
+
+	cookie, err := s.generateBrowserCookie(decryptedBrowserCustomer)
+
+	if err == nil {
+		rsp.Cookie = cookie
+	}
 
 	if !order.CountryRestriction.PaymentsAllowed {
 		rsp.Message = orderCountryPaymentRestrictedError
@@ -3068,7 +3093,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 		return orderCountryPaymentRestrictedError
 	}
 
-	if helper.IsIdentified(order.User.Id) == true {
+	if order.User.Uuid != "" {
 		customer, err := v.service.updateCustomerFromRequest(ctx, order, updCustomerReq, v.ip, v.acceptLanguage, v.userAgent)
 
 		if err != nil {
@@ -3079,6 +3104,15 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 				order.User.Locale = customer.Locale
 			}
 		}
+	} else {
+		customer, err := v.service.createCustomerFromRequest(ctx, order, updCustomerReq, v.ip, v.acceptLanguage, v.userAgent)
+		if err != nil {
+			v.service.logError("Create customer data by request failed", []interface{}{"error", err.Error(), "data", updCustomerReq})
+			return err
+		}
+
+		order.User.Id = customer.Id
+		order.User.Uuid = customer.Uuid
 	}
 
 	delete(v.data, billingpb.PaymentCreateFieldOrderId)

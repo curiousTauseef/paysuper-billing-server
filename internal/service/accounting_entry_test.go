@@ -37,6 +37,8 @@ type AccountingEntryTestSuite struct {
 	paymentMethod      *billingpb.PaymentMethod
 	paymentSystem      *billingpb.PaymentSystem
 	merchant           *billingpb.Merchant
+	customer           *billingpb.Customer
+	cookie             string
 }
 
 var ctx = context.TODO()
@@ -111,7 +113,17 @@ func (suite *AccountingEntryTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+
+	browserCustomer := &BrowserCookieCustomer{
+		CustomerId: suite.customer.Id,
+		Ip:         "127.0.0.1",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	suite.cookie, err = suite.service.generateBrowserCookie(browserCustomer)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.cookie)
 }
 
 func (suite *AccountingEntryTestSuite) TearDownTest() {
@@ -203,7 +215,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_RUB_RUB() {
 
 	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -315,7 +327,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_RUB() {
 
 	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -427,7 +439,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_USD() {
 
 	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -539,7 +551,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 
 	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerBuyer)
 	assert.NotNil(suite.T(), order.Tax)
@@ -658,7 +670,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 
 	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerSeller)
 	assert.NotNil(suite.T(), order.Tax)
@@ -777,7 +789,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_RUB_USD_EUR_VatPay
 
 	assert.GreaterOrEqual(suite.T(), orderControlResults["real_gross_revenue"], orderControlResults["merchant_gross_revenue"])
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.VatPayer, billingpb.VatPayerNobody)
 	assert.NotNil(suite.T(), order.Tax)
@@ -879,7 +891,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_RUB
 		"ps_refund_profit":                     12.220407,
 	}
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -940,7 +952,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 		"ps_refund_profit":                     1.254319,
 	}
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -1002,7 +1014,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 		"ps_refund_profit":                     1.241996,
 	}
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -1064,7 +1076,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Chargeback_Ok_RUB_USD
 		"ps_refund_profit":                     1.252405,
 	}
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -1101,7 +1113,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -1151,7 +1163,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -1234,7 +1246,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	suite.paymentSystem.Handler = "mock_ok"
@@ -1274,7 +1286,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_CreateAccountingEntry
 	orderCountry := "FI"
 	orderCurrency := "RUB"
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, suite.projectFixedAmount, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	aes, err := suite.service.accountingRepository.FindBySource(ctx, order.Id, repository.CollectionOrder)
@@ -1476,7 +1488,7 @@ func (suite *AccountingEntryTestSuite) TestAccountingEntry_Ok_USD_EUR_None() {
 	err = suite.service.paymentChannelCostMerchantRepository.Insert(ctx, paymentMerCost)
 	assert.NoError(suite.T(), err)
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, orderAmount, orderCurrency, orderCountry, project, suite.paymentMethod, suite.cookie)
 	assert.NotNil(suite.T(), order)
 
 	orderAccountingEntries := suite.helperGetAccountingEntries(order.Id, repository.CollectionOrder)
