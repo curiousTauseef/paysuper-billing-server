@@ -1123,6 +1123,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_RefundNotAllowed_Error() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1180,6 +1181,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_WasRefunded_Error() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2655,6 +2657,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_NotHasCostsRates() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2753,6 +2756,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Declined() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2910,5 +2914,5 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Declined() {
 	assert.NotNil(suite.T(), originalOrderViewPublicFromJson)
 	assert.NotNil(suite.T(), originalOrderViewPublicFromJson.OrderCharge)
 	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.Currency, originalOrderViewPublicFromJson.OrderCharge.Currency)
-	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.AmountRounded, originalOrderViewPublicFromJson.OrderCharge.Amount)
+	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.AmountRounded, originalOrderViewPublicFromJson.OrderCharge.AmountRounded)
 }
