@@ -78,7 +78,7 @@ func (m *DashboardReportProcessor) ExecuteGrossRevenueAndVatReports(ctx context.
 				"month":               bson.M{"$month": "$pm_order_close_date"},
 				"revenue_amount":      "$payment_gross_revenue.amount",
 				"vat_amount":          "$payment_tax_fee.amount",
-				"currency":            "$payment_gross_revenue.currency",
+				"currency":            bson.M{"$ifNull": []string{"$payment_gross_revenue.currency", ""}},
 				"pm_order_close_date": "$pm_order_close_date",
 			},
 		},
@@ -209,7 +209,7 @@ func (m *DashboardReportProcessor) ExecuteTotalTransactionsAndArpuReports(ctx co
 						bson.M{"$eq": []string{"$status", "processed"}}, "$payment_gross_revenue.amount", 0,
 					},
 				},
-				"currency":            "$payment_gross_revenue.currency",
+				"currency":            bson.M{"$ifNull": []string{"$payment_gross_revenue.currency", ""}},
 				"pm_order_close_date": "$pm_order_close_date",
 			},
 		},
@@ -328,7 +328,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Conte
 				"week":                bson.M{"$week": "$pm_order_close_date"},
 				"month":               bson.M{"$month": "$pm_order_close_date"},
 				"amount":              "$net_revenue.amount",
-				"currency":            "$net_revenue.currency",
+				"currency":            bson.M{"$ifNull": []string{"$net_revenue.currency", ""}},
 				"pm_order_close_date": "$pm_order_close_date",
 			},
 		},
@@ -392,7 +392,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueDynamicReport(ctx context.Conte
 	return result, nil
 }
 
-func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Context, receiver interface{}) (interface{}, error) {
+func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Context, _ interface{}) (interface{}, error) {
 	query := []bson.M{
 		{"$match": m.Match},
 		{
@@ -413,7 +413,7 @@ func (m *DashboardReportProcessor) ExecuteRevenueByCountryReport(ctx context.Con
 					},
 				},
 				"amount":              "$net_revenue.amount",
-				"currency":            "$net_revenue.currency",
+				"currency":            bson.M{"$ifNull": []string{"$net_revenue.currency", ""}},
 				"pm_order_close_date": "$pm_order_close_date",
 			},
 		},

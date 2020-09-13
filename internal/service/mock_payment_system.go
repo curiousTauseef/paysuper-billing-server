@@ -82,7 +82,12 @@ func NewCardPayMock() Gate {
 				t, _ := time.Parse(cardPayDateFormat, req.CallbackTime)
 				ts, _ := ptypes.TimestampProto(t)
 
-				refund.Status = pkg.RefundStatusCompleted
+				if refund.Reason == "unit test decline" {
+					refund.Status = pkg.RefundStatusPaymentSystemDeclined
+				} else {
+					refund.Status = pkg.RefundStatusCompleted
+				}
+
 				refund.ExternalId = "0987654321"
 				refund.UpdatedAt = ts
 
@@ -146,5 +151,6 @@ func (m *PaymentSystemMockError) CreateRefund(order *billingpb.Order, refund *bi
 }
 
 func (m *PaymentSystemMockError) ProcessRefund(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error {
+	refund.Status = pkg.RefundStatusRejected
 	return newBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid)
 }

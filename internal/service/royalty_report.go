@@ -559,11 +559,11 @@ func (h *royaltyHandler) getRoyaltyReportCorrections(ctx context.Context, mercha
 	for _, e := range accountingEntries {
 		entries = append(entries, &billingpb.RoyaltyReportCorrectionItem{
 			AccountingEntryId: e.Id,
-			Amount:            e.Amount,
+			Amount:            e.AmountRounded,
 			Reason:            e.Reason,
 			EntryDate:         e.CreatedAt,
 		})
-		total += e.Amount
+		total += e.AmountRounded
 	}
 
 	return
@@ -588,11 +588,11 @@ func (h *royaltyHandler) getRoyaltyReportRollingReserves(
 	for _, e := range accountingEntries {
 		entries = append(entries, &billingpb.RoyaltyReportCorrectionItem{
 			AccountingEntryId: e.Id,
-			Amount:            e.Amount,
+			Amount:            e.AmountRounded,
 			Reason:            e.Reason,
 			EntryDate:         e.CreatedAt,
 		})
-		total += e.Amount
+		total += e.AmountRounded
 	}
 
 	return
@@ -1252,4 +1252,73 @@ func (s *Service) markOrdersIncludedToRoyaltyReport(
 	}
 
 	return s.updateOrderView(ctx, orderIdsString)
+}
+
+func (h *royaltyHandler) buildMerchantRoyaltyReportRoundedAmounts(
+	ctx context.Context, merchant *billingpb.Merchant, hasExistsReportId bool,
+) (*billingpb.RoyaltyReport, []primitive.ObjectID, error) {
+	merchantPayoutCurrency := merchant.GetPayoutCurrency()
+	summaryItems, summaryTotal, ordersIds, err := h.orderViewRepository.GetRoyaltySummaryRoundedAmounts(
+		ctx,
+		merchant.Id,
+		merchantPayoutCurrency,
+		h.from,
+		h.to,
+		hasExistsReportId,
+	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	corrections, correctionsTotal, err := h.getRoyaltyReportCorrections(ctx, merchant.Id, merchantPayoutCurrency)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reserves, reservesTotal, err := h.getRoyaltyReportRollingReserves(ctx, merchant.Id, merchantPayoutCurrency)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	report := &billingpb.RoyaltyReport{
+		Id:                 primitive.NewObjectID().Hex(),
+		MerchantId:         merchant.Id,
+		OperatingCompanyId: merchant.OperatingCompanyId,
+		Currency:           merchant.GetPayoutCurrency(),
+		Status:             billingpb.RoyaltyReportStatusPending,
+		CreatedAt:          ptypes.TimestampNow(),
+		UpdatedAt:          ptypes.TimestampNow(),
+		Totals: &billingpb.RoyaltyReportTotals{
+			TransactionsCount:    summaryTotal.TotalTransactions,
+			FeeAmount:            summaryTotal.TotalFees,
+			VatAmount:            summaryTotal.TotalVat,
+			PayoutAmount:         summaryTotal.PayoutAmount,
+			CorrectionAmount:     correctionsTotal,
+			RollingReserveAmount: reservesTotal,
+		},
+		Summary: &billingpb.RoyaltyReportSummary{
+			ProductsItems:   summaryItems,
+			ProductsTotal:   summaryTotal,
+			Corrections:     corrections,
+			RollingReserves: reserves,
+		},
+	}
+
+	report.PeriodFrom, err = ptypes.TimestampProto(h.from)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	report.PeriodTo, err = ptypes.TimestampProto(h.to)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	report.AcceptExpireAt, err = ptypes.TimestampProto(time.Now().Add(time.Duration(h.cfg.RoyaltyReportAcceptTimeout) * time.Second))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return report, ordersIds, nil
 }

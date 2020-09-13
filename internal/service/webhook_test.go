@@ -37,6 +37,7 @@ type WebhookTestSuite struct {
 	merchant                      *billingpb.Merchant
 	project                       *billingpb.Project
 	projectWithoutVirtualCurrency *billingpb.Project
+	customer                      *billingpb.Customer
 	products                      []*billingpb.Product
 	keyProducts                   []*billingpb.KeyProduct
 
@@ -101,7 +102,7 @@ func (suite *WebhookTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, _, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, _, _, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 	suite.products = CreateProductsForProject(suite.Suite, suite.service, suite.project, 3)
 	suite.keyProducts = CreateKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
 	suite.projectWithoutVirtualCurrency = HelperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerBuyer)

@@ -682,6 +682,24 @@ func (s *Service) updateCustomerFromRequest(
 	return s.updateCustomer(ctx, req, project, customer)
 }
 
+func (s *Service) createCustomerFromRequest(
+	ctx context.Context,
+	order *billingpb.Order,
+	req *billingpb.TokenRequest,
+	ip, acceptLanguage, userAgent string,
+) (*billingpb.Customer, error) {
+	project := &billingpb.Project{Id: order.Project.Id, MerchantId: order.Project.MerchantId}
+
+	req.User.Ip = &billingpb.TokenUserIpValue{Value: ip}
+	req.User.AcceptLanguage = acceptLanguage
+	req.User.UserAgent = userAgent
+
+	req.User.Locale = &billingpb.TokenUserLocaleValue{}
+	req.User.Locale.Value, _ = s.getCountryFromAcceptLanguage(acceptLanguage)
+
+	return s.createCustomer(ctx, req, project)
+}
+
 func (s *Service) updateCustomerFromRequestLocale(
 	ctx context.Context,
 	order *billingpb.Order,

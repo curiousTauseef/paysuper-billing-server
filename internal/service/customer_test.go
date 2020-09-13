@@ -8,7 +8,6 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
-	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -219,63 +218,6 @@ func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_Customer
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
 	assert.Equal(suite.T(), customerNotFound, rsp.Message)
-}
-
-func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentActivity_Revenue_Payment_Round_Error() {
-	money := helper.NewMoney()
-	money.Precision = -1
-	suite.service.moneyRegistry[roundKeyCustomerPaymentActivityRevenuePayment] = money
-
-	req := &billingpb.SetCustomerPaymentActivityRequest{
-		CustomerId:   "ffffffffffffffffffffffff",
-		MerchantId:   "fffffffffffffffffffffff0",
-		Type:         billingpb.OrderTypeOrder,
-		ProcessingAt: ptypes.TimestampNow(),
-		Amount:       10.23,
-	}
-	rsp := &billingpb.EmptyResponseWithStatus{}
-	err := suite.service.SetCustomerPaymentActivity(context.TODO(), req, rsp)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
-	assert.Equal(suite.T(), errorCustomerUnknown, rsp.Message)
-}
-
-func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentActivity_Revenue_Refund_Error() {
-	money := helper.NewMoney()
-	money.Precision = -1
-	suite.service.moneyRegistry[roundKeyCustomerPaymentActivityRevenueRefund] = money
-
-	req := &billingpb.SetCustomerPaymentActivityRequest{
-		CustomerId:   "ffffffffffffffffffffffff",
-		MerchantId:   "fffffffffffffffffffffff0",
-		Type:         billingpb.OrderTypeOrder,
-		ProcessingAt: ptypes.TimestampNow(),
-		Amount:       10.23,
-	}
-	rsp := &billingpb.EmptyResponseWithStatus{}
-	err := suite.service.SetCustomerPaymentActivity(context.TODO(), req, rsp)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
-	assert.Equal(suite.T(), errorCustomerUnknown, rsp.Message)
-}
-
-func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_PaymentActivity_Revenue_Total_Error() {
-	money := helper.NewMoney()
-	money.Precision = -1
-	suite.service.moneyRegistry[roundKeyCustomerPaymentActivityRevenueTotal] = money
-
-	req := &billingpb.SetCustomerPaymentActivityRequest{
-		CustomerId:   "ffffffffffffffffffffffff",
-		MerchantId:   "fffffffffffffffffffffff0",
-		Type:         billingpb.OrderTypeOrder,
-		ProcessingAt: ptypes.TimestampNow(),
-		Amount:       10.23,
-	}
-	rsp := &billingpb.EmptyResponseWithStatus{}
-	err := suite.service.SetCustomerPaymentActivity(context.TODO(), req, rsp)
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
-	assert.Equal(suite.T(), errorCustomerUnknown, rsp.Message)
 }
 
 func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_CustomerRepository_Update_Error() {

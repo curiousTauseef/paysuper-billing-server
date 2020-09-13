@@ -32,6 +32,7 @@ func HelperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 	*billingpb.Project,
 	*billingpb.PaymentMethod,
 	*billingpb.PaymentSystem,
+	*billingpb.Customer,
 ) {
 
 	paymentMinLimitsSystem := []*billingpb.PaymentMinLimitSystem{
@@ -362,7 +363,19 @@ func HelperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		suite.FailNow("Insert BIN test data failed", "%v", err)
 	}
 
-	return merchant, projectFixedAmount, pmBankCard, paymentSystem
+	customer := &billingpb.Customer{
+		Id:              primitive.NewObjectID().Hex(),
+		Uuid:            uuid.New().String(),
+		PaymentActivity: make(map[string]*billingpb.PaymentActivityItem),
+		CreatedAt:       ptypes.TimestampNow(),
+		UpdatedAt:       ptypes.TimestampNow(),
+	}
+	err = service.customerRepository.Insert(context.TODO(), customer)
+	if err != nil {
+		suite.FailNow("Create customer failed", "%v", err)
+	}
+
+	return merchant, projectFixedAmount, pmBankCard, paymentSystem, customer
 }
 
 func HelperOperatingCompany(
@@ -837,7 +850,7 @@ func HelperCreateProject(
 func HelperCreateAndPayPaylinkOrder(
 	suite suite.Suite,
 	service *Service,
-	paylinkId, country string,
+	paylinkId, country, cookie string,
 	paymentMethod *billingpb.PaymentMethod,
 	issuer *billingpb.OrderIssuer,
 ) *billingpb.Order {
@@ -880,7 +893,7 @@ func HelperCreateAndPayPaylinkOrder(
 	assert.NotNil(suite.T(), order)
 	assert.IsType(suite.T(), &billingpb.Order{}, order)
 
-	return HelperPayOrder(suite, service, order, paymentMethod, country)
+	return HelperPayOrder(suite, service, order, paymentMethod, country, cookie)
 }
 
 func HelperCreateAndPayOrder(
@@ -890,6 +903,7 @@ func HelperCreateAndPayOrder(
 	currency, country string,
 	project *billingpb.Project,
 	paymentMethod *billingpb.PaymentMethod,
+	cookie string,
 ) *billingpb.Order {
 	centrifugoMock := &mocks.CentrifugoInterface{}
 	centrifugoMock.On("GetChannelToken", mock.Anything, mock.Anything).Return("token")
@@ -926,7 +940,7 @@ func HelperCreateAndPayOrder(
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
 
-	return HelperPayOrder(suite, service, rsp.Item, paymentMethod, country)
+	return HelperPayOrder(suite, service, rsp.Item, paymentMethod, country, cookie)
 }
 
 func HelperPayOrder(
@@ -935,6 +949,7 @@ func HelperPayOrder(
 	order *billingpb.Order,
 	paymentMethod *billingpb.PaymentMethod,
 	country string,
+	cookie string,
 ) *billingpb.Order {
 	centrifugoMock := &mocks.CentrifugoInterface{}
 	centrifugoMock.On("GetChannelToken", mock.Anything, mock.Anything).Return("token")
@@ -953,7 +968,8 @@ func HelperPayOrder(
 			billingpb.PaymentCreateFieldYear:            time.Now().AddDate(1, 0, 0).Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1234,6 +1250,7 @@ func HelperCreateAndPayOrder2(
 	keyProduct *billingpb.KeyProduct,
 	issuerUrl string,
 	metadata map[string]string,
+	cookie string,
 ) *billingpb.Order {
 	centrifugoMock := &mocks.CentrifugoInterface{}
 	centrifugoMock.On("GetChannelToken", mock.Anything, mock.Anything).Return("token")
@@ -1288,7 +1305,8 @@ func HelperCreateAndPayOrder2(
 			billingpb.PaymentCreateFieldYear:            time.Now().AddDate(1, 0, 0).Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
+		Cookie: cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}

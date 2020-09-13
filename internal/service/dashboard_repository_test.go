@@ -91,9 +91,9 @@ type DashboardRepositoryTestSuite struct {
 	project       *billingpb.Project
 	merchant      *billingpb.Merchant
 	paymentMethod *billingpb.PaymentMethod
-
-	products    []*billingpb.Product
-	keyProducts []*billingpb.KeyProduct
+	customer      *billingpb.Customer
+	products      []*billingpb.Product
+	keyProducts   []*billingpb.KeyProduct
 }
 
 func Test_DashboardRepository(t *testing.T) {
@@ -155,7 +155,7 @@ func (suite *DashboardRepositoryTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, suite.paymentMethod, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, suite.paymentMethod, _, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 	suite.products = CreateProductsForProject(suite.Suite, suite.service, suite.project, 3)
 	suite.keyProducts = CreateKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
 }
@@ -617,8 +617,16 @@ func (suite *DashboardRepositoryTestSuite) createOrdersForPeriod(
 			}
 		}
 
+		browserCustomer := &BrowserCookieCustomer{
+			CustomerId: suite.customer.Id,
+			Ip:         "127.0.0.1",
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+		cookie, _ := suite.service.generateBrowserCookie(browserCustomer)
+
 		for j := 0; j < rnd; j++ {
-			HelperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1", nil)
+			HelperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1", nil, cookie)
 		}
 	}
 }

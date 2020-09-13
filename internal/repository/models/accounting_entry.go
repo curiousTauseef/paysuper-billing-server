@@ -19,23 +19,26 @@ type MgoAccountingEntrySource struct {
 }
 
 type MgoAccountingEntry struct {
-	Id                 primitive.ObjectID        `bson:"_id" faker:"objectId"`
-	Object             string                    `bson:"object"`
-	Type               string                    `bson:"type"`
-	Source             *MgoAccountingEntrySource `bson:"source"`
-	MerchantId         primitive.ObjectID        `bson:"merchant_id" faker:"objectId"`
-	Amount             float64                   `bson:"amount"`
-	Currency           string                    `bson:"currency"`
-	Reason             string                    `bson:"reason"`
-	Status             string                    `bson:"status"`
-	Country            string                    `bson:"country"`
-	OriginalAmount     float64                   `bson:"original_amount"`
-	OriginalCurrency   string                    `bson:"original_currency"`
-	LocalAmount        float64                   `bson:"local_amount"`
-	LocalCurrency      string                    `bson:"local_currency"`
-	CreatedAt          time.Time                 `bson:"created_at"`
-	AvailableOn        time.Time                 `bson:"available_on"`
-	OperatingCompanyId string                    `bson:"operating_company_id"`
+	Id                    primitive.ObjectID        `bson:"_id" faker:"objectId"`
+	Object                string                    `bson:"object"`
+	Type                  string                    `bson:"type"`
+	Source                *MgoAccountingEntrySource `bson:"source"`
+	MerchantId            primitive.ObjectID        `bson:"merchant_id" faker:"objectId"`
+	Amount                float64                   `bson:"amount"`
+	Currency              string                    `bson:"currency"`
+	Reason                string                    `bson:"reason"`
+	Status                string                    `bson:"status"`
+	Country               string                    `bson:"country"`
+	OriginalAmount        float64                   `bson:"original_amount"`
+	OriginalCurrency      string                    `bson:"original_currency"`
+	LocalAmount           float64                   `bson:"local_amount"`
+	LocalCurrency         string                    `bson:"local_currency"`
+	CreatedAt             time.Time                 `bson:"created_at"`
+	AvailableOn           time.Time                 `bson:"available_on"`
+	OperatingCompanyId    string                    `bson:"operating_company_id"`
+	AmountRounded         float64                   `bson:"amount_rounded"`
+	OriginalAmountRounded float64                   `bson:"original_amount_rounded"`
+	LocalAmountRounded    float64                   `bson:"local_amount_rounded"`
 }
 
 func (m *accountingEntryMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
@@ -47,16 +50,19 @@ func (m *accountingEntryMapper) MapObjectToMgo(obj interface{}) (interface{}, er
 		Source: &MgoAccountingEntrySource{
 			Type: in.Source.Type,
 		},
-		Amount:             in.Amount,
-		Currency:           in.Currency,
-		OriginalAmount:     in.OriginalAmount,
-		OriginalCurrency:   in.OriginalCurrency,
-		LocalAmount:        in.LocalAmount,
-		LocalCurrency:      in.LocalCurrency,
-		Country:            in.Country,
-		Reason:             in.Reason,
-		Status:             in.Status,
-		OperatingCompanyId: in.OperatingCompanyId,
+		Amount:                in.Amount,
+		Currency:              in.Currency,
+		OriginalAmount:        in.OriginalAmount,
+		OriginalCurrency:      in.OriginalCurrency,
+		LocalAmount:           in.LocalAmount,
+		LocalCurrency:         in.LocalCurrency,
+		Country:               in.Country,
+		Reason:                in.Reason,
+		Status:                in.Status,
+		OperatingCompanyId:    in.OperatingCompanyId,
+		AmountRounded:         in.AmountRounded,
+		OriginalAmountRounded: in.OriginalAmountRounded,
+		LocalAmountRounded:    in.LocalAmountRounded,
 	}
 
 	merchantOid, err := primitive.ObjectIDFromHex(in.MerchantId)
@@ -124,17 +130,20 @@ func (m *accountingEntryMapper) MapMgoToObject(obj interface{}) (interface{}, er
 			Id:   in.Source.Id.Hex(),
 			Type: in.Source.Type,
 		},
-		MerchantId:         in.MerchantId.Hex(),
-		Amount:             in.Amount,
-		Currency:           in.Currency,
-		OriginalAmount:     in.OriginalAmount,
-		OriginalCurrency:   in.OriginalCurrency,
-		LocalAmount:        in.LocalAmount,
-		LocalCurrency:      in.LocalCurrency,
-		Country:            in.Country,
-		Reason:             in.Reason,
-		Status:             in.Status,
-		OperatingCompanyId: in.OperatingCompanyId,
+		MerchantId:            in.MerchantId.Hex(),
+		Amount:                in.Amount,
+		Currency:              in.Currency,
+		OriginalAmount:        in.OriginalAmount,
+		OriginalCurrency:      in.OriginalCurrency,
+		LocalAmount:           in.LocalAmount,
+		LocalCurrency:         in.LocalCurrency,
+		Country:               in.Country,
+		Reason:                in.Reason,
+		Status:                in.Status,
+		OperatingCompanyId:    in.OperatingCompanyId,
+		AmountRounded:         in.AmountRounded,
+		OriginalAmountRounded: in.OriginalAmountRounded,
+		LocalAmountRounded:    in.LocalAmountRounded,
 	}
 
 	out.CreatedAt, err = ptypes.TimestampProto(in.CreatedAt)
