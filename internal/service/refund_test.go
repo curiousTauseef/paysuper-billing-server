@@ -38,6 +38,8 @@ type RefundTestSuite struct {
 	project          *billingpb.Project
 	pmBankCard       *billingpb.PaymentMethod
 	operatingCompany *billingpb.OperatingCompany
+	customer         *billingpb.Customer
+	cookie           string
 }
 
 func Test_Refund(t *testing.T) {
@@ -821,6 +823,28 @@ func (suite *RefundTestSuite) SetupTest() {
 	if err != nil {
 		suite.FailNow("Insert operatingCompany test data failed", "%v", err)
 	}
+
+	suite.customer = &billingpb.Customer{
+		Id:              primitive.NewObjectID().Hex(),
+		Uuid:            uuid.New().String(),
+		PaymentActivity: make(map[string]*billingpb.PaymentActivityItem),
+		CreatedAt:       ptypes.TimestampNow(),
+		UpdatedAt:       ptypes.TimestampNow(),
+	}
+	err = suite.service.customerRepository.Insert(context.TODO(), suite.customer)
+	if err != nil {
+		suite.FailNow("Create customer failed", "%v", err)
+	}
+
+	browserCustomer := &BrowserCookieCustomer{
+		CustomerId: suite.customer.Id,
+		Ip:         "127.0.0.1",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	suite.cookie, err = suite.service.generateBrowserCookie(browserCustomer)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.cookie)
 }
 
 func (suite *RefundTestSuite) TearDownTest() {
@@ -871,6 +895,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -948,6 +973,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemNotExists_Err
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1012,6 +1038,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemReturnError_E
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1096,6 +1123,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_RefundNotAllowed_Error() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1153,6 +1181,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_WasRefunded_Error() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1214,6 +1243,7 @@ func (suite *RefundTestSuite) TestRefund_ListRefunds_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1306,6 +1336,7 @@ func (suite *RefundTestSuite) TestRefund_GetRefund_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1394,6 +1425,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1581,6 +1613,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() 
 			Ip:    "127.0.0.1",
 			Phone: "123456789",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp0 := &billingpb.OrderCreateProcessResponse{}
@@ -1602,6 +1635,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() 
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1625,7 +1659,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnmarshalError() 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    rsp.Uuid,
 		Amount:     10,
-		CreatorId:  primitive.NewObjectID().Hex(),
+		CreatorId:  suite.customer.Id,
 		Reason:     "unit test",
 		MerchantId: suite.project.MerchantId,
 	}
@@ -1689,6 +1723,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownHandler_Er
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1803,6 +1838,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_RefundNotFound_Er
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -1917,6 +1953,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2006,7 +2043,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 }
 
 func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownPaymentSystemHandler_Error() {
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    order.Uuid,
@@ -2077,7 +2114,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownPaymentSys
 }
 
 func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundError() {
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    order.Uuid,
@@ -2156,7 +2193,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundErro
 }
 
 func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_TemporaryStatus_Ok() {
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 
 	req2 := &billingpb.CreateRefundRequest{
 		OrderId:    order.Uuid,
@@ -2263,6 +2300,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2436,6 +2474,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2618,6 +2657,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_NotHasCostsRates() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2657,7 +2697,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 	orders := make([]*billingpb.Order, 0)
 
 	for _, v := range orderAmounts {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, v, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, v, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		assert.NotNil(suite.T(), order)
 
 		orders = append(orders, order)
@@ -2716,6 +2756,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Declined() {
 			billingpb.PaymentCreateFieldYear:            expireYear.Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "Mr. Card Holder",
 		},
+		Cookie: suite.cookie,
 	}
 
 	rsp1 := &billingpb.PaymentCreateResponse{}
@@ -2873,5 +2914,5 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Declined() {
 	assert.NotNil(suite.T(), originalOrderViewPublicFromJson)
 	assert.NotNil(suite.T(), originalOrderViewPublicFromJson.OrderCharge)
 	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.Currency, originalOrderViewPublicFromJson.OrderCharge.Currency)
-	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.AmountRounded, originalOrderViewPublicFromJson.OrderCharge.Amount)
+	assert.Equal(suite.T(), originalOrderViewPublic.OrderCharge.AmountRounded, originalOrderViewPublicFromJson.OrderCharge.AmountRounded)
 }

@@ -45,8 +45,10 @@ type ReportTestSuite struct {
 	project1                *billingpb.Project
 	pmBankCard              *billingpb.PaymentMethod
 	pmBitcoin1              *billingpb.PaymentMethod
+	customer                *billingpb.Customer
 	productIds              []string
 	merchantDefaultCurrency string
+	cookie                  string
 
 	merchant *billingpb.Merchant
 }
@@ -110,7 +112,54 @@ func (suite *ReportTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, suite.pmBankCard, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, suite.pmBankCard, _, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+
+	customerRequest := &billingpb.TokenRequest{
+		User: &billingpb.TokenUser{
+			Id: primitive.NewObjectID().Hex(),
+			Email: &billingpb.TokenUserEmailValue{
+				Value: "test@unit.test",
+			},
+			Phone: &billingpb.TokenUserPhoneValue{
+				Value: "1234567890",
+			},
+			Name: &billingpb.TokenUserValue{
+				Value: "Unit Test",
+			},
+			Ip: &billingpb.TokenUserIpValue{
+				Value: "127.0.0.1",
+			},
+			Locale: &billingpb.TokenUserLocaleValue{
+				Value: "ru",
+			},
+			Address: &billingpb.OrderBillingAddress{
+				Country:    "RU",
+				City:       "St.Petersburg",
+				PostalCode: "190000",
+				State:      "SPE",
+			},
+		},
+		Settings: &billingpb.TokenSettings{
+			ProjectId:   suite.project.Id,
+			Currency:    "RUB",
+			Amount:      100,
+			Description: "test payment",
+		},
+	}
+	customer, err := suite.service.createCustomer(context.TODO(), customerRequest, suite.project)
+	if err != nil {
+		suite.FailNow("Create customer failed", "%v", err)
+	}
+
+	browserCustomer := &BrowserCookieCustomer{
+		CustomerId: customer.Id,
+		Ip:         "127.0.0.1",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	suite.cookie, err = suite.service.generateBrowserCookie(browserCustomer)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.cookie)
 }
 
 func (suite *ReportTestSuite) TearDownTest() {
@@ -164,7 +213,7 @@ func (suite *ReportTestSuite) TestReport_FindById() {
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 
 	req = &billingpb.ListOrdersRequest{Id: order.Uuid}
 	req.Merchant = append(req.Merchant, suite.project.MerchantId)
@@ -200,9 +249,9 @@ func (suite *ReportTestSuite) TestReport_FindByMerchantId() {
 	assert.NotNil(suite.T(), rsp.Item)
 	assert.EqualValues(suite.T(), int32(0), rsp.Item.Count)
 
-	order1 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
-	order2 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
-	order3 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order1 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
+	order2 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
+	order3 := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -233,7 +282,7 @@ func (suite *ReportTestSuite) TestReport_FindByProject() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -261,7 +310,7 @@ func (suite *ReportTestSuite) TestReport_FindByCountry() {
 	var orderIds []string
 
 	for i := 0; i < 4; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -289,7 +338,7 @@ func (suite *ReportTestSuite) TestReport_FindByPaymentMethod() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -317,7 +366,7 @@ func (suite *ReportTestSuite) TestReport_FindByStatus() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -345,7 +394,7 @@ func (suite *ReportTestSuite) TestReport_FindByAccount() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -397,7 +446,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateFrom() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -426,7 +475,7 @@ func (suite *ReportTestSuite) TestReport_FindByPmDateTo() {
 	date := &timestamp.Timestamp{}
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 		date = order.PaymentMethodOrderClosedAt
 	}
@@ -460,7 +509,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateFrom() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -488,7 +537,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectDateTo() {
 	var orderIds []string
 
 	for i := 0; i < 5; i++ {
-		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 		orderIds = append(orderIds, order.Id)
 	}
 
@@ -523,7 +572,7 @@ func (suite *ReportTestSuite) TestReport_GetOrder() {
 	assert.Equal(suite.T(), orderErrorNotFound, rsp.Message)
 	assert.Nil(suite.T(), rsp.Item)
 
-	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 
 	req.OrderId = order.Uuid
 	err = suite.service.GetOrderPublic(context.TODO(), req, rsp)
@@ -577,7 +626,7 @@ func (suite *ReportTestSuite) TestReport_FindByProjectOrderId_QuickSearch_Ok() {
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
 
-	_ = HelperPayOrder(suite.Suite, suite.service, rsp1.Item, suite.pmBankCard, "RU")
+	_ = HelperPayOrder(suite.Suite, suite.service, rsp1.Item, suite.pmBankCard, "RU", suite.cookie)
 
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
 	assert.NoError(suite.T(), err)
@@ -609,7 +658,7 @@ func (suite *ReportTestSuite) TestReport_FindByMerchantId_QuickSearch_Ok() {
 	expectedCount := 5
 
 	for i := 0; i < expectedCount; i++ {
-		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 	}
 
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
@@ -643,7 +692,7 @@ func (suite *ReportTestSuite) TestReport_FindByMerchantId_Ok() {
 	expectedCount := 3
 
 	for i := 0; i < expectedCount; i++ {
-		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 	}
 
 	err = suite.service.FindAllOrdersPublic(context.TODO(), req, rsp)
@@ -669,7 +718,7 @@ func (suite *ReportTestSuite) TestReport_FindByRoyaltyReportId_Ok() {
 
 	expectedCount := 5
 	for i := 0; i < expectedCount; i++ {
-		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard)
+		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 	}
 
 	res, err := suite.service.db.Collection(repository.CollectionOrder).UpdateMany(
@@ -733,6 +782,7 @@ func (suite *ReportTestSuite) TestReport_FindByInvoiceId_Ok() {
 		nil,
 		"",
 		metadata,
+		suite.cookie,
 	)
 
 	req := &billingpb.ListOrdersRequest{
@@ -761,6 +811,7 @@ func (suite *ReportTestSuite) TestReport_FindByInvoiceId_Ok() {
 		nil,
 		"",
 		metadata,
+		suite.cookie,
 	)
 
 	req.InvoiceId = invoiceId
@@ -785,6 +836,7 @@ func (suite *ReportTestSuite) TestReport_FindByInvoiceId_Ok() {
 		nil,
 		"",
 		metadata,
+		suite.cookie,
 	)
 	order.IsProduction = true
 	err = suite.service.orderRepository.Update(context.Background(), order)

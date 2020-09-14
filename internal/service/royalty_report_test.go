@@ -46,17 +46,17 @@ type RoyaltyReportTestSuite struct {
 	cache      database.CacheInterface
 	httpClient *http.Client
 
-	project   *billingpb.Project
-	project1  *billingpb.Project
-	project2  *billingpb.Project
-	project3  *billingpb.Project
-	merchant  *billingpb.Merchant
-	merchant1 *billingpb.Merchant
-	merchant2 *billingpb.Merchant
-	merchant3 *billingpb.Merchant
-
+	project       *billingpb.Project
+	project1      *billingpb.Project
+	project2      *billingpb.Project
+	project3      *billingpb.Project
+	merchant      *billingpb.Merchant
+	merchant1     *billingpb.Merchant
+	merchant2     *billingpb.Merchant
+	merchant3     *billingpb.Merchant
 	paymentMethod *billingpb.PaymentMethod
 	paymentSystem *billingpb.PaymentSystem
+	customer      *billingpb.Customer
 
 	logObserver *zap.Logger
 	zapRecorder *observer.ObservedLogs
@@ -139,7 +139,7 @@ func (suite *RoyaltyReportTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, suite.paymentMethod, suite.paymentSystem, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 
 	suite.project.Status = billingpb.ProjectStatusInProduction
 	if err := suite.service.project.Update(context.TODO(), suite.project); err != nil {
@@ -1100,6 +1100,53 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_AutoAcceptRoyaltyReports_
 }
 
 func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *billingpb.Order {
+	customerRequest := &billingpb.TokenRequest{
+		User: &billingpb.TokenUser{
+			Id: primitive.NewObjectID().Hex(),
+			Email: &billingpb.TokenUserEmailValue{
+				Value: "test@unit.test",
+			},
+			Phone: &billingpb.TokenUserPhoneValue{
+				Value: "1234567890",
+			},
+			Name: &billingpb.TokenUserValue{
+				Value: "Unit Test",
+			},
+			Ip: &billingpb.TokenUserIpValue{
+				Value: "127.0.0.1",
+			},
+			Locale: &billingpb.TokenUserLocaleValue{
+				Value: "ru",
+			},
+			Address: &billingpb.OrderBillingAddress{
+				Country:    "RU",
+				City:       "St.Petersburg",
+				PostalCode: "190000",
+				State:      "SPE",
+			},
+		},
+		Settings: &billingpb.TokenSettings{
+			ProjectId:   project.Id,
+			Currency:    "RUB",
+			Amount:      100,
+			Description: "test payment",
+		},
+	}
+	customer, err := suite.service.createCustomer(context.TODO(), customerRequest, project)
+	if err != nil {
+		suite.FailNow("Create customer failed", "%v", err)
+	}
+
+	browserCustomer := &BrowserCookieCustomer{
+		CustomerId: customer.Id,
+		Ip:         "127.0.0.1",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	cookie, err := suite.service.generateBrowserCookie(browserCustomer)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), cookie)
+
 	order := HelperCreateAndPayOrder(
 		suite.Suite,
 		suite.service,
@@ -1108,6 +1155,7 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 		"RU",
 		project,
 		suite.paymentMethod,
+		cookie,
 	)
 
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)

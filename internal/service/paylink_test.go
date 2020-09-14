@@ -47,6 +47,7 @@ type PaylinkTestSuite struct {
 	paylink3           *billingpb.Paylink // expired paylink
 	project2           *billingpb.Project
 	project3           *billingpb.Project
+	customer           *billingpb.Customer
 }
 
 func Test_Paylink(t *testing.T) {
@@ -121,7 +122,7 @@ func (suite *PaylinkTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 	suite.merchant2 = HelperCreateMerchant(suite.Suite, suite.service, "USD", "RU", suite.paymentMethod, suite.merchant.MinPayoutAmount, suite.merchant.OperatingCompanyId)
 
 	suite.product1 = &billingpb.Product{

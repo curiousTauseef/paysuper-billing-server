@@ -177,6 +177,7 @@ type ProjectCRUDTestSuite struct {
 	project   *billingpb.Project
 	merchant1 *billingpb.Merchant
 	project1  *billingpb.Project
+	customer  *billingpb.Customer
 }
 
 func Test_ProjectCRUD(t *testing.T) {
@@ -377,7 +378,7 @@ func (suite *ProjectCRUDTestSuite) SetupTest() {
 	err = suite.service.productRepository.MultipleInsert(context.TODO(), products)
 	assert.NoError(suite.T(), err, "Insert product test data failed")
 
-	suite.merchant1, suite.project1, _, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant1, suite.project1, _, _, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 	suite.merchant1.IsSigned = false
 	err = suite.service.merchantRepository.Update(context.TODO(), suite.merchant1)
 	assert.NoError(suite.T(), err)
