@@ -1972,7 +1972,7 @@ func (h *orderRepository) UpdateOrderView(ctx context.Context, ids []string) err
 								"$sum": "$local_amount",
 							},
 							"amount_rounded": bson.M{
-								"$sum": "$amount_rounded",
+								"$sum": "$local_amount_rounded",
 							},
 							"currency": bson.M{
 								"$first": "$local_currency",
