@@ -9055,3 +9055,32 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		assert.Equal(suite.T(), entry.Currency, v.Currency)
 	}
 }
+
+func (suite *OrderTestSuite) TestOrder_CreateOrder_WithKeyProductAndEmptyPlatformId_Ok() {
+	shouldBe := require.New(suite.T())
+
+	req := &billingpb.OrderCreateRequest{
+		ProjectId:     suite.projectWithKeyProducts.Id,
+		PaymentMethod: suite.paymentMethod.Group,
+		Currency:      "RUB",
+		Account:       "unit test",
+		Description:   "unit test",
+		User: &billingpb.OrderUser{
+			Email: "test@unit.unit",
+			Ip:    "127.0.0.1",
+		},
+		Products: suite.keyProductIds,
+		Type:     pkg.OrderType_key,
+	}
+
+	rsp := &billingpb.OrderCreateProcessResponse{}
+	err := suite.service.OrderCreateProcess(context.TODO(), req, rsp)
+	shouldBe.Nil(err)
+	shouldBe.EqualValues(200, rsp.Status)
+
+	order := rsp.Item
+	order.Status = recurringpb.OrderPublicStatusProcessed
+	err = suite.service.updateOrder(context.TODO(), order)
+	shouldBe.Nil(err)
+	shouldBe.NotEmpty(order.PlatformId)
+}

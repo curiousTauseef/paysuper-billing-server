@@ -2444,6 +2444,10 @@ func (v *OrderCreateRequestProcessor) processPaylinkProducts(_ context.Context) 
 		return err
 	}
 
+	if len(v.request.PlatformId) == 0 && len(items) > 0 {
+		v.request.PlatformId = items[0].PlatformId
+	}
+
 	v.checked.priceGroup = priceGroup
 	v.checked.products = v.request.Products
 	v.checked.currency = priceGroup.Currency
@@ -3568,6 +3572,10 @@ func (s *Service) ProcessOrderKeyProducts(ctx context.Context, order *billingpb.
 
 	if err != nil {
 		return nil, err
+	}
+
+	if len(order.PlatformId) == 0 && len(items) > 0 {
+		order.PlatformId = items[0].PlatformId
 	}
 
 	order.Currency = priceGroup.Currency
