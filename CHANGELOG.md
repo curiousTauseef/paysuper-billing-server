@@ -1,6 +1,28 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2020-09-10
+
+### Changed
+- Correct rounding amounts. ([0b32d76](https://github.com/paysuper/paysuper-billing-server/commits?author=sidmal)) ([f52774e](https://github.com/paysuper/paysuper-billing-server/commit/f52774e07c1dd7027638c74bf69b5e441ef2f841)) ([3afabd7](https://github.com/paysuper/paysuper-billing-server/commit/3afabd7a6993b77f8fde20c05548c050fba6565b))
+- Rounded amounts in order_view. ([a5d6806](https://github.com/paysuper/paysuper-billing-server/commit/a5d6806db71eb54c554c4a7758b177c78ebd5048)) ([0b9b331](https://github.com/paysuper/paysuper-billing-server/commit/0b9b331df031160f56280a4dffcb543ac075a6c1)) ([053e6f7](https://github.com/paysuper/paysuper-billing-server/commit/053e6f73eb09dc396790deb5df925250c6b665ba)) ([28ee44d](https://github.com/paysuper/paysuper-billing-server/commit/28ee44de3781b2d4b5492c32c27f1a462464d94c))
+- Update dependencies. ([71a0152](https://github.com/paysuper/paysuper-billing-server/commit/71a01523d4ad179ca693dc6ce95bc6ba4decce85))
+- Change migration script filename (#454). ([305c154](https://github.com/paysuper/paysuper-billing-server/commit/305c154f9fbf2fe5b3506bfce9d771494f76e866))
+- Change calculating default time for a merchant first_payment_at. ([83b9d8f](https://github.com/paysuper/paysuper-billing-server/commit/83b9d8f9e21c44a8e85be23fac57740727bc2a14))
+
+### Fixed
+- Dashboard bug fixes. ([fdb2cd0](https://github.com/paysuper/paysuper-billing-server/commit/fdb2cd0ec8f1d8a386cb5b6a3efafd9fdd16a3da))
+- Return an empty fee, balance and transaction if merchant didn't have transactions for the build act of completion. ([aa8db48](https://github.com/paysuper/paysuper-billing-server/commit/aa8db48dc8788fe57abf1bd1abd0834676e4f24b))
+- Payment amount in paymentActivity. ([3421d31](https://github.com/paysuper/paysuper-billing-server/commit/3421d3132dcb635476444d9892d524d1e9717a3a))
+- The migration for a payment activity type. ([c933829](https://github.com/paysuper/paysuper-billing-server/commit/c933829bcc95d0d79db211b82e8a8e3dceb865b5))
+- The migration for the first payment. ([ed85613](https://github.com/paysuper/paysuper-billing-server/commit/ed8561335305947f45812b2b96444b85b8c909cb))
+- A VAT percent in order receipt (#449). ([892c8d8](https://github.com/paysuper/paysuper-billing-server/commit/892c8d858b4291c00862fd66a9375bbbee8dc1e8))
+
+### Removed
+- Remove unused code. ([d0f39d1](https://github.com/paysuper/paysuper-billing-server/commit/d0f39d1a054468ac3346e7806d783f115fc02112))
+
+***
+
 ## [1.6.0] - 2020-08-26
 
 ### Added
