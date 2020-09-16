@@ -9191,3 +9191,51 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		assert.Equal(suite.T(), entry.Currency, v.Currency)
 	}
 }
+
+func (suite *OrderTestSuite) TestOrder_CreateOrder_WithKeyProductAndEmptyPlatformId_Ok() {
+	shouldBe := require.New(suite.T())
+
+	req := &billingpb.OrderCreateRequest{
+		ProjectId:     suite.projectWithKeyProducts.Id,
+		PaymentMethod: suite.paymentMethod.Group,
+		Currency:      "RUB",
+		Account:       "unit test",
+		Description:   "unit test",
+		User: &billingpb.OrderUser{
+			Email: "test@unit.unit",
+			Ip:    "127.0.0.2",
+		},
+		Products: suite.keyProductIds,
+		Type:     pkg.OrderType_key,
+	}
+
+	rsp := &billingpb.OrderCreateProcessResponse{}
+	err := suite.service.OrderCreateProcess(context.TODO(), req, rsp)
+	shouldBe.NoError(err)
+	shouldBe.EqualValues(billingpb.ResponseStatusOk, rsp.Status)
+	shouldBe.Empty(rsp.Item.PlatformId)
+
+	req1 := &billingpb.PaymentCreateRequest{
+		Data: map[string]string{
+			billingpb.PaymentCreateFieldOrderId:         rsp.Item.Uuid,
+			billingpb.PaymentCreateFieldPaymentMethodId: suite.paymentMethod.Id,
+			billingpb.PaymentCreateFieldEmail:           "test@unit.unit",
+			billingpb.PaymentCreateFieldPan:             "5555555555554444",
+			billingpb.PaymentCreateFieldCvv:             "123",
+			billingpb.PaymentCreateFieldMonth:           "02",
+			billingpb.PaymentCreateFieldYear:            time.Now().AddDate(1, 0, 0).Format("2006"),
+			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
+			billingpb.PaymentCreateFieldUserCountry:     "US",
+		},
+		Ip: "127.0.0.2",
+	}
+
+	rsp1 := &billingpb.PaymentCreateResponse{}
+	err = suite.service.PaymentCreateProcess(context.TODO(), req1, rsp1)
+	shouldBe.NoError(err)
+	shouldBe.Equal(billingpb.ResponseStatusOk, rsp1.Status)
+
+	order, err := suite.service.orderRepository.GetByUuid(context.Background(), rsp.Item.Uuid)
+	shouldBe.NoError(err)
+	shouldBe.NotEmpty(order.PlatformId)
+}
