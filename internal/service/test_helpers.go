@@ -1375,6 +1375,158 @@ func HelperCreateAndPayOrder2(
 	return order
 }
 
+
+func HelperCreateAndPayOrderWithUser(
+	suite suite.Suite,
+	service *Service,
+	amount float64,
+	currency, country string,
+	project *billingpb.Project,
+	paymentMethod *billingpb.PaymentMethod,
+	paymentMethodClosedAt time.Time,
+	product *billingpb.Product,
+	keyProduct *billingpb.KeyProduct,
+	issuerUrl string,
+	metadata map[string]string,
+	userEmail string,
+	cookie string,
+) *billingpb.Order {
+	centrifugoMock := &mocks.CentrifugoInterface{}
+	centrifugoMock.On("GetChannelToken", mock.Anything, mock.Anything).Return("token")
+	centrifugoMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	service.centrifugoDashboard = centrifugoMock
+	service.centrifugoPaymentForm = centrifugoMock
+
+	if len(userEmail) == 0 {
+		userEmail = "test@unit.unit"
+	}
+
+	req := &billingpb.OrderCreateRequest{
+		ProjectId:   project.Id,
+		Account:     "unit test",
+		Description: "unit test",
+		User: &billingpb.OrderUser{
+			Email: userEmail,
+			Ip:    "127.0.0.1",
+			Address: &billingpb.OrderBillingAddress{
+				Country: country,
+			},
+			ExternalId: userEmail,
+		},
+		IssuerUrl: issuerUrl,
+		Metadata:  metadata,
+		Cookie: cookie,
+	}
+
+	if product != nil {
+		req.Type = pkg.OrderType_product
+		req.Products = []string{product.Id}
+	} else if keyProduct != nil {
+		req.Type = pkg.OrderType_key
+		req.Products = []string{keyProduct.Id}
+	} else {
+		if amount <= 0 || currency == "" {
+			suite.FailNow("Order creation failed because request hasn't required fields", "%v")
+		}
+
+		req.Type = pkg.OrderType_simple
+		req.Amount = amount
+		req.Currency = currency
+	}
+
+	rsp := &billingpb.OrderCreateProcessResponse{}
+	err := service.OrderCreateProcess(context.TODO(), req, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), rsp.Status, billingpb.ResponseStatusOk)
+
+	req1 := &billingpb.PaymentCreateRequest{
+		Data: map[string]string{
+			billingpb.PaymentCreateFieldOrderId:         rsp.Item.Uuid,
+			billingpb.PaymentCreateFieldPaymentMethodId: paymentMethod.Id,
+			billingpb.PaymentCreateFieldEmail:           userEmail,
+			billingpb.PaymentCreateFieldPan:             "4000000000000002",
+			billingpb.PaymentCreateFieldCvv:             "123",
+			billingpb.PaymentCreateFieldMonth:           "02",
+			billingpb.PaymentCreateFieldYear:            time.Now().AddDate(1, 0, 0).Format("2006"),
+			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
+		},
+		Ip: "127.0.0.1",
+		Cookie: cookie,
+	}
+
+	rsp1 := &billingpb.PaymentCreateResponse{}
+	err = service.PaymentCreateProcess(context.TODO(), req1, rsp1)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
+
+	order, err := service.orderRepository.GetById(context.TODO(), rsp.Item.Id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), order)
+	assert.IsType(suite.T(), &billingpb.Order{}, order)
+
+	callbackRequest := &billingpb.CardPayPaymentCallback{
+		PaymentMethod: paymentMethod.ExternalId,
+		CallbackTime:  paymentMethodClosedAt.Format("2006-01-02T15:04:05Z"),
+		MerchantOrder: &billingpb.CardPayMerchantOrder{
+			Id:          rsp.Item.Id,
+			Description: rsp.Item.Description,
+		},
+		CardAccount: &billingpb.CallbackCardPayBankCardAccount{
+			Holder:             order.PaymentRequisites[billingpb.PaymentCreateFieldHolder],
+			IssuingCountryCode: country,
+			MaskedPan:          order.PaymentRequisites[billingpb.PaymentCreateFieldPan],
+			Token:              primitive.NewObjectID().Hex(),
+		},
+		Customer: &billingpb.CardPayCustomer{
+			Email:  rsp.Item.User.Email,
+			Ip:     rsp.Item.User.Ip,
+			Id:     rsp.Item.User.ExternalId,
+			Locale: "Europe/Moscow",
+		},
+		PaymentData: &billingpb.CallbackCardPayPaymentData{
+			Id:          primitive.NewObjectID().Hex(),
+			Amount:      order.ChargeAmount,
+			Currency:    order.ChargeCurrency,
+			Description: order.Description,
+			Is_3D:       true,
+			Rrn:         primitive.NewObjectID().Hex(),
+			Status:      billingpb.CardPayPaymentResponseStatusCompleted,
+		},
+	}
+
+	buf, err := json.Marshal(callbackRequest)
+	assert.NoError(suite.T(), err)
+
+	hash := sha512.New()
+	hash.Write([]byte(string(buf) + order.PaymentMethod.Params.SecretCallback))
+
+	callbackData := &billingpb.PaymentNotifyRequest{
+		OrderId:   order.Id,
+		Request:   buf,
+		Signature: hex.EncodeToString(hash.Sum(nil)),
+	}
+
+	callbackResponse := &billingpb.PaymentNotifyResponse{}
+	err = service.PaymentCallbackProcess(context.TODO(), callbackData, callbackResponse)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), pkg.StatusOK, callbackResponse.Status)
+
+	order, err = service.orderRepository.GetById(context.TODO(), order.Id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), order)
+	assert.IsType(suite.T(), &billingpb.Order{}, order)
+	assert.Equal(suite.T(), int32(recurringpb.OrderStatusPaymentSystemComplete), order.PrivateStatus)
+
+	order.NetRevenue = &billingpb.OrderViewMoney{
+		Amount:   order.ChargeAmount,
+		Currency: order.ChargeCurrency,
+	}
+	err = service.orderRepository.Update(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	return order
+}
+
 func RandomString(n int) string {
 	var letter = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 

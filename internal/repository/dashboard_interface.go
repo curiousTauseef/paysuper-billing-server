@@ -7,7 +7,10 @@ import (
 
 // DashboardRepositoryInterface is abstraction layer for working with dashboard report and representation in database.
 type DashboardRepositoryInterface interface {
-	GetMainReport(context.Context, string, string) (*billingpb.DashboardMainReport, error)
-	GetRevenueDynamicsReport(context.Context, string, string) (*billingpb.DashboardRevenueDynamicReport, error)
-	GetBaseReport(context.Context, string, string) (*billingpb.DashboardBaseReports, error)
+	GetMainReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardMainReport, error)
+	GetRevenueDynamicsReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardRevenueDynamicReport, error)
+	GetBaseReport(ctx context.Context,merchantId string, period string) (*billingpb.DashboardBaseReports, error)
+
+	GetCustomersReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardCustomerReport, error)
+	GetCustomerARPU(ctx context.Context, merchantId string, customerId string) (*billingpb.DashboardAmountItemWithChart, error)
 }

@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
@@ -16,6 +18,10 @@ import (
 const (
 	baseReportsItemsLimit = 5
 )
+
+type Customers struct {
+	Id string `json:"_id" bson:"_id"`
+}
 
 type DashboardReportProcessor struct {
 	Db          mongodb.SourceInterface
@@ -797,4 +803,564 @@ func (m *DashboardReportProcessor) ExecuteSourcesReport(ctx context.Context, rec
 	}
 
 	return receiver, nil
+}
+
+func (m *DashboardReportProcessor) ExecuteCustomerLTV(ctx context.Context, i interface{}) (interface{}, error) {
+	query := []bson.M{
+		{"$match": m.Match},
+		{
+			"$group": bson.M{
+				"_id":     "$user.external_id",
+				"sum":     bson.M{"$sum": 1},
+				"revenue": bson.M{"$sum": "$net_revenue.amount"},
+			},
+		},
+		{
+			"$facet": bson.M{
+				"result": []bson.M{
+					{
+						"$group": bson.M{
+							"_id":        nil,
+							"user_count": bson.M{"$sum": 1},
+							"revenue":    bson.M{"$sum": "$revenue"},
+						},
+					},
+					{
+						"$project": bson.M{
+							"avg": bson.M{
+								"$divide": []string{
+									"$revenue", "$user_count",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	b, _ := json.Marshal(query)
+	s := string(b)
+	fmt.Println(s)
+	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	defer cursor.Close(ctx)
+
+	type avgOrdersCountItem struct {
+		Id  string  `json:"id" bson:"id"`
+		Avg float64 `json:"avg" bson:"avg"`
+	}
+
+	type avgOrdersCountWrapper struct {
+		Result []avgOrdersCountItem `json:"result" bson:"result"`
+	}
+	receiverObj := &avgOrdersCountWrapper{}
+
+	zero := float32(0.0)
+	if cursor.Next(ctx) {
+		err = cursor.Decode(receiverObj)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorQueryCursorExecutionFailed,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			)
+			return nil, err
+		}
+
+		if len(receiverObj.Result) == 0 {
+			return zero, nil
+		}
+
+		res := float32(receiverObj.Result[0].Avg)
+		return res, nil
+	}
+
+	return zero, nil
+}
+
+func (m *DashboardReportProcessor) ExecuteCustomerARPU(ctx context.Context, customerId string) (interface{}, error) {
+	delete(m.Match, "pm_order_close_date")
+	m.Match["user.external_id"] = customerId
+
+	query := []bson.M{
+		{"$match": m.Match},
+		{
+			"$project": bson.M{
+				"day":   bson.M{"$dayOfMonth": "$pm_order_close_date"},
+				"week":  bson.M{"$week": "$pm_order_close_date"},
+				"month": bson.M{"$month": "$pm_order_close_date"},
+				"revenue_amount": bson.M{
+					"$cond": []interface{}{
+						bson.M{"$eq": []string{"$status", "processed"}}, "$payment_gross_revenue.amount", 0,
+					},
+				},
+				"currency":            bson.M{"$ifNull": []string{"$payment_gross_revenue.currency", ""}},
+				"pm_order_close_date": "$pm_order_close_date",
+			},
+		},
+		{
+			"$facet": bson.M{
+				"main": []bson.M{
+					{
+						"$group": bson.M{
+							"_id":                nil,
+							"gross_revenue":      bson.M{"$sum": "$revenue_amount"},
+							"currency":           bson.M{"$first": "$currency"},
+							"total_transactions": bson.M{"$sum": 1},
+						},
+					},
+					{"$addFields": bson.M{"arpu": bson.M{"$divide": []string{"$gross_revenue", "$total_transactions"}}}},
+				},
+				"chart_total_transactions": []bson.M{
+					{
+						"$group": bson.M{
+							"_id":   m.GroupBy,
+							"label": bson.M{"$last": bson.M{"$toLong": "$pm_order_close_date"}},
+							"value": bson.M{"$sum": 1},
+						},
+					},
+					{"$sort": bson.M{"_id": 1}},
+				},
+				"chart_arpu": []bson.M{
+					{
+						"$group": bson.M{
+							"_id":                m.GroupBy,
+							"label":              bson.M{"$last": bson.M{"$toLong": "$pm_order_close_date"}},
+							"gross_revenue":      bson.M{"$sum": "$revenue_amount"},
+							"total_transactions": bson.M{"$sum": 1},
+						},
+					},
+					{"$addFields": bson.M{"value": bson.M{"$divide": []string{"$gross_revenue", "$total_transactions"}}}},
+					{"$project": bson.M{"label": "$label", "value": "$value"}},
+					{"$sort": bson.M{"_id": 1}},
+				},
+			},
+		},
+		{
+			"$project": bson.M{
+				"total_transactions": bson.M{
+					"count": bson.M{"$arrayElemAt": []interface{}{"$main.total_transactions", 0}},
+					"chart": "$chart_total_transactions",
+				},
+				"arpu": bson.M{
+					"amount":   bson.M{"$arrayElemAt": []interface{}{"$main.arpu", 0}},
+					"currency": bson.M{"$arrayElemAt": []interface{}{"$main.currency", 0}},
+					"chart":    "$chart_arpu",
+				},
+			},
+		},
+	}
+
+	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	defer cursor.Close(ctx)
+
+	receiverObj := &pkg2.TotalTransactionsAndArpuReports{}
+
+	if cursor.Next(ctx) {
+		mgo := &models.MgoTotalTransactionsAndArpuReports{}
+		err = cursor.Decode(mgo)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorQueryCursorExecutionFailed,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			)
+			return nil, err
+		}
+
+		if mgo.Arpu != nil {
+			obj, err := models.NewDashboardAmountItemWithChartMapper().MapMgoToObject(mgo.Arpu)
+
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorDatabaseMapModelFailed,
+					zap.Error(err),
+					zap.Any(pkg.ErrorDatabaseFieldQuery, obj),
+				)
+				return nil, err
+			}
+
+			receiverObj.Arpu = obj.(*billingpb.DashboardAmountItemWithChart)
+		}
+
+		if mgo.TotalTransactions != nil {
+			receiverObj.TotalTransactions = mgo.TotalTransactions
+		}
+	}
+
+	return receiverObj, nil
+}
+
+func (m *DashboardReportProcessor) ExecuteCustomerAvgTransactionsCount(ctx context.Context, i interface{}) (interface{}, error) {
+	query := []bson.M{
+		{"$match": m.Match},
+		{
+			"$group": bson.M{
+				"_id": "$user.external_id",
+				"sum": bson.M{"$sum": 1},
+			},
+		},
+		{
+			"$facet": bson.M{
+				"result": []bson.M{
+					{
+						"$group": bson.M{
+							"_id":         nil,
+							"order_count": bson.M{"$sum": "$sum"},
+							"user_count":  bson.M{"$sum": 1},
+						},
+					},
+					{
+						"$project": bson.M{
+							"avg": bson.M{
+								"$divide": []string{
+									"$order_count", "$user_count",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	defer cursor.Close(ctx)
+
+	type avgOrdersCountItem struct {
+		Id  string  `json:"id" bson:"id"`
+		Avg float32 `json:"avg" bson:"avg"`
+	}
+
+	type avgOrdersCountWrapper struct {
+		Result []avgOrdersCountItem `json:"result" bson:"result"`
+	}
+	receiverObj := &avgOrdersCountWrapper{}
+
+	zero := float32(0.0)
+	if cursor.Next(ctx) {
+		err = cursor.Decode(receiverObj)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorQueryCursorExecutionFailed,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			)
+			return zero, err
+		}
+
+		if len(receiverObj.Result) == 0 {
+			return zero, nil
+		}
+
+		return receiverObj.Result[0].Avg, nil
+	}
+
+	return zero, nil
+}
+
+func (m *DashboardReportProcessor) ExecuteCustomerTop20(ctx context.Context, i interface{}) (interface{}, error) {
+	type top20revenue struct {
+		Revenue float64 `json:"revenue" bson:"revenue"`
+	}
+
+	type top20revenueWrapper struct {
+		Result []*top20revenue `json:"result" bson:"result"`
+	}
+	var receiverObj top20revenueWrapper
+
+
+	res := &billingpb.Top20Customers{
+		Count:   0,
+		Revenue: 0,
+	}
+
+	customersCount, err := m.executeCustomersCount(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	top20 := int32(customersCount * 0.2)
+
+	if top20 == 0 {
+		return res, nil
+	}
+
+	query := []bson.M{
+		{"$match": m.Match},
+		{
+			"$group": bson.M{
+				"_id":     "$user.external_id",
+				"revenue": bson.M{"$sum": "$net_revenue.amount"},
+			},
+		},
+		{"$sort": bson.M{"revenue": -1}},
+		{"$limit": top20},
+		{
+			"$facet": bson.M{
+				"result": []bson.M{
+					{
+						"$group": bson.M{
+							"_id":     nil,
+							"revenue": bson.M{"$sum": "$revenue"},
+						},
+					},
+				},
+			},
+		},
+	}
+	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	defer cursor.Close(ctx)
+
+	if cursor.Next(ctx) {
+		err = cursor.Decode(&receiverObj)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorQueryCursorExecutionFailed,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			)
+			return nil, err
+		}
+
+		res.Count = top20
+		res.Revenue = float32(receiverObj.Result[0].Revenue)
+
+		return res, nil
+	}
+
+	return res, nil
+}
+
+func (m *DashboardReportProcessor) ExecuteCustomers(ctx context.Context, i interface{}) (interface{}, error) {
+	query := []bson.M{
+		{"$match": m.Match},
+		{
+			"$group": bson.M{
+				"_id": "$user.external_id",
+			},
+		},
+	}
+
+	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	var receiverObj []*Customers
+	err = cursor.All(ctx, &receiverObj)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	return receiverObj, nil
+}
+
+func (m *DashboardReportProcessor) executeCustomersCount(ctx context.Context) (float32, error) {
+	zero := float32(0.0)
+
+	query := []bson.M{
+		{"$match": m.Match},
+		{
+			"$group": bson.M{
+				"_id": "$user.external_id",
+			},
+		},
+		{
+			"$count": "count",
+		},
+	}
+
+	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return zero, err
+	}
+
+	defer cursor.Close(ctx)
+
+	type count struct {
+		Count float32 `json:"count" bson:"count"`
+	}
+	var receiverObj count
+
+	if cursor.Next(ctx) {
+		err = cursor.Decode(&receiverObj)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorQueryCursorExecutionFailed,
+				zap.Error(err),
+				zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+				zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+			)
+			return zero, err
+		}
+
+		return receiverObj.Count, nil
+	}
+
+	return zero, nil
+}
+
+func (m *DashboardReportProcessor) ExecuteCustomersCount(ctx context.Context, i interface{}) (interface{}, error) {
+	delete(m.Match, "pm_order_close_date")
+	return m.executeCustomersCount(ctx)
+}
+
+func (m *DashboardReportProcessor) ExecuteCustomersChart(ctx context.Context, startDate time.Time, end time.Time) (interface{}, error) {
+	query := []bson.M{
+		{"$match": m.Match},
+		{
+			"$project": bson.M{
+				"date": bson.M{ "$dateToString": bson.M{"date": "$pm_order_close_date", "format": "%Y-%m-%d"}},
+				"user_id": "$user.external_id",
+			},
+		},
+		{
+			"$group": bson.M{
+				"_id": bson.M{"date": "$date", "user": "$user_id"},
+			},
+		},
+		{
+			"$group": bson.M{
+				"_id": "$_id.date",
+				"count": bson.M{"$sum": 1},
+			},
+		},
+		{
+			"$sort": bson.M{"_id": 1},
+		},
+	}
+
+	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	type dateChart struct {
+		Date  string `json:"_id" bson:"_id"`
+		Count int64 `json:"count" bson:"count"`
+	}
+	var receiverObj []*dateChart
+
+	err = cursor.All(ctx, &receiverObj)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorQueryCursorExecutionFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, m.Collection),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return nil, err
+	}
+
+	days := int(end.Sub(startDate).Hours() / 24)
+	chart := make([]*billingpb.DashboardChartItemInt, days)
+	lastDate := startDate.AddDate(0,0,-1)
+
+	currIndex := 0
+	currDate := time.Time{}
+
+	for i := 0; i < days; i++ {
+		lastDate = lastDate.AddDate(0,0,1)
+		val := &billingpb.DashboardChartItemInt{
+			Label: int64(i+1),
+		}
+		chart[i] = val
+
+		if currIndex < len(receiverObj) {
+			date := receiverObj[currIndex].Date
+			currDate, err = time.Parse("2006-01-02", date)
+			if err != nil {
+				zap.L().Error("can't parse date", zap.String("date", date), zap.Error(err))
+				return nil, err
+			}
+
+			if currDate.Equal(lastDate) {
+				val.Value = receiverObj[currIndex].Count
+				currIndex++
+			}
+		}
+	}
+
+	return chart, nil
 }

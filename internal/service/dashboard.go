@@ -108,3 +108,41 @@ func (s *Service) GetDashboardBaseReport(
 
 	return nil
 }
+
+func (s *Service) GetDashboardCustomersReport(ctx context.Context, req *billingpb.DashboardCustomerReportRequest, rsp *billingpb.GetDashboardCustomerReportResponse) error {
+	report, err := s.dashboardRepository.GetCustomersReport(ctx, req.MerchantId, req.Period)
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = merchantErrorNotFound
+
+		if err != mongo.ErrNoDocuments {
+			rsp.Status = billingpb.ResponseStatusSystemError
+		}
+
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Item = report
+
+	return nil
+}
+
+func (s *Service) GetDashboardCustomerArpu(ctx context.Context, req *billingpb.DashboardCustomerReportArpuRequest, rsp *billingpb.DashboardCustomerReportArpuResponse) error {
+	chart, err := s.dashboardRepository.GetCustomerARPU(ctx, req.MerchantId, req.CustomerId)
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = merchantErrorNotFound
+
+		if err != mongo.ErrNoDocuments {
+			rsp.Status = billingpb.ResponseStatusSystemError
+		}
+
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Item = chart
+
+	return nil
+}

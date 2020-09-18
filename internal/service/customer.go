@@ -223,3 +223,4 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 
 	return nil
 }
+
