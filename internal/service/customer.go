@@ -226,6 +226,25 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 	return nil
 }
 
+func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustomerInfoRequest, rsp *billingpb.GetCustomerInfoResponse) error {
+	customer, err := s.customerRepository.GetById(ctx, req.UserId)
+
+	rsp.Status = pkg.StatusErrorSystem
+
+	if err != nil {
+		zap.L().Error("can't get customer", zap.Error(err))
+		return nil
+	}
+
+	// Protect. Do not send info that not needed
+	customer.PaymentActivity = nil
+	customer.Identity = nil
+
+	rsp.Item = customer
+	rsp.Status = pkg.StatusOK
+
+	return nil
+}
 func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustomersRequest, rsp *billingpb.ListCustomersResponse) error {
 	query := bson.M{}
 
@@ -284,8 +303,4 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	rsp.Status = pkg.StatusOK
 
 	return nil
-}
-
-func (s *Service) GetCustomerInfo(ctx context.Context, request *billingpb.GetCustomerInfoRequest, response *billingpb.GetCustomerInfoResponse) error {
-	panic("implement me")
 }
