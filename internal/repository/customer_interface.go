@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // CustomerRepositoryInterface is abstraction layer for working with customer and representation in database.
@@ -21,4 +23,7 @@ type CustomerRepositoryInterface interface {
 
 	//Return all customers
 	FindAll(ctx context.Context) ([]*billingpb.Customer, error)
+
+	//FindBy returns customers filter by query
+	FindBy(ctx context.Context, query bson.M, opts ...*options.FindOptions) ([]*billingpb.Customer, error)
 }

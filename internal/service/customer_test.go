@@ -243,3 +243,5 @@ func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_Customer
 	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
 	assert.Equal(suite.T(), errorCustomerUnknown, rsp.Message)
 }
+
+

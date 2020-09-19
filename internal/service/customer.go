@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
+	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -224,3 +226,66 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 	return nil
 }
 
+func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustomersRequest, rsp *billingpb.ListCustomersResponse) error {
+	query := bson.M{}
+
+	rsp.Status = pkg.StatusErrorSystem
+
+	if len(req.MerchantId) > 0 {
+		merchantOid, err := primitive.ObjectIDFromHex(req.MerchantId)
+
+		if err != nil {
+			return err
+		}
+
+		query["payment_activity"] = bson.M{
+			"$elemMatch": bson.M{
+				"merchant_id": merchantOid,
+			},
+		}
+	}
+
+	opts := options.Find()
+	opts = opts.SetLimit(req.Limit)
+
+	customers, err := s.customerRepository.FindBy(ctx, query)
+	if err != nil {
+		zap.L().Error("can't get customers", zap.Error(err), zap.Any("req", req))
+		return err
+	}
+
+	result := make([]*billingpb.ShortCustomerInfo, len(customers))
+	for i, customer := range customers {
+		shortCustomer := &billingpb.ShortCustomerInfo{
+			Id:         customer.Id,
+			ExternalId: customer.ExternalId,
+			Country:    customer.Address.Country,
+			Language:   customer.Locale,
+			LastOrder:  &timestamp.Timestamp{},
+		}
+
+		for key, activityItem := range customer.PaymentActivity {
+			if (len(req.MerchantId) > 0 && key == req.MerchantId) || len(req.MerchantId) == 0 {
+				shortCustomer.Orders += activityItem.Count.Payment
+				if activityItem.Revenue != nil {
+					shortCustomer.Revenue += activityItem.Revenue.Payment
+				}
+
+				if activityItem.LastTxnAt != nil && activityItem.LastTxnAt.Payment != nil && shortCustomer.LastOrder.Seconds < activityItem.LastTxnAt.Payment.Seconds {
+					shortCustomer.LastOrder = activityItem.LastTxnAt.Payment
+				}
+			}
+		}
+
+		result[i] = shortCustomer
+	}
+
+	rsp.Items = result
+	rsp.Status = pkg.StatusOK
+
+	return nil
+}
+
+func (s *Service) GetCustomerInfo(ctx context.Context, request *billingpb.GetCustomerInfoRequest, response *billingpb.GetCustomerInfoResponse) error {
+	panic("implement me")
+}

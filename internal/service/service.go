@@ -119,6 +119,7 @@ type Service struct {
 	moneyRegistryMx                        sync.Mutex
 }
 
+
 func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
 	return &billingpb.ResponseError{
 		Status:  status,
