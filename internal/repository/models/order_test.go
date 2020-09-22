@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"testing"
-	"time"
 )
 
 type OrderTestSuite struct {
@@ -50,7 +49,7 @@ func (suite *OrderTestSuite) Test_MapToMgo_Ok() {
 	original.NetRevenue = nil
 	original.RecurringSettings = &billingpb.OrderRecurringSettings{
 		Period:  "week",
-		DateEnd: &timestamp.Timestamp{Seconds: time.Now().Unix()},
+		DateEnd: "2020-09-01",
 	}
 	original.Recurring = true
 	original.RecurringId = "12"
