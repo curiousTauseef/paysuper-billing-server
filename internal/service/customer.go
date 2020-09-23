@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
-	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -229,7 +228,7 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustomerInfoRequest, rsp *billingpb.GetCustomerInfoResponse) error {
 	customer, err := s.customerRepository.GetById(ctx, req.UserId)
 
-	rsp.Status = pkg.StatusErrorSystem
+	rsp.Status = billingpb.ResponseStatusSystemError
 
 	if err != nil {
 		zap.L().Error("can't get customer", zap.Error(err))
@@ -241,14 +240,14 @@ func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustome
 	customer.Identity = nil
 
 	rsp.Item = customer
-	rsp.Status = pkg.StatusOK
+	rsp.Status = billingpb.ResponseStatusOk
 
 	return nil
 }
 func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustomersRequest, rsp *billingpb.ListCustomersResponse) error {
 	query := bson.M{}
 
-	rsp.Status = pkg.StatusErrorSystem
+	rsp.Status = billingpb.ResponseStatusSystemError
 
 	if len(req.MerchantId) > 0 {
 		merchantOid, err := primitive.ObjectIDFromHex(req.MerchantId)
@@ -300,7 +299,30 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	}
 
 	rsp.Items = result
-	rsp.Status = pkg.StatusOK
+	rsp.Status = billingpb.ResponseStatusOk
 
+	return nil
+}
+
+func (s *Service) DeserializeCookie(ctx context.Context, req *billingpb.DeserializeCookieRequest, rsp *billingpb.DeserializeCookieResponse) error {
+	browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+	rsp.Status = billingpb.ResponseStatusBadData
+
+	if err != nil {
+		return nil
+	}
+
+	rsp.Item = &billingpb.BrowserCookie{
+		CustomerId:        browserCookie.CustomerId,
+		VirtualCustomerId: browserCookie.VirtualCustomerId,
+		Ip:                browserCookie.Ip,
+		IpCountry:         browserCookie.IpCountry,
+		SelectedCountry:   browserCookie.SelectedCountry,
+		UserAgent:         browserCookie.UserAgent,
+		AcceptLanguage:    browserCookie.AcceptLanguage,
+		SessionCount:      browserCookie.SessionCount,
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
 	return nil
 }
