@@ -51,6 +51,8 @@ const (
 	LogFieldRequest                  = "request"
 	LogFieldResponse                 = "response"
 	LogFieldHandler                  = "handler"
+	LogFieldOrder                    = "order"
+	LogFieldBody                     = "body"
 
 	ObjectTypeBalanceTransaction = "balance_transaction"
 
@@ -199,11 +201,13 @@ const (
 	ProjectSellCountTypeFractional = "fractional"
 	ProjectSellCountTypeIntegral   = "integral"
 
-	PaymentSystemActionAuthenticate     = "auth"
-	PaymentSystemActionRefresh          = "refresh"
-	PaymentSystemActionCreatePayment    = "create_payment"
-	PaymentSystemActionRecurringPayment = "recurring_payment"
-	PaymentSystemActionRefund           = "refund"
+	PaymentSystemActionAuthenticate        = "auth"
+	PaymentSystemActionRefresh             = "refresh"
+	PaymentSystemActionCreatePayment       = "create_payment"
+	PaymentSystemActionRecurringPayment    = "recurring_payment"
+	PaymentSystemActionRefund              = "refund"
+	PaymentSystemActionRecurringPlan       = "recurring_plans"
+	PaymentSystemActionDeleteRecurringPlan = "recurring_plans_delete"
 
 	MerchantOperationTypeLowRisk  = "low-risk"
 	MerchantOperationTypeHighRisk = "high-risk"
@@ -319,6 +323,14 @@ var (
 		PaymentSystemActionRefund: {
 			Path:   "/api/refunds",
 			Method: http.MethodPost,
+		},
+		PaymentSystemActionRecurringPlan: {
+			Path:   "/api/recurring_plans",
+			Method: http.MethodPost,
+		},
+		PaymentSystemActionDeleteRecurringPlan: {
+			Path:   "/api/recurring_plans/%s",
+			Method: http.MethodDelete,
 		},
 	}
 )

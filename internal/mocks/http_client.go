@@ -28,6 +28,14 @@ type TransportStatusError struct {
 	Transport http.RoundTripper
 }
 
+type TransportCardPayRecurringPlanOk struct {
+	Transport http.RoundTripper
+}
+
+type TransportCardPayRecurringPlanInactive struct {
+	Transport http.RoundTripper
+}
+
 func NewClientStatusOk() *http.Client {
 	return &http.Client{
 		Transport: &TransportStatusOk{},
@@ -87,6 +95,42 @@ func (h *TransportStatusError) RoundTrip(_ *http.Request) (*http.Response, error
 	return &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       ioutil.NopCloser(strings.NewReader("{}")),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func (h *TransportCardPayRecurringPlanOk) RoundTrip(req *http.Request) (*http.Response, error) {
+	body := []byte(`{"plan_data": {"id": "id", "status": "ACTIVE"}}`)
+
+	if req.URL.Path == pkg.CardPayPaths[pkg.PaymentSystemActionAuthenticate].Path {
+		body = []byte(`{"token_type": "bearer", "access_token": "123", "refresh_token": "123", "expires_in": 300, "refresh_expires_in": 900}`)
+	}
+
+	if req.URL.Path == pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPayment].Path {
+		body = []byte(`{"redirect_url": "http://localhost"}`)
+	}
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       ioutil.NopCloser(bytes.NewReader(body)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func (h *TransportCardPayRecurringPlanInactive) RoundTrip(req *http.Request) (*http.Response, error) {
+	body := []byte(`{"plan_data": {"id": "id", "status": "INACTIVE"}}`)
+
+	if req.URL.Path == pkg.CardPayPaths[pkg.PaymentSystemActionAuthenticate].Path {
+		body = []byte(`{"token_type": "bearer", "access_token": "123", "refresh_token": "123", "expires_in": 300, "refresh_expires_in": 900}`)
+	}
+
+	if req.URL.Path == pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPayment].Path {
+		body = []byte(`{"redirect_url": "http://localhost"}`)
+	}
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       ioutil.NopCloser(bytes.NewReader(body)),
 		Header:     make(http.Header),
 	}, nil
 }
