@@ -40,7 +40,9 @@ const (
 	cardPayMaxItemNameLength        = 50
 	cardPayMaxItemDescriptionLength = 200
 
-	cardPayStatusActive = "ACTIVE"
+	cardPayStatusActive    = "ACTIVE"
+	cardPayStatusInactive  = "INACTIVE"
+	cardPayStatusCancelled = "CANCELLED"
 )
 
 var (
@@ -272,10 +274,25 @@ type CardPayRecurringSubscriptionRequest struct {
 type CardPayRecurringSubscriptionResponse struct {
 	RedirectUrl           string                        `json:"redirect_url"`
 	RecurringDataResponse *CardPayRecurringDataResponse `json:"recurring_data"`
+	RecurringSubscription *CardPayRecurringSubscription `json:"subscription"`
 }
 
 type CardPayRecurringDataResponse struct {
 	Id string `json:"id"`
+}
+
+type CardPayRecurringSubscription struct {
+	Id string `json:"id"`
+}
+
+type CardPayRecurringSubscriptionUpdateRequest struct {
+	Request          *CardPayRequest                 `json:"request"`
+	Operation        string                          `json:"operation"`
+	SubscriptionData *CardPaySubscriptionDataRequest `json:"subscription_data"`
+}
+
+type CardPaySubscriptionDataRequest struct {
+	StatusTo string `json:"status_to"`
 }
 
 func (m *CardPayRefundResponse) IsSuccessStatus() bool {
@@ -1092,14 +1109,130 @@ func (h *CardPayOrderRecurringResponse) IsSuccessStatus() bool {
 }
 
 func (h *cardPay) CreateRecurringSubscription(
-	order *billingpb.Order, successUrl, failUrl string, requisites map[string]string,
-) (string, string, error) {
-	planId, err := h.createRecurringPlan(order)
+	order *billingpb.Order, subscription *recurringpb.Subscription, successUrl, failUrl string, requisites map[string]string,
+) (string, error) {
+	var (
+		err         error
+		redirectUrl string
+	)
+
+	subscription.CardpayPlanId, err = h.createRecurringPlan(order)
 
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
+	subscription.CardpaySubscriptionId, redirectUrl, err = h.createRecurringSubscription(order, subscription.CardpayPlanId, successUrl, failUrl, requisites)
+
+	if err != nil {
+		return "", err
+	}
+
+	return redirectUrl, nil
+}
+
+func (h *cardPay) createRecurringPlan(order *billingpb.Order) (string, error) {
+	data := &CardPayRecurringPlanRequest{
+		Request: &CardPayRequest{
+			Id:   order.Id,
+			Time: time.Now().UTC().Format(cardPayDateFormat),
+		},
+		PlanData: &CardPayRecurringPlanData{
+			Amount:   order.TotalPaymentAmount,
+			Currency: order.Currency,
+			Interval: order.RecurringSettings.Interval,
+			Name:     order.Id,
+			Period:   order.RecurringSettings.Period,
+			Retries:  1,
+		},
+	}
+
+	req, err := h.getRequestWithAuth(order, data, pkg.PaymentSystemActionRecurringPlan)
+
+	if err != nil {
+		zap.L().Error(
+			"cardpay API: create recurring plan request failed",
+			zap.Error(err),
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+			zap.Any(pkg.LogFieldBody, data),
+		)
+		return "", err
+	}
+
+	resp, err := h.httpClient.Do(req)
+
+	if err != nil {
+		zap.L().Error(
+			"cardpay API: send recurring plan request failed",
+			zap.Error(err),
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+			zap.Any(pkg.LogFieldBody, data),
+		)
+		return "", err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		zap.L().Error(
+			"recurring plan response returned with bad http status",
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+			zap.Any(pkg.LogFieldBody, data),
+		)
+		return "", paymentSystemErrorCreateRecurringPlanFailed
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		zap.L().Error(
+			"recurring plan response body can't be read",
+			zap.Error(err),
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+			zap.ByteString(pkg.LogFieldResponse, b),
+		)
+		return "", err
+	}
+
+	response := &CardPayRecurringPlanResponse{}
+	err = json.Unmarshal(b, &response)
+
+	if err != nil {
+		zap.L().Error(
+			"recurring plan response contain invalid json",
+			zap.Error(err),
+			zap.String("Method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+			zap.ByteString(pkg.LogFieldResponse, b),
+		)
+		return "", err
+	}
+
+	if response.PlanData.Status != cardPayStatusActive {
+		zap.L().Error(
+			"recurring plan response returned inactive plan status",
+			zap.Error(err),
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+			zap.Any(pkg.LogFieldResponse, response),
+		)
+		return "", paymentSystemErrorCreateRecurringPlanFailed
+	}
+
+	return response.PlanData.Id, nil
+}
+
+func (h *cardPay) createRecurringSubscription(
+	order *billingpb.Order, planId, successUrl, failUrl string, requisites map[string]string,
+) (string, string, error) {
 	data := &CardPayRecurringSubscriptionRequest{
 		Request: &CardPayRequest{
 			Id:   planId,
@@ -1211,106 +1344,7 @@ func (h *cardPay) CreateRecurringSubscription(
 		return "", "", err
 	}
 
-	return response.RedirectUrl, planId, nil
-}
-
-func (h *cardPay) createRecurringPlan(order *billingpb.Order) (string, error) {
-	data := &CardPayRecurringPlanRequest{
-		Request: &CardPayRequest{
-			Id:   order.Id,
-			Time: time.Now().UTC().Format(cardPayDateFormat),
-		},
-		PlanData: &CardPayRecurringPlanData{
-			Amount:   order.TotalPaymentAmount,
-			Currency: order.Currency,
-			Interval: 1,
-			Name:     order.Id,
-			Period:   order.RecurringSettings.Period,
-			Retries:  1,
-		},
-	}
-
-	req, err := h.getRequestWithAuth(order, data, pkg.PaymentSystemActionRecurringPlan)
-
-	if err != nil {
-		zap.L().Error(
-			"cardpay API: create recurring plan request failed",
-			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
-			zap.Any(pkg.LogFieldRequest, req),
-			zap.Any(pkg.LogFieldOrder, order),
-			zap.Any(pkg.LogFieldBody, data),
-		)
-		return "", err
-	}
-
-	resp, err := h.httpClient.Do(req)
-
-	if err != nil {
-		zap.L().Error(
-			"cardpay API: send recurring plan request failed",
-			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
-			zap.Any(pkg.LogFieldRequest, req),
-			zap.Any(pkg.LogFieldOrder, order),
-			zap.Any(pkg.LogFieldBody, data),
-		)
-		return "", err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		zap.L().Error(
-			"recurring plan response returned with bad http status",
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
-			zap.Any(pkg.LogFieldRequest, req),
-			zap.Any(pkg.LogFieldOrder, order),
-			zap.Any(pkg.LogFieldBody, data),
-		)
-		return "", paymentSystemErrorCreateRecurringPlanFailed
-	}
-
-	b, err := ioutil.ReadAll(resp.Body)
-
-	if err != nil {
-		zap.L().Error(
-			"recurring plan response body can't be read",
-			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
-			zap.Any(pkg.LogFieldRequest, req),
-			zap.Any(pkg.LogFieldOrder, order),
-			zap.ByteString(pkg.LogFieldResponse, b),
-		)
-		return "", err
-	}
-
-	response := &CardPayRecurringPlanResponse{}
-	err = json.Unmarshal(b, &response)
-
-	if err != nil {
-		zap.L().Error(
-			"recurring plan response contain invalid json",
-			zap.Error(err),
-			zap.String("Method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
-			zap.Any(pkg.LogFieldRequest, req),
-			zap.Any(pkg.LogFieldOrder, order),
-			zap.ByteString(pkg.LogFieldResponse, b),
-		)
-		return "", err
-	}
-
-	if response.PlanData.Status != cardPayStatusActive {
-		zap.L().Error(
-			"recurring plan response returned inactive plan status",
-			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
-			zap.Any(pkg.LogFieldRequest, req),
-			zap.Any(pkg.LogFieldOrder, order),
-			zap.Any(pkg.LogFieldResponse, response),
-		)
-		return "", paymentSystemErrorCreateRecurringPlanFailed
-	}
-
-	return response.PlanData.Id, nil
+	return response.RecurringSubscription.Id, response.RedirectUrl, nil
 }
 
 func (h *cardPay) IsSubscriptionCallback(request proto.Message) bool {
@@ -1318,17 +1352,51 @@ func (h *cardPay) IsSubscriptionCallback(request proto.Message) bool {
 	return req.RecurringData != nil && req.RecurringData.Subscription != nil && req.RecurringData.Subscription.Id != ""
 }
 
-func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscriptionId string) error {
-	req, err := h.getRequestWithAuth(order, nil, pkg.PaymentSystemActionDeleteRecurringPlan, subscriptionId)
+func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription) error {
+	err := h.updateRecurringSubscription(order, subscription, cardPayStatusInactive)
+
+	if err != nil {
+		zap.L().Error(
+			"cardpay API: update recurring subscription request failed",
+			zap.Error(err),
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
+			zap.Any(pkg.LogFieldRequest, subscription),
+			zap.Any(pkg.LogFieldOrder, order),
+		)
+		return err
+	}
+
+	err = h.deleteRecurringPlan(order, subscription)
 
 	if err != nil {
 		zap.L().Error(
 			"cardpay API: delete recurring plan request failed",
 			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPlan].Method),
-			zap.Any(pkg.LogFieldRequest, req),
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
+			zap.Any(pkg.LogFieldRequest, subscription),
 			zap.Any(pkg.LogFieldOrder, order),
 		)
+		return err
+	}
+
+	return nil
+}
+
+func (h *cardPay) updateRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription, status string) error {
+	data := &CardPayRecurringSubscriptionUpdateRequest{
+		Request: &CardPayRequest{
+			Id:   subscription.CardpaySubscriptionId,
+			Time: time.Now().UTC().Format(cardPayDateFormat),
+		},
+		Operation: "CHANGE_STATUS",
+		SubscriptionData: &CardPaySubscriptionDataRequest{
+			StatusTo: status,
+		},
+	}
+
+	req, err := h.getRequestWithAuth(order, data, pkg.PaymentSystemActionUpdateRecurringSubscription, subscription.CardpaySubscriptionId)
+
+	if err != nil {
 		return err
 	}
 
@@ -1336,9 +1404,9 @@ func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscripti
 
 	if err != nil {
 		zap.L().Error(
-			"cardpay API: send delete recurring subscription request failed",
+			"cardpay API: send update recurring subscription request failed",
 			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionDeleteRecurringPlan].Method),
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
 			zap.Any(pkg.LogFieldRequest, req),
 			zap.Any(pkg.LogFieldOrder, order),
 		)
@@ -1348,11 +1416,44 @@ func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscripti
 	if resp.StatusCode != http.StatusOK {
 		zap.L().Error(
 			"recurring subscription response returned with bad http status",
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+		)
+		return paymentSystemErrorUpdateRecurringSubscriptionFailed
+	}
+
+	return nil
+}
+
+func (h *cardPay) deleteRecurringPlan(order *billingpb.Order, subscription *recurringpb.Subscription) error {
+	req, err := h.getRequestWithAuth(order, nil, pkg.PaymentSystemActionDeleteRecurringPlan, subscription.CardpayPlanId)
+
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.httpClient.Do(req)
+
+	if err != nil {
+		zap.L().Error(
+			"cardpay API: send delete recurring plan request failed",
+			zap.Error(err),
 			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionDeleteRecurringPlan].Method),
 			zap.Any(pkg.LogFieldRequest, req),
 			zap.Any(pkg.LogFieldOrder, order),
 		)
-		return paymentSystemErrorDeleteRecurringSubscriptionFailed
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		zap.L().Error(
+			"recurring plan response returned with bad http status",
+			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionDeleteRecurringPlan].Method),
+			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldOrder, order),
+		)
+		return paymentSystemErrorDeleteRecurringPlanFailed
 	}
 
 	return nil

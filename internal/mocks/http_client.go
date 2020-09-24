@@ -100,14 +100,14 @@ func (h *TransportStatusError) RoundTrip(_ *http.Request) (*http.Response, error
 }
 
 func (h *TransportCardPayRecurringPlanOk) RoundTrip(req *http.Request) (*http.Response, error) {
-	body := []byte(`{"plan_data": {"id": "id", "status": "ACTIVE"}}`)
+	body := []byte(`{"plan_data": {"id": "planId", "status": "ACTIVE"}}`)
 
 	if req.URL.Path == pkg.CardPayPaths[pkg.PaymentSystemActionAuthenticate].Path {
 		body = []byte(`{"token_type": "bearer", "access_token": "123", "refresh_token": "123", "expires_in": 300, "refresh_expires_in": 900}`)
 	}
 
 	if req.URL.Path == pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPayment].Path {
-		body = []byte(`{"redirect_url": "http://localhost"}`)
+		body = []byte(`{"redirect_url": "http://localhost", "subscription": {"id": "subscriptionId"}}`)
 	}
 
 	return &http.Response{

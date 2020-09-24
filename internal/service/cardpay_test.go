@@ -223,16 +223,19 @@ func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_Ok() {
 
 	order := orderSimpleBankCard
 	order.RecurringSettings = &billingpb.OrderRecurringSettings{Period: recurringpb.RecurringPeriodDay}
+	subscription := &recurringpb.Subscription{}
 
-	url, planId, err := suite.handler.CreateRecurringSubscription(
+	url, err := suite.handler.CreateRecurringSubscription(
 		order,
+		subscription,
 		suite.cfg.GetRedirectUrlSuccess(nil),
 		suite.cfg.GetRedirectUrlFail(nil),
 		bankCardRequisites,
 	)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), url)
-	assert.NotEmpty(suite.T(), planId)
+	assert.NotEmpty(suite.T(), subscription.CardpayPlanId)
+	assert.NotEmpty(suite.T(), subscription.CardpaySubscriptionId)
 }
 
 func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_InactivePlan() {
@@ -241,9 +244,11 @@ func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_InactiveP
 
 	order := orderSimpleBankCard
 	order.RecurringSettings = &billingpb.OrderRecurringSettings{Period: recurringpb.RecurringPeriodDay}
+	subscription := &recurringpb.Subscription{}
 
-	_, _, err := suite.handler.CreateRecurringSubscription(
+	_, err := suite.handler.CreateRecurringSubscription(
 		order,
+		subscription,
 		suite.cfg.GetRedirectUrlSuccess(nil),
 		suite.cfg.GetRedirectUrlFail(nil),
 		bankCardRequisites,
@@ -255,9 +260,14 @@ func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_InactiveP
 func (suite *CardPayTestSuite) TestCardPay_DeleteRecurringSubscription_Ok() {
 	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
 
+	subscription := &recurringpb.Subscription{
+		CardpayPlanId:         "planId",
+		CardpaySubscriptionId: "subscriptionId",
+	}
+
 	err := suite.handler.DeleteRecurringSubscription(
 		orderSimpleBankCard,
-		"id",
+		subscription,
 	)
 	assert.NoError(suite.T(), err)
 }

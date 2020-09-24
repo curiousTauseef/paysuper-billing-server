@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"sync"
 )
 
@@ -31,7 +32,8 @@ var (
 	paymentSystemErrorRecurringFailed                        = newBillingServerErrorMsg("ph000014", "recurring payment failed")
 	paymentSystemErrorCreateRecurringPlanFailed              = newBillingServerErrorMsg("ph000015", "create recurring plan failed")
 	paymentSystemErrorCreateRecurringSubscriptionFailed      = newBillingServerErrorMsg("ph000016", "create recurring subscription failed")
-	paymentSystemErrorDeleteRecurringSubscriptionFailed      = newBillingServerErrorMsg("ph000017", "delete recurring subscription failed")
+	paymentSystemErrorDeleteRecurringPlanFailed              = newBillingServerErrorMsg("ph000017", "delete recurring plan failed")
+	paymentSystemErrorUpdateRecurringSubscriptionFailed      = newBillingServerErrorMsg("ph000018", "update recurring subscription failed")
 
 	registry = map[string]func() GateInterface{
 		billingpb.PaymentSystemHandlerCardPay: newCardPayHandler,
@@ -48,9 +50,9 @@ type GateInterface interface {
 	GetRecurringId(request proto.Message) string
 	CreateRefund(order *billingpb.Order, refund *billingpb.Refund) error
 	ProcessRefund(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error
-	CreateRecurringSubscription(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) (string, string, error)
+	CreateRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription, successUrl, failUrl string, requisites map[string]string) (string, error)
 	IsSubscriptionCallback(request proto.Message) bool
-	DeleteRecurringSubscription(order *billingpb.Order, subscriptionId string) error
+	DeleteRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription) error
 }
 
 type Gateway struct {

@@ -3818,7 +3818,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 	paymentMethod.RecurringAllowed = true
 	_ = suite.service.paymentMethodRepository.Update(context.TODO(), paymentMethod)
 
-	dateEnd := time.Now().AddDate(1, 0, 1).Format(billingpb.FilterDateFormat)
+	dateEnd := time.Now().AddDate(1, 1, 1).Format(billingpb.FilterDateFormat)
 
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,

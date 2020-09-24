@@ -201,13 +201,14 @@ const (
 	ProjectSellCountTypeFractional = "fractional"
 	ProjectSellCountTypeIntegral   = "integral"
 
-	PaymentSystemActionAuthenticate        = "auth"
-	PaymentSystemActionRefresh             = "refresh"
-	PaymentSystemActionCreatePayment       = "create_payment"
-	PaymentSystemActionRecurringPayment    = "recurring_payment"
-	PaymentSystemActionRefund              = "refund"
-	PaymentSystemActionRecurringPlan       = "recurring_plans"
-	PaymentSystemActionDeleteRecurringPlan = "recurring_plans_delete"
+	PaymentSystemActionAuthenticate                = "auth"
+	PaymentSystemActionRefresh                     = "refresh"
+	PaymentSystemActionCreatePayment               = "create_payment"
+	PaymentSystemActionRecurringPayment            = "recurring_payment"
+	PaymentSystemActionRefund                      = "refund"
+	PaymentSystemActionRecurringPlan               = "recurring_plans"
+	PaymentSystemActionDeleteRecurringPlan         = "recurring_plans_delete"
+	PaymentSystemActionUpdateRecurringSubscription = "recurring_subscription_update"
 
 	MerchantOperationTypeLowRisk  = "low-risk"
 	MerchantOperationTypeHighRisk = "high-risk"
@@ -331,6 +332,10 @@ var (
 		PaymentSystemActionDeleteRecurringPlan: {
 			Path:   "/api/recurring_plans/%s",
 			Method: http.MethodDelete,
+		},
+		PaymentSystemActionUpdateRecurringSubscription: {
+			Path:   "/api/recurring_subscriptions/%s",
+			Method: http.MethodPatch,
 		},
 	}
 )
