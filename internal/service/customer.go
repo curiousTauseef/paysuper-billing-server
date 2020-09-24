@@ -5,7 +5,6 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -325,25 +324,5 @@ func (s *Service) DeserializeCookie(ctx context.Context, req *billingpb.Deserial
 	}
 
 	rsp.Status = billingpb.ResponseStatusOk
-	return nil
-}
-
-func (s *Service) DeleteCustomerCard(ctx context.Context, request *billingpb.DeleteCustomerCardRequest, response *billingpb.DeleteCustomerCardResponse) error {
-	response.Status = billingpb.ResponseStatusBadData
-	response.Message = errorCustomerUnknown
-
-	rsp, err := s.rep.DeleteSavedCard(ctx, &recurringpb.DeleteSavedCardRequest{Id: request.Id, Token: request.Token})
-	if err != nil {
-		response.Status = billingpb.ResponseStatusSystemError
-		zap.L().Error("can't get delete customer card", zap.Error(err), zap.Any("req", request))
-		return nil
-	}
-
-	if rsp.Status != billingpb.ResponseStatusOk {
-		zap.L().Error("error during deleting customer card", zap.Any("req", request), zap.Any("message", rsp.Message))
-		return nil
-	}
-
-	response.Status = billingpb.ResponseStatusOk
 	return nil
 }
