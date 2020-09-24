@@ -2735,27 +2735,30 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 		dateEnd = inputDateEnd.UTC()
 	}
 
+	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), dateEnd.Hour(), dateEnd.Minute(), dateEnd.Second(), 0, dateEnd.Location())
+	current := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, dateEnd.Location())
 	var interval float64
-	delta := dateEnd.Sub(time.Now())
+	delta := dateEnd.Sub(current).Hours()
 
 	switch v.request.RecurringPeriod {
 	case recurringpb.RecurringPeriodDay:
-		interval = delta.Hours() / 24
+		interval = delta / 24
 		break
 	case recurringpb.RecurringPeriodWeek:
-		interval = delta.Hours() / 24 / 7
+		interval = delta / 24 / 7
 		break
 	case recurringpb.RecurringPeriodMonth:
-		interval = (delta.Hours() / 24 / 365) * 12
+		interval = (delta / 24 / 365) * 12
 		break
 	case recurringpb.RecurringPeriodYear:
-		interval = delta.Hours() / 24 / 365
+		interval = delta / 24 / 365
 		break
 	}
 
 	interval = math.Floor(interval)
+	totalDays := math.Floor(delta / 24)
 
-	if interval < 1 ||
+	if interval < 1 || totalDays > 365 ||
 		(v.request.RecurringPeriod == recurringpb.RecurringPeriodDay && interval > 365) ||
 		(v.request.RecurringPeriod == recurringpb.RecurringPeriodWeek && interval > 52) ||
 		(v.request.RecurringPeriod == recurringpb.RecurringPeriodMonth && interval > 12) ||
@@ -5098,6 +5101,11 @@ func (s *Service) addRecurringSubscription(
 	res, err := s.rep.AddSubscription(ctx, subscription)
 
 	if err != nil || res.Status != billingpb.ResponseStatusOk {
+		zap.L().Error(
+			"Unable to add recurring subscription",
+			zap.Error(err),
+			zap.Any("subscription", subscription),
+		)
 		return nil, "", orderErrorUnknown
 	}
 
