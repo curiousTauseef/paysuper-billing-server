@@ -16,16 +16,16 @@ import (
 type PaymentSystemMockOk struct{}
 type PaymentSystemMockError struct{}
 
-func NewPaymentSystemMockOk() Gate {
+func NewPaymentSystemMockOk() GateInterface {
 	return &PaymentSystemMockOk{}
 }
 
-func NewPaymentSystemMockError() Gate {
+func NewPaymentSystemMockError() GateInterface {
 	return &PaymentSystemMockError{}
 }
 
-func NewCardPayMock() Gate {
-	cpMock := &mocks.PaymentSystem{}
+func NewCardPayMock() GateInterface {
+	cpMock := &mocks.GateInterface{}
 	cpMock.On("CreatePayment", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(
 			func(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) string {
@@ -96,61 +96,95 @@ func NewCardPayMock() Gate {
 			},
 			nil,
 		)
+	cpMock.On("CreateRecurringSubscription", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(
+			func(order *billingpb.Order, subscription *recurringpb.Subscription, successUrl, failUrl string, requisites map[string]string) string {
+				return "http://localhost"
+			},
+			nil,
+		)
+	cpMock.On("IsSubscriptionCallback", mock.Anything).Return(true, nil)
+	cpMock.On("DeleteRecurringSubscription", mock.Anything, mock.Anything).
+		Return(nil, nil)
 	return cpMock
 }
 
-func (m *PaymentSystemMockOk) CreatePayment(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) (string, error) {
+func (m *PaymentSystemMockOk) CreatePayment(_ *billingpb.Order, _, _ string, _ map[string]string) (string, error) {
 	return "", nil
 }
 
-func (m *PaymentSystemMockOk) ProcessPayment(order *billingpb.Order, message proto.Message, raw, signature string) error {
+func (m *PaymentSystemMockOk) ProcessPayment(_ *billingpb.Order, _ proto.Message, _, _ string) error {
 	return nil
 }
 
-func (m *PaymentSystemMockOk) IsRecurringCallback(request proto.Message) bool {
+func (m *PaymentSystemMockOk) IsRecurringCallback(_ proto.Message) bool {
 	return false
 }
 
-func (m *PaymentSystemMockOk) GetRecurringId(request proto.Message) string {
+func (m *PaymentSystemMockOk) GetRecurringId(_ proto.Message) string {
 	return ""
 }
 
-func (m *PaymentSystemMockOk) CreateRefund(order *billingpb.Order, refund *billingpb.Refund) error {
+func (m *PaymentSystemMockOk) CreateRefund(_ *billingpb.Order, refund *billingpb.Refund) error {
 	refund.Status = pkg.RefundStatusInProgress
 	refund.ExternalId = primitive.NewObjectID().Hex()
 
 	return nil
 }
 
-func (m *PaymentSystemMockOk) ProcessRefund(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error {
+func (m *PaymentSystemMockOk) ProcessRefund(_ *billingpb.Order, refund *billingpb.Refund, _ proto.Message, _, _ string) error {
 	refund.Status = pkg.RefundStatusCompleted
 	refund.ExternalId = primitive.NewObjectID().Hex()
 
 	return nil
 }
 
-func (m *PaymentSystemMockError) CreatePayment(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) (string, error) {
+func (m *PaymentSystemMockOk) CreateRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription, _, _ string, _ map[string]string) (string, error) {
 	return "", nil
 }
 
-func (m *PaymentSystemMockError) ProcessPayment(order *billingpb.Order, message proto.Message, raw, signature string) error {
+func (m *PaymentSystemMockOk) IsSubscriptionCallback(_ proto.Message) bool {
+	return true
+}
+
+func (m *PaymentSystemMockOk) DeleteRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription) error {
 	return nil
 }
 
-func (m *PaymentSystemMockError) IsRecurringCallback(request proto.Message) bool {
+func (m *PaymentSystemMockError) CreatePayment(_ *billingpb.Order, _, _ string, _ map[string]string) (string, error) {
+	return "", nil
+}
+
+func (m *PaymentSystemMockError) ProcessPayment(_ *billingpb.Order, _ proto.Message, _, _ string) error {
+	return nil
+}
+
+func (m *PaymentSystemMockError) IsRecurringCallback(_ proto.Message) bool {
 	return false
 }
 
-func (m *PaymentSystemMockError) GetRecurringId(request proto.Message) string {
+func (m *PaymentSystemMockError) GetRecurringId(_ proto.Message) string {
 	return ""
 }
 
-func (m *PaymentSystemMockError) CreateRefund(order *billingpb.Order, refund *billingpb.Refund) error {
+func (m *PaymentSystemMockError) CreateRefund(_ *billingpb.Order, refund *billingpb.Refund) error {
 	refund.Status = pkg.RefundStatusRejected
 	return errors.New(pkg.PaymentSystemErrorCreateRefundFailed)
 }
 
-func (m *PaymentSystemMockError) ProcessRefund(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error {
+func (m *PaymentSystemMockError) ProcessRefund(_ *billingpb.Order, refund *billingpb.Refund, _ proto.Message, _, _ string) error {
 	refund.Status = pkg.RefundStatusRejected
 	return newBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid)
+}
+
+func (m *PaymentSystemMockError) CreateRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription, _, _ string, _ map[string]string) (string, error) {
+	return "", nil
+}
+
+func (m *PaymentSystemMockError) IsSubscriptionCallback(_ proto.Message) bool {
+	return true
+}
+
+func (m *PaymentSystemMockError) DeleteRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription) error {
+	return nil
 }

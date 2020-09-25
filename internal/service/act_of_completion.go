@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"go.uber.org/zap"
 	"math"
 	"time"
 )
@@ -19,14 +18,7 @@ func (s *Service) GetActOfCompletion(
 	req *billingpb.ActOfCompletionRequest,
 	rsp *billingpb.ActOfCompletionResponse,
 ) error {
-	loc, err := time.LoadLocation(s.cfg.RoyaltyReportTimeZone)
-
-	if err != nil {
-		zap.L().Error(royaltyReportErrorTimezoneIncorrect.Error(), zap.Error(err))
-		return royaltyReportErrorTimezoneIncorrect
-	}
-
-	dateFrom, err := time.Parse("2006-01-02", req.DateFrom)
+	dateFrom, err := time.Parse(billingpb.FilterDateFormat, req.DateFrom)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -35,7 +27,7 @@ func (s *Service) GetActOfCompletion(
 		return nil
 	}
 
-	dateTo, err := time.Parse("2006-01-02", req.DateTo)
+	dateTo, err := time.Parse(billingpb.FilterDateFormat, req.DateTo)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -44,8 +36,8 @@ func (s *Service) GetActOfCompletion(
 		return nil
 	}
 
-	dateFrom = time.Date(dateFrom.Year(), dateFrom.Month(), dateFrom.Day(), 0, 0, 0, 0, loc)
-	dateTo = time.Date(dateTo.Year(), dateTo.Month(), dateTo.Day(), 23, 59, 59, 0, loc)
+	dateFrom = time.Date(dateFrom.Year(), dateFrom.Month(), dateFrom.Day(), 0, 0, 0, 0, dateFrom.Location())
+	dateTo = time.Date(dateTo.Year(), dateTo.Month(), dateTo.Day(), 23, 59, 59, 0, dateTo.Location())
 
 	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
 	if err != nil {

@@ -11,13 +11,13 @@ type DashboardRepositoryInterface struct {
 	mock.Mock
 }
 
-// GetBaseReport provides a mock function with given fields: _a0, _a1, _a2
-func (_m *DashboardRepositoryInterface) GetBaseReport(_a0 context.Context, _a1 string, _a2 string) (*billingpb.DashboardBaseReports, error) {
-	ret := _m.Called(_a0, _a1, _a2)
+// GetBaseReport provides a mock function with given fields: ctx, merchantId, period
+func (_m *DashboardRepositoryInterface) GetBaseReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardBaseReports, error) {
+	ret := _m.Called(ctx, merchantId, period)
 
 	var r0 *billingpb.DashboardBaseReports
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) *billingpb.DashboardBaseReports); ok {
-		r0 = rf(_a0, _a1, _a2)
+		r0 = rf(ctx, merchantId, period)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*billingpb.DashboardBaseReports)
@@ -26,7 +26,7 @@ func (_m *DashboardRepositoryInterface) GetBaseReport(_a0 context.Context, _a1 s
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(_a0, _a1, _a2)
+		r1 = rf(ctx, merchantId, period)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -34,13 +34,59 @@ func (_m *DashboardRepositoryInterface) GetBaseReport(_a0 context.Context, _a1 s
 	return r0, r1
 }
 
-// GetMainReport provides a mock function with given fields: _a0, _a1, _a2
-func (_m *DashboardRepositoryInterface) GetMainReport(_a0 context.Context, _a1 string, _a2 string) (*billingpb.DashboardMainReport, error) {
-	ret := _m.Called(_a0, _a1, _a2)
+// GetCustomerARPU provides a mock function with given fields: ctx, merchantId, customerId
+func (_m *DashboardRepositoryInterface) GetCustomerARPU(ctx context.Context, merchantId string, customerId string) (*billingpb.DashboardAmountItemWithChart, error) {
+	ret := _m.Called(ctx, merchantId, customerId)
+
+	var r0 *billingpb.DashboardAmountItemWithChart
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *billingpb.DashboardAmountItemWithChart); ok {
+		r0 = rf(ctx, merchantId, customerId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*billingpb.DashboardAmountItemWithChart)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, merchantId, customerId)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetCustomersReport provides a mock function with given fields: ctx, merchantId, period
+func (_m *DashboardRepositoryInterface) GetCustomersReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardCustomerReport, error) {
+	ret := _m.Called(ctx, merchantId, period)
+
+	var r0 *billingpb.DashboardCustomerReport
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *billingpb.DashboardCustomerReport); ok {
+		r0 = rf(ctx, merchantId, period)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*billingpb.DashboardCustomerReport)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, merchantId, period)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetMainReport provides a mock function with given fields: ctx, merchantId, period
+func (_m *DashboardRepositoryInterface) GetMainReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardMainReport, error) {
+	ret := _m.Called(ctx, merchantId, period)
 
 	var r0 *billingpb.DashboardMainReport
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) *billingpb.DashboardMainReport); ok {
-		r0 = rf(_a0, _a1, _a2)
+		r0 = rf(ctx, merchantId, period)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*billingpb.DashboardMainReport)
@@ -49,7 +95,7 @@ func (_m *DashboardRepositoryInterface) GetMainReport(_a0 context.Context, _a1 s
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(_a0, _a1, _a2)
+		r1 = rf(ctx, merchantId, period)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -57,13 +103,13 @@ func (_m *DashboardRepositoryInterface) GetMainReport(_a0 context.Context, _a1 s
 	return r0, r1
 }
 
-// GetRevenueDynamicsReport provides a mock function with given fields: _a0, _a1, _a2
-func (_m *DashboardRepositoryInterface) GetRevenueDynamicsReport(_a0 context.Context, _a1 string, _a2 string) (*billingpb.DashboardRevenueDynamicReport, error) {
-	ret := _m.Called(_a0, _a1, _a2)
+// GetRevenueDynamicsReport provides a mock function with given fields: ctx, merchantId, period
+func (_m *DashboardRepositoryInterface) GetRevenueDynamicsReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardRevenueDynamicReport, error) {
+	ret := _m.Called(ctx, merchantId, period)
 
 	var r0 *billingpb.DashboardRevenueDynamicReport
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) *billingpb.DashboardRevenueDynamicReport); ok {
-		r0 = rf(_a0, _a1, _a2)
+		r0 = rf(ctx, merchantId, period)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*billingpb.DashboardRevenueDynamicReport)
@@ -72,7 +118,7 @@ func (_m *DashboardRepositoryInterface) GetRevenueDynamicsReport(_a0 context.Con
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(_a0, _a1, _a2)
+		r1 = rf(ctx, merchantId, period)
 	} else {
 		r1 = ret.Error(1)
 	}

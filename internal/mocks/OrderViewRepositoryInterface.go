@@ -5,6 +5,7 @@ package mocks
 import billingpb "github.com/paysuper/paysuper-proto/go/billingpb"
 import context "context"
 import mock "github.com/stretchr/testify/mock"
+import options "go.mongodb.org/mongo-driver/mongo/options"
 import pkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 import primitive "go.mongodb.org/mongo-driver/bson/primitive"
 
@@ -52,6 +53,36 @@ func (_m *OrderViewRepositoryInterface) GetById(_a0 context.Context, _a1 string)
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(_a0, _a1)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetManyBy provides a mock function with given fields: ctx, filter, opts
+func (_m *OrderViewRepositoryInterface) GetManyBy(ctx context.Context, filter primitive.M, opts ...*options.FindOptions) ([]*billingpb.OrderViewPrivate, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, filter)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 []*billingpb.OrderViewPrivate
+	if rf, ok := ret.Get(0).(func(context.Context, primitive.M, ...*options.FindOptions) []*billingpb.OrderViewPrivate); ok {
+		r0 = rf(ctx, filter, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*billingpb.OrderViewPrivate)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, primitive.M, ...*options.FindOptions) error); ok {
+		r1 = rf(ctx, filter, opts...)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -266,13 +297,13 @@ func (_m *OrderViewRepositoryInterface) GetRoyaltyForMerchants(_a0 context.Conte
 	return r0, r1
 }
 
-// GetRoyaltySummary provides a mock function with given fields: ctx, merchantId, currency, from, to
-func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time) ([]*billingpb.RoyaltyReportProductSummaryItem, *billingpb.RoyaltyReportProductSummaryItem, []primitive.ObjectID, error) {
-	ret := _m.Called(ctx, merchantId, currency, from, to)
+// GetRoyaltySummary provides a mock function with given fields: ctx, merchantId, currency, from, to, hasExistsReportId
+func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time, hasExistsReportId bool) ([]*billingpb.RoyaltyReportProductSummaryItem, *billingpb.RoyaltyReportProductSummaryItem, []primitive.ObjectID, error) {
+	ret := _m.Called(ctx, merchantId, currency, from, to, hasExistsReportId)
 
 	var r0 []*billingpb.RoyaltyReportProductSummaryItem
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time) []*billingpb.RoyaltyReportProductSummaryItem); ok {
-		r0 = rf(ctx, merchantId, currency, from, to)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time, bool) []*billingpb.RoyaltyReportProductSummaryItem); ok {
+		r0 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*billingpb.RoyaltyReportProductSummaryItem)
@@ -280,8 +311,8 @@ func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, m
 	}
 
 	var r1 *billingpb.RoyaltyReportProductSummaryItem
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time, time.Time) *billingpb.RoyaltyReportProductSummaryItem); ok {
-		r1 = rf(ctx, merchantId, currency, from, to)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time, time.Time, bool) *billingpb.RoyaltyReportProductSummaryItem); ok {
+		r1 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*billingpb.RoyaltyReportProductSummaryItem)
@@ -289,8 +320,8 @@ func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, m
 	}
 
 	var r2 []primitive.ObjectID
-	if rf, ok := ret.Get(2).(func(context.Context, string, string, time.Time, time.Time) []primitive.ObjectID); ok {
-		r2 = rf(ctx, merchantId, currency, from, to)
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, time.Time, time.Time, bool) []primitive.ObjectID); ok {
+		r2 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
 	} else {
 		if ret.Get(2) != nil {
 			r2 = ret.Get(2).([]primitive.ObjectID)
@@ -298,8 +329,49 @@ func (_m *OrderViewRepositoryInterface) GetRoyaltySummary(ctx context.Context, m
 	}
 
 	var r3 error
-	if rf, ok := ret.Get(3).(func(context.Context, string, string, time.Time, time.Time) error); ok {
-		r3 = rf(ctx, merchantId, currency, from, to)
+	if rf, ok := ret.Get(3).(func(context.Context, string, string, time.Time, time.Time, bool) error); ok {
+		r3 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
+	} else {
+		r3 = ret.Error(3)
+	}
+
+	return r0, r1, r2, r3
+}
+
+// GetRoyaltySummaryRoundedAmounts provides a mock function with given fields: ctx, merchantId, currency, from, to, hasExistsReportId
+func (_m *OrderViewRepositoryInterface) GetRoyaltySummaryRoundedAmounts(ctx context.Context, merchantId string, currency string, from time.Time, to time.Time, hasExistsReportId bool) ([]*billingpb.RoyaltyReportProductSummaryItem, *billingpb.RoyaltyReportProductSummaryItem, []primitive.ObjectID, error) {
+	ret := _m.Called(ctx, merchantId, currency, from, to, hasExistsReportId)
+
+	var r0 []*billingpb.RoyaltyReportProductSummaryItem
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, time.Time, time.Time, bool) []*billingpb.RoyaltyReportProductSummaryItem); ok {
+		r0 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*billingpb.RoyaltyReportProductSummaryItem)
+		}
+	}
+
+	var r1 *billingpb.RoyaltyReportProductSummaryItem
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, time.Time, time.Time, bool) *billingpb.RoyaltyReportProductSummaryItem); ok {
+		r1 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*billingpb.RoyaltyReportProductSummaryItem)
+		}
+	}
+
+	var r2 []primitive.ObjectID
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, time.Time, time.Time, bool) []primitive.ObjectID); ok {
+		r2 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
+	} else {
+		if ret.Get(2) != nil {
+			r2 = ret.Get(2).([]primitive.ObjectID)
+		}
+	}
+
+	var r3 error
+	if rf, ok := ret.Get(3).(func(context.Context, string, string, time.Time, time.Time, bool) error); ok {
+		r3 = rf(ctx, merchantId, currency, from, to, hasExistsReportId)
 	} else {
 		r3 = ret.Error(3)
 	}
@@ -397,18 +469,4 @@ func (_m *OrderViewRepositoryInterface) GetVatSummary(_a0 context.Context, _a1 s
 	}
 
 	return r0, r1
-}
-
-// MarkIncludedToRoyaltyReport provides a mock function with given fields: ctx, ordersIds, royaltyReportId
-func (_m *OrderViewRepositoryInterface) MarkIncludedToRoyaltyReport(ctx context.Context, ordersIds []primitive.ObjectID, royaltyReportId string) error {
-	ret := _m.Called(ctx, ordersIds, royaltyReportId)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []primitive.ObjectID, string) error); ok {
-		r0 = rf(ctx, ordersIds, royaltyReportId)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
 }

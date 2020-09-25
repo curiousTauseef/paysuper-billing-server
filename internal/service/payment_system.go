@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"sync"
 )
 
@@ -29,8 +30,12 @@ var (
 	paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid = newBillingServerErrorMsg("ph000012", "amount or currency from request not match with value in refund")
 	paymentSystemErrorRequestTemporarySkipped                = newBillingServerErrorMsg("ph000013", "notification skipped with temporary status")
 	paymentSystemErrorRecurringFailed                        = newBillingServerErrorMsg("ph000014", "recurring payment failed")
+	paymentSystemErrorCreateRecurringPlanFailed              = newBillingServerErrorMsg("ph000015", "create recurring plan failed")
+	paymentSystemErrorCreateRecurringSubscriptionFailed      = newBillingServerErrorMsg("ph000016", "create recurring subscription failed")
+	paymentSystemErrorDeleteRecurringPlanFailed              = newBillingServerErrorMsg("ph000017", "delete recurring plan failed")
+	paymentSystemErrorUpdateRecurringSubscriptionFailed      = newBillingServerErrorMsg("ph000018", "update recurring subscription failed")
 
-	registry = map[string]func() Gate{
+	registry = map[string]func() GateInterface{
 		billingpb.PaymentSystemHandlerCardPay: newCardPayHandler,
 		paymentSystemHandlerMockOk:            NewPaymentSystemMockOk,
 		paymentSystemHandlerMockError:         NewPaymentSystemMockError,
@@ -38,28 +43,31 @@ var (
 	}
 )
 
-type Gate interface {
+type GateInterface interface {
 	CreatePayment(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) (string, error)
 	ProcessPayment(order *billingpb.Order, message proto.Message, raw, signature string) error
 	IsRecurringCallback(request proto.Message) bool
 	GetRecurringId(request proto.Message) string
 	CreateRefund(order *billingpb.Order, refund *billingpb.Refund) error
 	ProcessRefund(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error
+	CreateRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription, successUrl, failUrl string, requisites map[string]string) (string, error)
+	IsSubscriptionCallback(request proto.Message) bool
+	DeleteRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription) error
 }
 
 type Gateway struct {
-	gateways map[string]Gate
+	gateways map[string]GateInterface
 	mx       sync.Mutex
 }
 
 func (s *Service) newPaymentSystemGateway() *Gateway {
 	paymentSystem := &Gateway{
-		gateways: make(map[string]Gate),
+		gateways: make(map[string]GateInterface),
 	}
 	return paymentSystem
 }
 
-func (m *Gateway) getGateway(name string) (Gate, error) {
+func (m *Gateway) getGateway(name string) (GateInterface, error) {
 	initFn, ok := registry[name]
 
 	if !ok {

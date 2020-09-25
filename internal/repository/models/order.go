@@ -266,15 +266,16 @@ func (o *orderMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
 		}
 
 		st.PaymentMethod = &MgoOrderPaymentMethod{
-			Id:              paymentMethodOid,
-			Name:            m.PaymentMethod.Name,
-			ExternalId:      m.PaymentMethod.ExternalId,
-			Params:          m.PaymentMethod.Params,
-			PaymentSystemId: paymentSystemOid,
-			Group:           m.PaymentMethod.Group,
-			Saved:           m.PaymentMethod.Saved,
-			Handler:         m.PaymentMethod.Handler,
-			RefundAllowed:   m.PaymentMethod.RefundAllowed,
+			Id:               paymentMethodOid,
+			Name:             m.PaymentMethod.Name,
+			ExternalId:       m.PaymentMethod.ExternalId,
+			Params:           m.PaymentMethod.Params,
+			PaymentSystemId:  paymentSystemOid,
+			Group:            m.PaymentMethod.Group,
+			Saved:            m.PaymentMethod.Saved,
+			Handler:          m.PaymentMethod.Handler,
+			RefundAllowed:    m.PaymentMethod.RefundAllowed,
+			RecurringAllowed: m.PaymentMethod.RecurringAllowed,
 		}
 
 		if m.PaymentMethod.Card != nil {

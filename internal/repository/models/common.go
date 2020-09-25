@@ -36,18 +36,19 @@ type MgoOrderProject struct {
 }
 
 type MgoOrderPaymentMethod struct {
-	Id              primitive.ObjectID             `bson:"_id" faker:"objectId"`
-	Name            string                         `bson:"name"`
-	Handler         string                         `bson:"handler"`
-	ExternalId      string                         `bson:"external_id"`
-	Params          *billingpb.PaymentMethodParams `bson:"params"`
-	PaymentSystemId primitive.ObjectID             `bson:"payment_system_id" faker:"objectId"`
-	Group           string                         `bson:"group_alias"`
-	Saved           bool                           `bson:"saved"`
-	Card            *billingpb.PaymentMethodCard   `bson:"card,omitempty"`
-	Wallet          *billingpb.PaymentMethodWallet `bson:"wallet,omitempty"`
-	CryptoCurrency  *billingpb.PaymentMethodCrypto `bson:"crypto_currency,omitempty"`
-	RefundAllowed   bool                           `bson:"refund_allowed"`
+	Id               primitive.ObjectID             `bson:"_id" faker:"objectId"`
+	Name             string                         `bson:"name"`
+	Handler          string                         `bson:"handler"`
+	ExternalId       string                         `bson:"external_id"`
+	Params           *billingpb.PaymentMethodParams `bson:"params"`
+	PaymentSystemId  primitive.ObjectID             `bson:"payment_system_id" faker:"objectId"`
+	Group            string                         `bson:"group_alias"`
+	Saved            bool                           `bson:"saved"`
+	Card             *billingpb.PaymentMethodCard   `bson:"card,omitempty"`
+	Wallet           *billingpb.PaymentMethodWallet `bson:"wallet,omitempty"`
+	CryptoCurrency   *billingpb.PaymentMethodCrypto `bson:"crypto_currency,omitempty"`
+	RefundAllowed    bool                           `bson:"refund_allowed"`
+	RecurringAllowed bool                           `bson:"recurring_allowed"`
 }
 
 type MgoOrderItem struct {
@@ -73,15 +74,16 @@ func getPaymentMethodOrder(in *MgoOrderPaymentMethod) *billingpb.PaymentMethodOr
 	}
 
 	result := &billingpb.PaymentMethodOrder{
-		Id:              in.Id.Hex(),
-		Name:            in.Name,
-		ExternalId:      in.ExternalId,
-		Params:          in.Params,
-		PaymentSystemId: in.PaymentSystemId.Hex(),
-		Group:           in.Group,
-		Saved:           in.Saved,
-		RefundAllowed:   in.RefundAllowed,
-		Handler:         in.Handler,
+		Id:               in.Id.Hex(),
+		Name:             in.Name,
+		ExternalId:       in.ExternalId,
+		Params:           in.Params,
+		PaymentSystemId:  in.PaymentSystemId.Hex(),
+		Group:            in.Group,
+		Saved:            in.Saved,
+		RefundAllowed:    in.RefundAllowed,
+		Handler:          in.Handler,
+		RecurringAllowed: in.RecurringAllowed,
 	}
 
 	if in.Card != nil {

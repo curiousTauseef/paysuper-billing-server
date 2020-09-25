@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
 )
@@ -237,8 +238,11 @@ func (r customerRepository) Find(ctx context.Context, merchantId string, user *b
 }
 
 func (r *customerRepository) FindAll(ctx context.Context) ([]*billingpb.Customer, error) {
-	query := bson.M{}
-	cursor, err := r.db.Collection(collectionCustomer).Find(ctx, query)
+	return r.FindBy(ctx, bson.M{})
+}
+
+func (r *customerRepository) FindBy(ctx context.Context, query bson.M, opts ...*options.FindOptions) ([]*billingpb.Customer, error) {
+	cursor, err := r.db.Collection(collectionCustomer).Find(ctx, query, opts...)
 
 	if err != nil {
 		zap.L().Error(

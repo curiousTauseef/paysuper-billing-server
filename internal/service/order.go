@@ -131,6 +131,10 @@ var (
 	orderErrorVatPayerUnknown                                 = newBillingServerErrorMsg("fm000079", "vat payer unknown")
 	orderErrorCookieIsEmpty                                   = newBillingServerErrorMsg("fm000080", "can't get payment cookie")
 	orderErrorCookieInvalid                                   = newBillingServerErrorMsg("fm000081", "unable to read payment cookie")
+	orderErrorRecurringNotAllowed                             = newBillingServerErrorMsg("fm000082", "payment method not allowed recurring payments")
+	orderErrorRecurringDateEndInvalid                         = newBillingServerErrorMsg("fm000083", "invalid the end date of recurring payments")
+	orderErrorRecurringDateEndOutOfRange                      = newBillingServerErrorMsg("fm000084", "subscription period cannot be less than the selected period and more than one year")
+	orderErrorRecurringAlreadyExists                          = newBillingServerErrorMsg("fm000085", "recurring subscription already exists")
 
 	virtualCurrencyPayoutCurrencyMissed = newBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
@@ -157,6 +161,9 @@ type orderCreateRequestProcessorChecked struct {
 	priceGroup              *billingpb.PriceGroup
 	isCurrencyPredefined    bool
 	isBuyForVirtualCurrency bool
+	recurringPeriod         string
+	recurringInterval       int32
+	recurringDateEnd        string
 }
 
 type OrderCreateRequestProcessor struct {
@@ -500,6 +507,18 @@ func (s *Service) OrderCreateProcess(
 		}
 	}
 
+	if req.RecurringPeriod != "" {
+		if err := processor.processRecurringSettings(); err != nil {
+			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				rsp.Status = billingpb.ResponseStatusBadData
+				rsp.Message = e
+				return nil
+			}
+			return err
+		}
+	}
+
 	processor.processMetadata()
 	processor.processPrivateMetadata()
 
@@ -610,8 +629,10 @@ func (s *Service) PaymentFormJsonDataProcess(
 		UpdatedAt:      time.Now(),
 	}
 
+	var customer *billingpb.Customer
+
 	if isIdentified == true {
-		customer, err := s.processCustomerData(ctx, order.User.Id, order, req, browserCustomer, loc)
+		customer, err = s.processCustomerData(ctx, order.User.Id, order, req, browserCustomer, loc)
 
 		if err == nil {
 			browserCustomer.CustomerId = customer.Id
@@ -626,7 +647,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 				}
 
 				if decryptedBrowserCustomer.CustomerId != "" {
-					customer, err := s.processCustomerData(
+					customer, err = s.processCustomerData(
 						ctx,
 						decryptedBrowserCustomer.CustomerId,
 						order,
@@ -643,6 +664,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 						browserCustomer = decryptedBrowserCustomer
 						order.User.Id = customer.Id
 						order.User.TechEmail = customer.TechEmail
+						order.User.Uuid = customer.Uuid
 					} else {
 						browserCustomer.VirtualCustomerId = s.getTokenString(s.cfg.Length)
 					}
@@ -678,6 +700,27 @@ func (s *Service) PaymentFormJsonDataProcess(
 
 		if order.User.TechEmail == "" {
 			order.User.TechEmail = order.User.Id + pkg.TechEmailDomain
+		}
+	}
+
+	if order.PaymentMethod != nil && order.PaymentMethod.RecurringAllowed && customer != nil && customer.Id != "" {
+		req := &recurringpb.FindSubscriptionsRequest{
+			CustomerId: customer.Id,
+		}
+
+		subscriptions, err := s.rep.FindSubscriptions(ctx, req)
+
+		if err != nil {
+			zap.L().Error(
+				pkg.ErrorGrpcServiceCallFailed,
+				zap.Error(err),
+				zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+				zap.String(errorFieldMethod, "FindSubscriptions"),
+			)
+		}
+
+		if len(subscriptions.List) > 0 {
+			rsp.Item.RecurringManagementUrl = fmt.Sprintf("%s/subscriptions/%s", s.cfg.CheckoutUrl, customer.Uuid)
 		}
 	}
 
@@ -853,6 +896,10 @@ func (s *Service) fillPaymentFormJsonData(order *billingpb.Order, rsp *billingpb
 	rsp.Item.Lang = order.User.Locale
 	rsp.Item.VatPayer = order.VatPayer
 	rsp.Item.IsProduction = order.IsProduction
+
+	if order.RecurringSettings != nil {
+		rsp.Item.RecurringSettings = order.RecurringSettings
+	}
 }
 
 func (s *Service) PaymentCreateProcess(
@@ -894,15 +941,22 @@ func (s *Service) PaymentCreateProcess(
 
 	order := processor.checked.order
 
-	if decryptedBrowserCustomer.CustomerId == "" && order.User.Uuid != "" {
+	if decryptedBrowserCustomer.CustomerId == "" {
 		decryptedBrowserCustomer.CustomerId = order.User.Id
 	}
 
 	cookie, err := s.generateBrowserCookie(decryptedBrowserCustomer)
 
-	if err == nil {
-		rsp.Cookie = cookie
+	if err != nil {
+		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+			rsp.Status = billingpb.ResponseStatusBadData
+			rsp.Message = e
+			return nil
+		}
 	}
+
+	rsp.Cookie = cookie
 
 	if !order.CountryRestriction.PaymentsAllowed {
 		rsp.Message = orderCountryPaymentRestrictedError
@@ -963,13 +1017,14 @@ func (s *Service) PaymentCreateProcess(
 	}
 
 	order.PaymentMethod = &billingpb.PaymentMethodOrder{
-		Id:              processor.checked.paymentMethod.Id,
-		Name:            processor.checked.paymentMethod.Name,
-		PaymentSystemId: ps.Id,
-		Group:           processor.checked.paymentMethod.Group,
-		ExternalId:      processor.checked.paymentMethod.ExternalId,
-		Handler:         ps.Handler,
-		RefundAllowed:   processor.checked.paymentMethod.RefundAllowed,
+		Id:               processor.checked.paymentMethod.Id,
+		Name:             processor.checked.paymentMethod.Name,
+		PaymentSystemId:  ps.Id,
+		Group:            processor.checked.paymentMethod.Group,
+		ExternalId:       processor.checked.paymentMethod.ExternalId,
+		Handler:          ps.Handler,
+		RefundAllowed:    processor.checked.paymentMethod.RefundAllowed,
+		RecurringAllowed: processor.checked.paymentMethod.RecurringAllowed,
 	}
 
 	err = s.setOrderChargeAmountAndCurrency(ctx, order)
@@ -1071,23 +1126,49 @@ func (s *Service) PaymentCreateProcess(
 		return err
 	}
 
-	url, err := h.CreatePayment(order, s.cfg.GetRedirectUrlSuccess(nil), s.cfg.GetRedirectUrlFail(nil), req.Data)
+	var url string
 
-	if err != nil {
-		zap.L().Error(
-			"h.CreatePayment Method failed",
-			zap.Error(err),
-			zap.Any("order", order),
-		)
-		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
-			rsp.Status = billingpb.ResponseStatusSystemError
-			rsp.Message = e
-			return nil
-		} else {
-			rsp.Message = orderErrorUnknown
-			rsp.Status = billingpb.ResponseStatusBadData
+	if order.PaymentMethod.RecurringAllowed && order.RecurringSettings != nil && order.User.Uuid != "" {
+		var subscription *recurringpb.Subscription
+
+		subscription, url, err = s.addRecurringSubscription(ctx, order, h, req.Data)
+
+		if err != nil {
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				rsp.Status = billingpb.ResponseStatusSystemError
+				rsp.Message = e
+				return nil
+			}
+			return err
 		}
-		return nil
+
+		order.Recurring = true
+		order.RecurringId = subscription.Id
+		rsp.RecurringExpireDate = subscription.ExpireAt
+	} else {
+		url, err = h.CreatePayment(
+			order,
+			s.cfg.GetRedirectUrlSuccess(nil),
+			s.cfg.GetRedirectUrlFail(nil),
+			req.Data,
+		)
+
+		if err != nil {
+			zap.L().Error(
+				"h.CreatePayment Method failed",
+				zap.Error(err),
+				zap.Any("order", order),
+			)
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				rsp.Status = billingpb.ResponseStatusSystemError
+				rsp.Message = e
+				return nil
+			} else {
+				rsp.Message = orderErrorUnknown
+				rsp.Status = billingpb.ResponseStatusBadData
+			}
+			return nil
+		}
 	}
 
 	err = s.updateOrder(ctx, order)
@@ -1276,6 +1357,56 @@ func (s *Service) PaymentCallbackProcess(
 		}
 
 		rsp.Status = pkg.StatusOK
+	}
+
+	if h.IsSubscriptionCallback(data) && order.Recurring {
+		subscription, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{Id: order.RecurringId})
+
+		if err != nil || subscription.Status != billingpb.ResponseStatusOk {
+			zap.L().Error(
+				pkg.MethodFinishedWithError,
+				zap.String("Method", "GetSubscription"),
+				zap.Error(err),
+				zap.String("orderId", order.Id),
+				zap.String("subscriptionId", order.RecurringId),
+			)
+			return err
+		}
+
+		if pErr != nil || order.PrivateStatus != recurringpb.OrderStatusPaymentSystemComplete {
+			err = h.DeleteRecurringSubscription(order, subscription.Subscription)
+
+			if err != nil {
+				zap.L().Error(
+					pkg.MethodFinishedWithError,
+					zap.String("Method", "DeleteRecurringSubscription"),
+					zap.Error(err),
+					zap.String("orderId", order.Id),
+					zap.String("subscriptionId", order.RecurringId),
+					zap.String("planId", subscription.Subscription.CardpaySubscriptionId),
+				)
+				return err
+			}
+		} else {
+			t := time.Now().UTC()
+			latestPayment, _ := ptypes.TimestampProto(time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, t.Location()))
+
+			subscription.Subscription.IsActive = true
+			subscription.Subscription.LastPaymentAt = latestPayment
+			rsp, err := s.rep.UpdateSubscription(ctx, subscription.Subscription)
+
+			if err != nil || rsp.Status != billingpb.ResponseStatusOk {
+				zap.L().Error(
+					pkg.MethodFinishedWithError,
+					zap.String("Method", "UpdateSubscription"),
+					zap.Error(err),
+					zap.String("orderId", order.Id),
+					zap.String("subscriptionId", order.RecurringId),
+					zap.String("planId", subscription.Subscription.CardpaySubscriptionId),
+				)
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -2254,10 +2385,11 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 		}
 
 		order.PaymentMethod = &billingpb.PaymentMethodOrder{
-			Id:              v.checked.paymentMethod.Id,
-			Name:            v.checked.paymentMethod.Name,
-			PaymentSystemId: ps.Id,
-			Group:           v.checked.paymentMethod.Group,
+			Id:               v.checked.paymentMethod.Id,
+			Name:             v.checked.paymentMethod.Name,
+			PaymentSystemId:  ps.Id,
+			Group:            v.checked.paymentMethod.Group,
+			RecurringAllowed: v.checked.paymentMethod.RecurringAllowed,
 		}
 
 		methodName, err := order.GetCostPaymentMethodName()
@@ -2284,6 +2416,14 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 	}
 
 	order.ExpireDateToFormInput, _ = ptypes.TimestampProto(time.Now().Add(time.Minute * defaultExpireDateToFormInput))
+
+	if v.checked.recurringPeriod != "" {
+		order.RecurringSettings = &billingpb.OrderRecurringSettings{
+			Period:   v.checked.recurringPeriod,
+			Interval: v.checked.recurringInterval,
+			DateEnd:  v.checked.recurringDateEnd,
+		}
+	}
 
 	return order, nil
 }
@@ -2560,6 +2700,81 @@ func (v *OrderCreateRequestProcessor) processLimitAmounts() (err error) {
 			return orderErrorAmountGreaterThanMaxAllowedPaymentMethod
 		}
 	}
+
+	return
+}
+
+func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
+	if v.request.RecurringPeriod == "" {
+		return nil
+	}
+
+	if v.checked.paymentMethod != nil && !v.checked.paymentMethod.RecurringAllowed {
+		return orderErrorRecurringNotAllowed
+	}
+
+	currentTime := time.Now()
+	dateEnd := currentTime.AddDate(1, 0, 0).UTC()
+
+	if v.request.RecurringDateEnd != "" {
+		inputDateEnd, err := time.Parse(billingpb.FilterDateFormat, v.request.RecurringDateEnd)
+
+		if err != nil {
+			return orderErrorRecurringDateEndInvalid
+		}
+
+		switch v.request.RecurringPeriod {
+		case recurringpb.RecurringPeriodDay:
+			currentTime = currentTime.AddDate(0, 0, 1)
+			break
+		case recurringpb.RecurringPeriodWeek:
+			currentTime = currentTime.AddDate(0, 0, 7)
+			break
+		case recurringpb.RecurringPeriodMonth:
+			currentTime = currentTime.AddDate(0, 1, 0)
+			break
+		case recurringpb.RecurringPeriodYear:
+			currentTime = currentTime.AddDate(1, 0, 0)
+			break
+		}
+
+		dateEnd = inputDateEnd.UTC()
+	}
+
+	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), dateEnd.Hour(), dateEnd.Minute(), dateEnd.Second(), 0, dateEnd.Location())
+	current := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, dateEnd.Location())
+	var interval float64
+	delta := dateEnd.Sub(current).Hours()
+
+	switch v.request.RecurringPeriod {
+	case recurringpb.RecurringPeriodDay:
+		interval = delta / 24
+		break
+	case recurringpb.RecurringPeriodWeek:
+		interval = delta / 24 / 7
+		break
+	case recurringpb.RecurringPeriodMonth:
+		interval = (delta / 24 / 365) * 12
+		break
+	case recurringpb.RecurringPeriodYear:
+		interval = delta / 24 / 365
+		break
+	}
+
+	interval = math.Floor(interval)
+	totalDays := math.Floor(delta / 24)
+
+	if interval < 1 || totalDays > 365 ||
+		(v.request.RecurringPeriod == recurringpb.RecurringPeriodDay && interval > 365) ||
+		(v.request.RecurringPeriod == recurringpb.RecurringPeriodWeek && interval > 52) ||
+		(v.request.RecurringPeriod == recurringpb.RecurringPeriodMonth && interval > 12) ||
+		(v.request.RecurringPeriod == recurringpb.RecurringPeriodYear && interval > 1) {
+		return orderErrorRecurringDateEndOutOfRange
+	}
+
+	v.checked.recurringPeriod = v.request.RecurringPeriod
+	v.checked.recurringInterval = int32(interval)
+	v.checked.recurringDateEnd = dateEnd.Format(billingpb.FilterDateFormat)
 
 	return
 }
@@ -3097,7 +3312,17 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 		return orderCountryPaymentRestrictedError
 	}
 
-	if order.User.Uuid != "" {
+	var customer *billingpb.Customer
+
+	if helper.IsIdentified(order.User.Id) == true {
+		customer, _ = v.service.customerRepository.GetById(ctx, order.User.Id)
+
+		if customer != nil && customer.Email != order.User.Email {
+			customer = nil
+		}
+	}
+
+	if customer != nil {
 		customer, err := v.service.updateCustomerFromRequest(ctx, order, updCustomerReq, v.ip, v.acceptLanguage, v.userAgent)
 
 		if err != nil {
@@ -3210,6 +3435,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 	}
 
 	methodName, err := order.GetCostPaymentMethodName()
+
 	if err == nil {
 		order.PaymentMethod.Params, err = v.service.getPaymentSettings(
 			pm,
@@ -4817,6 +5043,81 @@ func (s *Service) processKeyProducts(
 	items, err = s.GetOrderKeyProductsItems(orderProducts, locale, usedPriceGroup, platformId)
 
 	return
+}
+
+func (s *Service) addRecurringSubscription(
+	ctx context.Context, order *billingpb.Order, h GateInterface, data map[string]string,
+) (*recurringpb.Subscription, string, error) {
+	maskedPan := ""
+
+	if order.PaymentMethod.ExternalId == recurringpb.PaymentSystemGroupAliasBankCard {
+		maskedPan = stringTools.MaskBankCardNumber(data[billingpb.PaymentCreateFieldPan])
+	}
+
+	expireAt, _ := time.Parse(billingpb.FilterDateFormat, order.RecurringSettings.DateEnd)
+	expireAt = time.Date(expireAt.Year(), expireAt.Month(), expireAt.Day(), 23, 59, 59, 0, expireAt.Location())
+	tsExpireAt, _ := ptypes.TimestampProto(expireAt)
+
+	subscription := &recurringpb.Subscription{
+		MerchantId:   order.Project.MerchantId,
+		ProjectId:    order.Project.Id,
+		CustomerId:   order.User.Id,
+		CustomerUuid: order.User.Uuid,
+		MaskedPan:    maskedPan,
+		CustomerInfo: &recurringpb.CustomerInfo{
+			ExternalId: order.User.ExternalId,
+			Email:      order.User.Email,
+			Phone:      order.User.Phone,
+		},
+		IsActive: false,
+		Period:   order.RecurringSettings.Period,
+		ExpireAt: tsExpireAt,
+		Amount:   order.TotalPaymentAmount,
+		Currency: order.Currency,
+	}
+
+	switch order.ProductType {
+	case pkg.OrderType_product:
+		subscription.ItemType = pkg.OrderType_product
+		subscription.ItemList = order.Products
+		break
+	case pkg.OrderType_key:
+		subscription.ItemType = pkg.OrderType_key
+		subscription.ItemList = order.Keys
+		break
+	}
+
+	url, err := h.CreateRecurringSubscription(
+		order,
+		subscription,
+		s.cfg.GetRedirectUrlSuccess(nil),
+		s.cfg.GetRedirectUrlFail(nil),
+		data,
+	)
+
+	if err != nil {
+		zap.L().Error(
+			"h.CreateRecurringSubscription Method failed",
+			zap.Error(err),
+			zap.Any("order", order),
+		)
+		return nil, "", err
+	}
+
+	res, err := s.rep.AddSubscription(ctx, subscription)
+
+	if err != nil || res.Status != billingpb.ResponseStatusOk {
+		zap.L().Error(
+			"Unable to add recurring subscription",
+			zap.Error(err),
+			zap.Any("subscription", subscription),
+		)
+		return nil, "", orderErrorUnknown
+	}
+
+	subscription.Id = res.SubscriptionId
+
+	return subscription, url, nil
 }
 
 // Set caption for redirect button in payment form

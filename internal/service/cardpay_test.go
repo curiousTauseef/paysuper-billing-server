@@ -1,10 +1,12 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+	"io/ioutil"
 	"testing"
 )
 
@@ -77,7 +80,7 @@ type CardPayTestSuite struct {
 	suite.Suite
 
 	cfg          *config.Config
-	handler      Gate
+	handler      GateInterface
 	typedHandler *cardPay
 	logObserver  *zap.Logger
 	zapRecorder  *observer.ObservedLogs
@@ -136,4 +139,135 @@ func (suite *CardPayTestSuite) TestCardPay_CreatePayment_Mock_Ok() {
 	)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), url)
+}
+
+func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_WithData_Ok() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
+		ApiUrl:     "http://127.0.0.1",
+		TerminalId: "test",
+	}}}
+	data := &CardPayRecurringPlan{Id: "planId"}
+	req, err := suite.typedHandler.getRequestWithAuth(order, data, pkg.PaymentSystemActionCreatePayment)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), req.Body)
+
+	body := &CardPayRecurringPlan{}
+	b, err := ioutil.ReadAll(req.Body)
+	assert.NoError(suite.T(), err)
+
+	err = json.Unmarshal(b, &body)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), data.Id, body.Id)
+}
+
+func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_WithUrlParams_Ok() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
+		ApiUrl:     "http://127.0.0.1",
+		TerminalId: "test",
+	}}}
+	action := pkg.PaymentSystemActionDeleteRecurringPlan
+	planId := "id"
+	req, err := suite.typedHandler.getRequestWithAuth(order, nil, action, planId)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), fmt.Sprintf(pkg.CardPayPaths[action].Path, planId), req.URL.Path)
+}
+
+func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_InvalidAction() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
+		ApiUrl:     "http://127.0.0.1",
+		TerminalId: "test",
+	}}}
+	_, err := suite.typedHandler.getRequestWithAuth(order, nil, "action")
+	assert.Error(suite.T(), err)
+}
+
+func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_InvalidApiUrl() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
+		ApiUrl:     "",
+		TerminalId: "test",
+	}}}
+	_, err := suite.typedHandler.getRequestWithAuth(order, nil, pkg.PaymentSystemActionDeleteRecurringPlan)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_CheckAuthHeader_Ok() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
+		ApiUrl:     "http://127.0.0.1",
+		TerminalId: "test",
+	}}}
+	req, err := suite.typedHandler.getRequestWithAuth(order, nil, pkg.PaymentSystemActionDeleteRecurringPlan)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), req.Header.Get(HeaderAuthorization))
+}
+
+func (suite *CardPayTestSuite) TestCardPay_IsSubscriptionCallback_True() {
+	req := &billingpb.CardPayPaymentCallback{RecurringData: &billingpb.CardPayCallbackRecurringData{
+		Subscription: &billingpb.CardPayCallbackRecurringDataSubscription{Id: "id"},
+	}}
+	assert.True(suite.T(), suite.handler.IsSubscriptionCallback(req))
+}
+
+func (suite *CardPayTestSuite) TestCardPay_IsSubscriptionCallback_False() {
+	req := &billingpb.CardPayPaymentCallback{RecurringData: &billingpb.CardPayCallbackRecurringData{}}
+	assert.False(suite.T(), suite.handler.IsSubscriptionCallback(req))
+}
+
+func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_Ok() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient.Transport = &mocks.TransportCardPayRecurringPlanOk{}
+
+	order := orderSimpleBankCard
+	order.RecurringSettings = &billingpb.OrderRecurringSettings{Period: recurringpb.RecurringPeriodDay}
+	subscription := &recurringpb.Subscription{}
+
+	url, err := suite.handler.CreateRecurringSubscription(
+		order,
+		subscription,
+		suite.cfg.GetRedirectUrlSuccess(nil),
+		suite.cfg.GetRedirectUrlFail(nil),
+		bankCardRequisites,
+	)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), url)
+	assert.NotEmpty(suite.T(), subscription.CardpayPlanId)
+	assert.NotEmpty(suite.T(), subscription.CardpaySubscriptionId)
+}
+
+func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_InactivePlan() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient.Transport = &mocks.TransportCardPayRecurringPlanInactive{}
+
+	order := orderSimpleBankCard
+	order.RecurringSettings = &billingpb.OrderRecurringSettings{Period: recurringpb.RecurringPeriodDay}
+	subscription := &recurringpb.Subscription{}
+
+	_, err := suite.handler.CreateRecurringSubscription(
+		order,
+		subscription,
+		suite.cfg.GetRedirectUrlSuccess(nil),
+		suite.cfg.GetRedirectUrlFail(nil),
+		bankCardRequisites,
+	)
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), paymentSystemErrorCreateRecurringPlanFailed, err)
+}
+
+func (suite *CardPayTestSuite) TestCardPay_DeleteRecurringSubscription_Ok() {
+	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+
+	subscription := &recurringpb.Subscription{
+		CardpayPlanId:         "planId",
+		CardpaySubscriptionId: "subscriptionId",
+	}
+
+	err := suite.handler.DeleteRecurringSubscription(
+		orderSimpleBankCard,
+		subscription,
+	)
+	assert.NoError(suite.T(), err)
 }

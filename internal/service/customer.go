@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -221,5 +222,107 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 
 	zap.L().Info("migration ended", zap.Int("customers", len(customers)))
 
+	return nil
+}
+
+func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustomerInfoRequest, rsp *billingpb.GetCustomerInfoResponse) error {
+	customer, err := s.customerRepository.GetById(ctx, req.UserId)
+
+	rsp.Status = billingpb.ResponseStatusSystemError
+
+	if err != nil {
+		zap.L().Error("can't get customer", zap.Error(err))
+		return nil
+	}
+
+	// Protect. Do not send info that not needed
+	customer.PaymentActivity = nil
+	customer.Identity = nil
+
+	rsp.Item = customer
+	rsp.Status = billingpb.ResponseStatusOk
+
+	return nil
+}
+func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustomersRequest, rsp *billingpb.ListCustomersResponse) error {
+	query := bson.M{}
+
+	rsp.Status = billingpb.ResponseStatusSystemError
+
+	if len(req.MerchantId) > 0 {
+		merchantOid, err := primitive.ObjectIDFromHex(req.MerchantId)
+
+		if err != nil {
+			return err
+		}
+
+		query["payment_activity"] = bson.M{
+			"$elemMatch": bson.M{
+				"merchant_id": merchantOid,
+			},
+		}
+	}
+
+	opts := options.Find()
+	opts = opts.SetLimit(req.Limit)
+
+	customers, err := s.customerRepository.FindBy(ctx, query)
+	if err != nil {
+		zap.L().Error("can't get customers", zap.Error(err), zap.Any("req", req))
+		return err
+	}
+
+	result := make([]*billingpb.ShortCustomerInfo, len(customers))
+	for i, customer := range customers {
+		shortCustomer := &billingpb.ShortCustomerInfo{
+			Id:         customer.Id,
+			ExternalId: customer.ExternalId,
+			Country:    customer.Address.Country,
+			Language:   customer.Locale,
+			LastOrder:  &timestamp.Timestamp{},
+		}
+
+		for key, activityItem := range customer.PaymentActivity {
+			if (len(req.MerchantId) > 0 && key == req.MerchantId) || len(req.MerchantId) == 0 {
+				shortCustomer.Orders += activityItem.Count.Payment
+				if activityItem.Revenue != nil {
+					shortCustomer.Revenue += activityItem.Revenue.Payment
+				}
+
+				if activityItem.LastTxnAt != nil && activityItem.LastTxnAt.Payment != nil && shortCustomer.LastOrder.Seconds < activityItem.LastTxnAt.Payment.Seconds {
+					shortCustomer.LastOrder = activityItem.LastTxnAt.Payment
+				}
+			}
+		}
+
+		result[i] = shortCustomer
+	}
+
+	rsp.Items = result
+	rsp.Status = billingpb.ResponseStatusOk
+
+	return nil
+}
+
+func (s *Service) DeserializeCookie(ctx context.Context, req *billingpb.DeserializeCookieRequest, rsp *billingpb.DeserializeCookieResponse) error {
+	browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+	rsp.Status = billingpb.ResponseStatusBadData
+
+	if err != nil {
+		return nil
+	}
+
+	rsp.Item = &billingpb.BrowserCookie{
+		CustomerId:        browserCookie.CustomerId,
+		VirtualCustomerId: browserCookie.VirtualCustomerId,
+		Ip:                browserCookie.Ip,
+		IpCountry:         browserCookie.IpCountry,
+		SelectedCountry:   browserCookie.SelectedCountry,
+		UserAgent:         browserCookie.UserAgent,
+		AcceptLanguage:    browserCookie.AcceptLanguage,
+		SessionCount:      browserCookie.SessionCount,
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
 	return nil
 }
