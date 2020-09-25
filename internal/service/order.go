@@ -703,10 +703,9 @@ func (s *Service) PaymentFormJsonDataProcess(
 		}
 	}
 
-	if order.PaymentMethod != nil && order.PaymentMethod.RecurringAllowed && customer != nil && customer.Uuid != "" {
+	if order.PaymentMethod != nil && order.PaymentMethod.RecurringAllowed && customer != nil && customer.Id != "" {
 		req := &recurringpb.FindSubscriptionsRequest{
-			CustomerId:   customer.Id,
-			CustomerUuid: customer.Uuid,
+			CustomerId: customer.Id,
 		}
 
 		subscriptions, err := s.rep.FindSubscriptions(ctx, req)
@@ -942,15 +941,22 @@ func (s *Service) PaymentCreateProcess(
 
 	order := processor.checked.order
 
-	if decryptedBrowserCustomer.CustomerId == "" && order.User.Uuid != "" {
+	if decryptedBrowserCustomer.CustomerId == "" {
 		decryptedBrowserCustomer.CustomerId = order.User.Id
 	}
 
 	cookie, err := s.generateBrowserCookie(decryptedBrowserCustomer)
 
-	if err == nil {
-		rsp.Cookie = cookie
+	if err != nil {
+		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+			rsp.Status = billingpb.ResponseStatusBadData
+			rsp.Message = e
+			return nil
+		}
 	}
+
+	rsp.Cookie = cookie
 
 	if !order.CountryRestriction.PaymentsAllowed {
 		rsp.Message = orderCountryPaymentRestrictedError
