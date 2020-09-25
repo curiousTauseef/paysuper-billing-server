@@ -703,10 +703,9 @@ func (s *Service) PaymentFormJsonDataProcess(
 		}
 	}
 
-	if order.PaymentMethod != nil && order.PaymentMethod.RecurringAllowed && customer != nil && customer.Uuid != "" {
+	if order.PaymentMethod != nil && order.PaymentMethod.RecurringAllowed && customer != nil && customer.Id != "" {
 		req := &recurringpb.FindSubscriptionsRequest{
-			CustomerId:   customer.Id,
-			CustomerUuid: customer.Uuid,
+			CustomerId: customer.Id,
 		}
 
 		subscriptions, err := s.rep.FindSubscriptions(ctx, req)
@@ -942,15 +941,22 @@ func (s *Service) PaymentCreateProcess(
 
 	order := processor.checked.order
 
-	if decryptedBrowserCustomer.CustomerId == "" && order.User.Uuid != "" {
+	if decryptedBrowserCustomer.CustomerId == "" {
 		decryptedBrowserCustomer.CustomerId = order.User.Id
 	}
 
 	cookie, err := s.generateBrowserCookie(decryptedBrowserCustomer)
 
-	if err == nil {
-		rsp.Cookie = cookie
+	if err != nil {
+		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+		if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+			rsp.Status = billingpb.ResponseStatusBadData
+			rsp.Message = e
+			return nil
+		}
 	}
+
+	rsp.Cookie = cookie
 
 	if !order.CountryRestriction.PaymentsAllowed {
 		rsp.Message = orderCountryPaymentRestrictedError
@@ -1297,6 +1303,65 @@ func (s *Service) PaymentCallbackProcess(
 			if order.Project.FirstPaymentAt == nil || merchant.FirstPaymentAt.Seconds <= 0 {
 				order.Project.FirstPaymentAt = merchant.FirstPaymentAt
 			}
+		}
+	}
+
+	var subscription *recurringpb.Subscription
+	fmt.Println(data)
+	if h.IsSubscriptionCallback(data) {
+		subscriptionRsp, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{Id: order.RecurringId})
+
+		if err != nil || subscriptionRsp.Status != billingpb.ResponseStatusOk {
+			zap.L().Error(
+				pkg.MethodFinishedWithError,
+				zap.String("Method", "GetSubscription"),
+				zap.Error(err),
+				zap.String("orderId", order.Id),
+				zap.String("subscriptionId", order.RecurringId),
+			)
+			return err
+		}
+
+		subscription = subscriptionRsp.Subscription
+
+		if subscription.LastPaymentAt == nil {
+			newOrder := new(billingpb.Order)
+			err = copier.Copy(&newOrder, &order)
+
+			if err != nil {
+				zap.S().Error(
+					"Copy order to new structure order by recurring subscription failed",
+					zap.Error(err),
+					zap.Any("order", order),
+				)
+				return err
+			}
+
+			newOrder.Id = primitive.NewObjectID().Hex()
+			newOrder.Uuid = uuid.New().String()
+			newOrder.ReceiptId = uuid.New().String()
+			newOrder.CreatedAt = ptypes.TimestampNow()
+			newOrder.UpdatedAt = ptypes.TimestampNow()
+			newOrder.Canceled = false
+			newOrder.CanceledAt = nil
+			newOrder.ReceiptUrl = ""
+
+			newOrder.User = &billingpb.OrderUser{
+				Id:            order.User.Id,
+				Uuid:          order.User.Uuid,
+				Phone:         order.User.Phone,
+				PhoneVerified: order.User.PhoneVerified,
+				Metadata:      order.Metadata,
+				Object:        order.User.Object,
+				Name:          order.User.Name,
+				ExternalId:    order.User.ExternalId,
+			}
+
+			if err = s.orderRepository.Insert(ctx, newOrder); err != nil {
+				return err
+			}
+
+			order = newOrder
 		}
 	}
 
