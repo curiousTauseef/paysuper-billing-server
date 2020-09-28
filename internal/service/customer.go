@@ -248,7 +248,6 @@ func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustome
 }
 func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustomersRequest, rsp *billingpb.ListCustomersResponse) error {
 	query := bson.M{}
-
 	rsp.Status = billingpb.ResponseStatusSystemError
 
 	if len(req.MerchantId) > 0 {
@@ -302,6 +301,8 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 		return err
 	}
 
+	zap.L().Info("GetCustomerList", zap.Any("req", req), zap.Any("query", query), zap.Int("customers", len(customers)))
+
 	result := make([]*billingpb.ShortCustomerInfo, len(customers))
 	for i, customer := range customers {
 		shortCustomer := &billingpb.ShortCustomerInfo{
@@ -330,6 +331,10 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 		}
 
 		result[i] = shortCustomer
+	}
+
+	if len(result) == 0 {
+		result = []*billingpb.ShortCustomerInfo{}
 	}
 
 	rsp.Items = result
