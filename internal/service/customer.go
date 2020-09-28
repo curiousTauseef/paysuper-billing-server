@@ -265,6 +265,34 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 		}
 	}
 
+	if len(req.Country) > 0 {
+		query["address.country"] = req.Country
+	}
+
+	if len(req.Phone) > 0 {
+		query["phone"] = req.Phone
+	}
+
+	if len(req.Email) > 0 {
+		query["email"] = req.Email
+	}
+
+	if len(req.ExternalId) > 0 {
+		query["external_id"] = req.ExternalId
+	}
+
+	if len(req.Language) > 0 {
+		query["locale_history"] = bson.M{
+			"$elemMatch": bson.M{
+				"value": req.Language,
+			},
+		}
+	}
+
+	if len(req.Name) > 0 {
+		query["name"] = req.Name
+	}
+
 	opts := options.Find()
 	opts = opts.SetLimit(req.Limit)
 
@@ -279,18 +307,22 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 		shortCustomer := &billingpb.ShortCustomerInfo{
 			Id:         customer.Id,
 			ExternalId: customer.ExternalId,
-			Country:    customer.Address.Country,
 			Language:   customer.Locale,
 			LastOrder:  &timestamp.Timestamp{},
 		}
 
+		if customer.Address != nil {
+			shortCustomer.Country = customer.Address.Country
+		}
+
 		for key, activityItem := range customer.PaymentActivity {
 			if (len(req.MerchantId) > 0 && key == req.MerchantId) || len(req.MerchantId) == 0 {
-				shortCustomer.Orders += activityItem.Count.Payment
+				if activityItem.Count != nil {
+					shortCustomer.Orders += activityItem.Count.Payment
+				}
 				if activityItem.Revenue != nil {
 					shortCustomer.Revenue += activityItem.Revenue.Payment
 				}
-
 				if activityItem.LastTxnAt != nil && activityItem.LastTxnAt.Payment != nil && shortCustomer.LastOrder.Seconds < activityItem.LastTxnAt.Payment.Seconds {
 					shortCustomer.LastOrder = activityItem.LastTxnAt.Payment
 				}
