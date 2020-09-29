@@ -10,6 +10,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -90,7 +91,7 @@ func (suite *MerchantBalanceTestSuite) SetupTest() {
 	)
 
 	redisdb := mocks.NewTestRedis()
-	suite.httpClient = mocks.NewClientStatusOk()
+	suite.httpClient = payment_system.NewClientStatusOk()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 	suite.service = NewBillingService(
 		db,

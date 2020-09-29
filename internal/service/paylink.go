@@ -7,6 +7,7 @@ import (
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -19,15 +20,15 @@ import (
 type orderViewPaylinkStatFunc func(repository.OrderViewRepositoryInterface, context.Context, string, string, int64, int64) (*billingpb.GroupStatCommon, error)
 
 var (
-	errorPaylinkExpired                      = newBillingServerErrorMsg("pl000001", "payment link expired")
-	errorPaylinkNotFound                     = newBillingServerErrorMsg("pl000002", "paylink not found")
-	errorPaylinkProjectMismatch              = newBillingServerErrorMsg("pl000003", "projectId mismatch for existing paylink")
-	errorPaylinkExpiresInPast                = newBillingServerErrorMsg("pl000004", "paylink expiry date in past")
-	errorPaylinkProductsLengthInvalid        = newBillingServerErrorMsg("pl000005", "paylink products length invalid")
-	errorPaylinkProductsTypeInvalid          = newBillingServerErrorMsg("pl000006", "paylink products type invalid")
-	errorPaylinkProductNotBelongToMerchant   = newBillingServerErrorMsg("pl000007", "at least one of paylink products is not belongs to merchant")
-	errorPaylinkProductNotBelongToProject    = newBillingServerErrorMsg("pl000008", "at least one of paylink products is not belongs to project")
-	errorPaylinkProductNotFoundOrInvalidType = newBillingServerErrorMsg("pl000010", "at least one of paylink products is not found or have type differ from given products_type value")
+	errorPaylinkExpired                      = errors.NewBillingServerErrorMsg("pl000001", "payment link expired")
+	errorPaylinkNotFound                     = errors.NewBillingServerErrorMsg("pl000002", "paylink not found")
+	errorPaylinkProjectMismatch              = errors.NewBillingServerErrorMsg("pl000003", "projectId mismatch for existing paylink")
+	errorPaylinkExpiresInPast                = errors.NewBillingServerErrorMsg("pl000004", "paylink expiry date in past")
+	errorPaylinkProductsLengthInvalid        = errors.NewBillingServerErrorMsg("pl000005", "paylink products length invalid")
+	errorPaylinkProductsTypeInvalid          = errors.NewBillingServerErrorMsg("pl000006", "paylink products type invalid")
+	errorPaylinkProductNotBelongToMerchant   = errors.NewBillingServerErrorMsg("pl000007", "at least one of paylink products is not belongs to merchant")
+	errorPaylinkProductNotBelongToProject    = errors.NewBillingServerErrorMsg("pl000008", "at least one of paylink products is not belongs to project")
+	errorPaylinkProductNotFoundOrInvalidType = errors.NewBillingServerErrorMsg("pl000010", "at least one of paylink products is not found or have type differ from given products_type value")
 
 	orderViewPaylinkStatFuncMap = map[string]orderViewPaylinkStatFunc{
 		"GetPaylinkStatByCountry":  repository.OrderViewRepositoryInterface.GetPaylinkStatByCountry,

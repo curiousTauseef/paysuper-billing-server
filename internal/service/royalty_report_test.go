@@ -16,6 +16,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -109,7 +110,7 @@ func (suite *RoyaltyReportTestSuite) SetupTest() {
 	)
 
 	redisdb := mocks.NewTestRedis()
-	suite.httpClient = mocks.NewClientStatusOk()
+	suite.httpClient = payment_system.NewClientStatusOk()
 	suite.cache, err = database.NewCacheRedis(redisdb, "cache")
 
 	reporterMock := &reportingMocks.ReporterService{}
@@ -676,7 +677,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Ok() 
 	assert.Equal(suite.T(), billingpb.RoyaltyReportStatusPending, reports[0].Status)
 
 	zap.ReplaceGlobals(suite.logObserver)
-	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, mocks.NewClientStatusOk())
+	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, payment_system.NewClientStatusOk())
 
 	req1 := &billingpb.ChangeRoyaltyReportRequest{
 		ReportId:   reports[0].Id,
@@ -705,7 +706,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ChangeRoyaltyReport_Ok() 
 	assert.Equal(suite.T(), req1.Ip, changes[1].Ip)
 	assert.Equal(suite.T(), pkg.RoyaltyReportChangeSourceAdmin, changes[1].Source)
 
-	centrifugoCl, ok := suite.httpClient.Transport.(*mocks.TransportStatusOk)
+	centrifugoCl, ok := suite.httpClient.Transport.(*payment_system.TransportStatusOk)
 	assert.True(suite.T(), ok)
 	assert.NoError(suite.T(), centrifugoCl.Err)
 }
@@ -814,7 +815,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyRepo
 	assert.Equal(suite.T(), req1.Ip, changes[1].Ip)
 	assert.Equal(suite.T(), pkg.RoyaltyReportChangeSourceMerchant, changes[1].Source)
 
-	centrifugoCl, ok := suite.httpClient.Transport.(*mocks.TransportStatusOk)
+	centrifugoCl, ok := suite.httpClient.Transport.(*payment_system.TransportStatusOk)
 	assert.True(suite.T(), ok)
 	assert.NoError(suite.T(), centrifugoCl.Err)
 }
@@ -859,7 +860,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_MerchantReviewRoyaltyRepo
 	assert.Equal(suite.T(), req1.Ip, changes[1].Ip)
 	assert.Equal(suite.T(), pkg.RoyaltyReportChangeSourceMerchant, changes[1].Source)
 
-	centrifugoCl, ok := suite.httpClient.Transport.(*mocks.TransportStatusOk)
+	centrifugoCl, ok := suite.httpClient.Transport.(*payment_system.TransportStatusOk)
 	assert.True(suite.T(), ok)
 	assert.NoError(suite.T(), centrifugoCl.Err)
 }

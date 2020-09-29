@@ -9,6 +9,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-i18n"
@@ -34,13 +35,6 @@ const (
 	errorNotFound = "%s not found"
 
 	errorBbNotFoundMessage = "not found"
-
-	HeaderContentType   = "Content-Type"
-	HeaderAuthorization = "Authorization"
-	HeaderContentLength = "Content-Length"
-
-	MIMEApplicationForm = "application/x-www-form-urlencoded"
-	MIMEApplicationJSON = "application/json"
 
 	CountryCodeUSA = "US"
 
@@ -72,7 +66,7 @@ type Service struct {
 	postmarkBroker                         rabbitmq.BrokerInterface
 	casbinService                          casbinpb.CasbinService
 	notifier                               notifierpb.NotifierService
-	paymentSystemGateway                   *Gateway
+	paymentSystemGateway                   payment_system.PaymentSystemManagerInterface
 	country                                repository.CountryRepositoryInterface
 	refundRepository                       repository.RefundRepositoryInterface
 	orderRepository                        repository.OrderRepositoryInterface
@@ -119,23 +113,6 @@ type Service struct {
 	moneyRegistryMx                        sync.Mutex
 }
 
-func newBillingServerResponseError(status int32, message *billingpb.ResponseErrorMessage) *billingpb.ResponseError {
-	return &billingpb.ResponseError{
-		Status:  status,
-		Message: message,
-	}
-}
-
-func newBillingServerErrorMsg(code, msg string, details ...string) *billingpb.ResponseErrorMessage {
-	var det string
-	if len(details) > 0 && details[0] != "" {
-		det = details[0]
-	} else {
-		det = ""
-	}
-	return &billingpb.ResponseErrorMessage{Code: code, Message: msg, Details: det}
-}
-
 func NewBillingService(
 	db mongodb.SourceInterface,
 	cfg *config.Config,
@@ -178,7 +155,7 @@ func NewBillingService(
 func (s *Service) Init() (err error) {
 	s.centrifugoPaymentForm = newCentrifugo(s.cfg.CentrifugoPaymentForm, httpTools.NewLoggedHttpClient(zap.S()))
 	s.centrifugoDashboard = newCentrifugo(s.cfg.CentrifugoDashboard, httpTools.NewLoggedHttpClient(zap.S()))
-	s.paymentSystemGateway = s.newPaymentSystemGateway()
+	s.paymentSystemGateway = NewPaymentSystemGateway()
 
 	s.refundRepository = repository.NewRefundRepository(s.db)
 	s.orderRepository = repository.NewOrderRepository(s.db)

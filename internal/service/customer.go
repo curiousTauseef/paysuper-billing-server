@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,8 +18,8 @@ import (
 )
 
 var (
-	errorCustomerOrderTypeNotSupport = newBillingServerErrorMsg("cm000001", "order type is not support")
-	errorCustomerUnknown             = newBillingServerErrorMsg("cm000002", "unknown error")
+	errorCustomerOrderTypeNotSupport = errors.NewBillingServerErrorMsg("cm000001", "order type is not support")
+	errorCustomerUnknown             = errors.NewBillingServerErrorMsg("cm000002", "unknown error")
 )
 
 func (s *Service) SetCustomerPaymentActivity(

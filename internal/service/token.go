@@ -11,6 +11,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,16 +31,16 @@ const (
 )
 
 var (
-	tokenErrorUnknown              = newBillingServerErrorMsg("tk000001", "unknown token error")
-	customerNotFound               = newBillingServerErrorMsg("tk000002", "customer by specified data not found")
-	tokenErrorNotFound             = newBillingServerErrorMsg("tk000003", "token not found")
-	tokenErrorUserIdentityRequired = newBillingServerErrorMsg("tk000004", "request must contain one or more parameters with user information")
+	tokenErrorUnknown              = errors.NewBillingServerErrorMsg("tk000001", "unknown token error")
+	customerNotFound               = errors.NewBillingServerErrorMsg("tk000002", "customer by specified data not found")
+	tokenErrorNotFound             = errors.NewBillingServerErrorMsg("tk000003", "token not found")
+	tokenErrorUserIdentityRequired = errors.NewBillingServerErrorMsg("tk000004", "request must contain one or more parameters with user information")
 
-	tokenErrorSettingsTypeRequired                            = newBillingServerErrorMsg("tk000005", `field settings.type is required`)
-	tokenErrorSettingsSimpleCheckoutParamsRequired            = newBillingServerErrorMsg("tk000006", `fields settings.amount and settings.currency is required for creating payment token with type "simple"`)
-	tokenErrorSettingsProductAndKeyProductIdsParamsRequired   = newBillingServerErrorMsg("tk000007", `field settings.product_ids is required for creating payment token with type "product" or "key"`)
-	tokenErrorSettingsAmountAndCurrencyParamNotAllowedForType = newBillingServerErrorMsg("tk000008", `fields settings.amount and settings.currency not allowed for creating payment token with types "product" or "key"`)
-	tokenErrorSettingsProductIdsParamNotAllowedForType        = newBillingServerErrorMsg("tk000009", `fields settings.product_ids not allowed for creating payment token with type "simple"`)
+	tokenErrorSettingsTypeRequired                            = errors.NewBillingServerErrorMsg("tk000005", `field settings.type is required`)
+	tokenErrorSettingsSimpleCheckoutParamsRequired            = errors.NewBillingServerErrorMsg("tk000006", `fields settings.amount and settings.currency is required for creating payment token with type "simple"`)
+	tokenErrorSettingsProductAndKeyProductIdsParamsRequired   = errors.NewBillingServerErrorMsg("tk000007", `field settings.product_ids is required for creating payment token with type "product" or "key"`)
+	tokenErrorSettingsAmountAndCurrencyParamNotAllowedForType = errors.NewBillingServerErrorMsg("tk000008", `fields settings.amount and settings.currency not allowed for creating payment token with types "product" or "key"`)
+	tokenErrorSettingsProductIdsParamNotAllowedForType        = errors.NewBillingServerErrorMsg("tk000009", `fields settings.product_ids not allowed for creating payment token with type "simple"`)
 
 	tokenRandSource = rand.NewSource(time.Now().UnixNano())
 )

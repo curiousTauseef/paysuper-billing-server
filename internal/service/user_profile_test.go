@@ -8,6 +8,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/casbinpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -606,7 +607,7 @@ func (suite *UserProfileTestSuite) TestUserProfile_ConfirmUserEmail_Ok() {
 	assert.Contains(suite.T(), p, "token")
 
 	zap.ReplaceGlobals(suite.logObserver)
-	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, mocks.NewClientStatusOk())
+	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, payment_system.NewClientStatusOk())
 
 	req2 := &billingpb.ConfirmUserEmailRequest{Token: p["token"][0]}
 	rsp2 := &billingpb.ConfirmUserEmailResponse{}

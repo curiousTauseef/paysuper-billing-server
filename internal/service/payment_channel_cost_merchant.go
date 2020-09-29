@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -13,16 +14,16 @@ import (
 )
 
 var (
-	errorPaymentChannelMerchantGetAll           = newBillingServerErrorMsg("pcm000001", "can't get list of payment channel setting for merchant")
-	errorPaymentChannelMerchantGet              = newBillingServerErrorMsg("pcm000002", "can't get payment channel setting for merchant")
-	errorPaymentChannelMerchantSetFailed        = newBillingServerErrorMsg("pcm000003", "can't set payment channel setting for merchant")
-	errorPaymentChannelMerchantDelete           = newBillingServerErrorMsg("pcm000004", "can't delete payment channel setting for merchant")
-	errorPaymentChannelMerchantCurrency         = newBillingServerErrorMsg("pcm000005", "currency not supported")
-	errorPaymentChannelMerchantCostAlreadyExist = newBillingServerErrorMsg("pcm000006", "cost with specified parameters already exist")
-	errorCostMatchedToAmountNotFound            = newBillingServerErrorMsg("pcm000007", "cost matched to amount not found")
-	errorPaymentChannelMccCode                  = newBillingServerErrorMsg("pcm000008", "mcc code not supported")
-	errorCostMatchedNotFound                    = newBillingServerErrorMsg("pcm000009", "cost matched not found")
-	errorMerchantTariffUpdate                   = newBillingServerErrorMsg("pcm000010", "can't update merchant tariffs")
+	errorPaymentChannelMerchantGetAll           = errors.NewBillingServerErrorMsg("pcm000001", "can't get list of payment channel setting for merchant")
+	errorPaymentChannelMerchantGet              = errors.NewBillingServerErrorMsg("pcm000002", "can't get payment channel setting for merchant")
+	errorPaymentChannelMerchantSetFailed        = errors.NewBillingServerErrorMsg("pcm000003", "can't set payment channel setting for merchant")
+	errorPaymentChannelMerchantDelete           = errors.NewBillingServerErrorMsg("pcm000004", "can't delete payment channel setting for merchant")
+	errorPaymentChannelMerchantCurrency         = errors.NewBillingServerErrorMsg("pcm000005", "currency not supported")
+	errorPaymentChannelMerchantCostAlreadyExist = errors.NewBillingServerErrorMsg("pcm000006", "cost with specified parameters already exist")
+	errorCostMatchedToAmountNotFound            = errors.NewBillingServerErrorMsg("pcm000007", "cost matched to amount not found")
+	errorPaymentChannelMccCode                  = errors.NewBillingServerErrorMsg("pcm000008", "mcc code not supported")
+	errorCostMatchedNotFound                    = errors.NewBillingServerErrorMsg("pcm000009", "cost matched not found")
+	errorMerchantTariffUpdate                   = errors.NewBillingServerErrorMsg("pcm000010", "can't update merchant tariffs")
 )
 
 func (s *Service) GetAllPaymentChannelCostMerchant(

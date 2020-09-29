@@ -1,77 +1,43 @@
 package service
 
 import (
-	"github.com/golang/protobuf/proto"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
-	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"sync"
 )
 
 const (
-	paymentSystemHandlerMockOk      = "mock_ok"
-	paymentSystemHandlerMockError   = "mock_error"
-	paymentSystemHandlerCardPayMock = "cardpay_mock"
-
-	defaultHttpClientTimeout = 10
+	PaymentSystemHandlerMockOk      = "mock_ok"
+	PaymentSystemHandlerMockError   = "mock_error"
+	PaymentSystemHandlerCardPayMock = "cardpay_mock"
 )
 
 var (
-	paymentSystemErrorHandlerNotFound                        = newBillingServerErrorMsg("ph000001", "handler for specified payment system not found")
-	paymentSystemErrorAuthenticateFailed                     = newBillingServerErrorMsg("ph000002", "authentication failed")
-	paymentSystemErrorUnknownPaymentMethod                   = newBillingServerErrorMsg("ph000003", "unknown payment Method")
-	paymentSystemErrorCreateRequestFailed                    = newBillingServerErrorMsg("ph000004", "order can't be create. try request later")
-	paymentSystemErrorEWalletIdentifierIsInvalid             = newBillingServerErrorMsg("ph000005", "wallet identifier is invalid")
-	paymentSystemErrorRequestSignatureIsInvalid              = newBillingServerErrorMsg("ph000006", "request signature is invalid")
-	paymentSystemErrorRequestTimeFieldIsInvalid              = newBillingServerErrorMsg("ph000007", "time field in request is invalid")
-	paymentSystemErrorRequestRecurringIdFieldIsInvalid       = newBillingServerErrorMsg("ph000008", "recurring id field in request is invalid")
-	paymentSystemErrorRequestStatusIsInvalid                 = newBillingServerErrorMsg("ph000009", "status is invalid")
-	paymentSystemErrorRequestPaymentMethodIsInvalid          = newBillingServerErrorMsg("ph000010", "payment Method from request not match with value in order")
-	paymentSystemErrorRequestAmountOrCurrencyIsInvalid       = newBillingServerErrorMsg("ph000011", "amount or currency from request not match with value in order")
-	paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid = newBillingServerErrorMsg("ph000012", "amount or currency from request not match with value in refund")
-	paymentSystemErrorRequestTemporarySkipped                = newBillingServerErrorMsg("ph000013", "notification skipped with temporary status")
-	paymentSystemErrorRecurringFailed                        = newBillingServerErrorMsg("ph000014", "recurring payment failed")
-	paymentSystemErrorCreateRecurringPlanFailed              = newBillingServerErrorMsg("ph000015", "create recurring plan failed")
-	paymentSystemErrorCreateRecurringSubscriptionFailed      = newBillingServerErrorMsg("ph000016", "create recurring subscription failed")
-	paymentSystemErrorDeleteRecurringPlanFailed              = newBillingServerErrorMsg("ph000017", "delete recurring plan failed")
-	paymentSystemErrorUpdateRecurringSubscriptionFailed      = newBillingServerErrorMsg("ph000018", "update recurring subscription failed")
-
-	registry = map[string]func() GateInterface{
-		billingpb.PaymentSystemHandlerCardPay: newCardPayHandler,
-		paymentSystemHandlerMockOk:            NewPaymentSystemMockOk,
-		paymentSystemHandlerMockError:         NewPaymentSystemMockError,
-		paymentSystemHandlerCardPayMock:       NewCardPayMock,
+	registry = map[string]func() payment_system.PaymentSystemInterface{
+		billingpb.PaymentSystemHandlerCardPay: payment_system.NewCardPayHandler,
+		PaymentSystemHandlerMockOk:            NewPaymentSystemMockOk,
+		PaymentSystemHandlerMockError:         NewPaymentSystemMockError,
+		PaymentSystemHandlerCardPayMock:       NewCardPayMock,
 	}
 )
 
-type GateInterface interface {
-	CreatePayment(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) (string, error)
-	ProcessPayment(order *billingpb.Order, message proto.Message, raw, signature string) error
-	IsRecurringCallback(request proto.Message) bool
-	GetRecurringId(request proto.Message) string
-	CreateRefund(order *billingpb.Order, refund *billingpb.Refund) error
-	ProcessRefund(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error
-	CreateRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription, successUrl, failUrl string, requisites map[string]string) (string, error)
-	IsSubscriptionCallback(request proto.Message) bool
-	DeleteRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription) error
-}
-
-type Gateway struct {
-	gateways map[string]GateInterface
-	mx       sync.Mutex
-}
-
-func (s *Service) newPaymentSystemGateway() *Gateway {
+func NewPaymentSystemGateway() payment_system.PaymentSystemManagerInterface {
 	paymentSystem := &Gateway{
-		gateways: make(map[string]GateInterface),
+		gateways: make(map[string]payment_system.PaymentSystemInterface),
 	}
 	return paymentSystem
 }
 
-func (m *Gateway) getGateway(name string) (GateInterface, error) {
+type Gateway struct {
+	gateways map[string]payment_system.PaymentSystemInterface
+	mx       sync.Mutex
+}
+
+func (m *Gateway) GetGateway(name string) (payment_system.PaymentSystemInterface, error) {
 	initFn, ok := registry[name]
 
 	if !ok {
-		return nil, paymentSystemErrorHandlerNotFound
+		return nil, payment_system.PaymentSystemErrorHandlerNotFound
 	}
 
 	m.mx.Lock()

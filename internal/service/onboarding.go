@@ -9,6 +9,7 @@ import (
 	"github.com/micro/go-micro/client"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinProto "github.com/paysuper/paysuper-proto/go/casbinpb"
 	"github.com/paysuper/paysuper-proto/go/document_signerpb"
@@ -35,25 +36,25 @@ const (
 )
 
 var (
-	merchantErrorChangeNotAllowed             = newBillingServerErrorMsg("mr000001", "merchant data changing not allowed")
-	merchantErrorCountryNotFound              = newBillingServerErrorMsg("mr000002", "merchant country not found")
-	merchantErrorCurrencyNotFound             = newBillingServerErrorMsg("mr000003", "merchant bank accounting currency not found")
-	merchantErrorUnknown                      = newBillingServerErrorMsg("mr000008", "request processing failed. try request later")
-	merchantErrorNotFound                     = newBillingServerErrorMsg("mr000009", "merchant with specified identifier not found")
-	merchantErrorBadData                      = newBillingServerErrorMsg("mr000010", "request data is incorrect")
-	notificationErrorMerchantIdIncorrect      = newBillingServerErrorMsg("mr000012", "merchant identifier incorrect, notification can't be saved")
-	notificationErrorMessageIsEmpty           = newBillingServerErrorMsg("mr000014", "notification message can't be empty")
-	notificationErrorNotFound                 = newBillingServerErrorMsg("mr000015", "notification not found")
-	merchantErrorOnboardingNotComplete        = newBillingServerErrorMsg("mr000019", "merchant onboarding not complete")
-	merchantErrorOnboardingTariffAlreadyExist = newBillingServerErrorMsg("mr000020", "merchant tariffs already sets")
-	merchantStatusChangeNotPossible           = newBillingServerErrorMsg("mr000021", "change status not possible by merchant flow")
-	merchantNotificationSettingNotFound       = newBillingServerErrorMsg("mr000022", "setting for create notification for status change not found")
-	merchantTariffsNotFound                   = newBillingServerErrorMsg("mr000023", "tariffs for merchant not found")
-	merchantPayoutCurrencyMissed              = newBillingServerErrorMsg("mr000024", "merchant don't have payout currency")
-	merchantErrorOperationsTypeNotSupported   = newBillingServerErrorMsg("mr000025", "merchant operations type not supported")
-	merchantErrorCurrencyNotSet               = newBillingServerErrorMsg("mr000027", "merchant payout currency not set")
-	merchantErrorNoTariffsInPayoutCurrency    = newBillingServerErrorMsg("mr000028", "no tariffs found for merchant payout currency")
-	merchantUnableToAddMerchantUserRole       = newBillingServerErrorMsg("mr000029", "unable to add user role to merchant")
+	merchantErrorChangeNotAllowed             = errors.NewBillingServerErrorMsg("mr000001", "merchant data changing not allowed")
+	merchantErrorCountryNotFound              = errors.NewBillingServerErrorMsg("mr000002", "merchant country not found")
+	merchantErrorCurrencyNotFound             = errors.NewBillingServerErrorMsg("mr000003", "merchant bank accounting currency not found")
+	merchantErrorUnknown                      = errors.NewBillingServerErrorMsg("mr000008", "request processing failed. try request later")
+	merchantErrorNotFound                     = errors.NewBillingServerErrorMsg("mr000009", "merchant with specified identifier not found")
+	merchantErrorBadData                      = errors.NewBillingServerErrorMsg("mr000010", "request data is incorrect")
+	notificationErrorMerchantIdIncorrect      = errors.NewBillingServerErrorMsg("mr000012", "merchant identifier incorrect, notification can't be saved")
+	notificationErrorMessageIsEmpty           = errors.NewBillingServerErrorMsg("mr000014", "notification message can't be empty")
+	notificationErrorNotFound                 = errors.NewBillingServerErrorMsg("mr000015", "notification not found")
+	merchantErrorOnboardingNotComplete        = errors.NewBillingServerErrorMsg("mr000019", "merchant onboarding not complete")
+	merchantErrorOnboardingTariffAlreadyExist = errors.NewBillingServerErrorMsg("mr000020", "merchant tariffs already sets")
+	merchantStatusChangeNotPossible           = errors.NewBillingServerErrorMsg("mr000021", "change status not possible by merchant flow")
+	merchantNotificationSettingNotFound       = errors.NewBillingServerErrorMsg("mr000022", "setting for create notification for status change not found")
+	merchantTariffsNotFound                   = errors.NewBillingServerErrorMsg("mr000023", "tariffs for merchant not found")
+	merchantPayoutCurrencyMissed              = errors.NewBillingServerErrorMsg("mr000024", "merchant don't have payout currency")
+	merchantErrorOperationsTypeNotSupported   = errors.NewBillingServerErrorMsg("mr000025", "merchant operations type not supported")
+	merchantErrorCurrencyNotSet               = errors.NewBillingServerErrorMsg("mr000027", "merchant payout currency not set")
+	merchantErrorNoTariffsInPayoutCurrency    = errors.NewBillingServerErrorMsg("mr000028", "no tariffs found for merchant payout currency")
+	merchantUnableToAddMerchantUserRole       = errors.NewBillingServerErrorMsg("mr000029", "unable to add user role to merchant")
 
 	merchantSignAgreementMessage        = map[string]string{"code": "mr000017", "message": "license agreement was signed by merchant"}
 	merchantAgreementReadyToSignMessage = map[string]interface{}{"code": "mr000025", "generated": true, "message": "merchant license agreement ready to sign"}
