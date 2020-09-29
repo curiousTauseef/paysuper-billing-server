@@ -229,14 +229,32 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 }
 
 func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustomerInfoRequest, rsp *billingpb.GetCustomerInfoResponse) error {
-	customer, err := s.customerRepository.GetById(ctx, req.UserId)
-
 	rsp.Status = billingpb.ResponseStatusSystemError
+
+	opts := options.Find()
+	opts.SetLimit(1)
+
+	customers, err := s.customerRepository.FindBy(ctx, bson.M{
+		"uuid": req.UserId,
+		"payment_activity": bson.M{
+			"$elemMatch": bson.M{
+				"merchant_id": req.MerchantId,
+			},
+		},
+	}, opts)
+
+	if len(customers) == 0 {
+		rsp.Status = billingpb.ResponseStatusBadData
+		zap.L().Error("no customers", zap.Any("req", req))
+		return nil
+	}
 
 	if err != nil {
 		zap.L().Error("can't get customer", zap.Error(err))
 		return nil
 	}
+
+	customer := customers[0]
 
 	// Protect. Do not send info that not needed
 	customer.PaymentActivity = nil
@@ -456,6 +474,36 @@ func (s *Service) GetCustomerSubscription(ctx context.Context, req *billingpb.Ge
 		return nil
 	}
 
+	if len(req.Cookie) > 0 {
+		browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+		if err != nil {
+			zap.L().Error(
+				"can't decrypt cookie",
+				zap.Error(err),
+				zap.Any(errorFieldRequest, req),
+			)
+
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringErrorUnknown
+			return nil
+		}
+
+		if rsp1.Subscription.CustomerId != browserCookie.CustomerId {
+			zap.L().Error("trying to get subscription for another customer", zap.String("customer_id", browserCookie.CustomerId), zap.String("subscription_customer_id", rsp1.Subscription.CustomerId), zap.String("subscription_id", rsp1.Subscription.Id))
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringSavedCardNotFount
+			return nil
+		}
+
+	} else {
+		if rsp1.Subscription.CustomerUuid != req.CustomerId {
+			zap.L().Error("trying to get subscription for another customer", zap.String("customer_id", req.CustomerId), zap.String("subscription_customer_id", rsp1.Subscription.CustomerUuid), zap.String("subscription_id", rsp1.Subscription.Id))
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringSavedCardNotFount
+			return nil
+		}
+	}
+
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Subscription = s.mapRecurringToBilling(rsp1.Subscription)
 
@@ -512,21 +560,25 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 	rsp.Status = billingpb.ResponseStatusBadData
 	rsp.Message = recurringErrorUnknown
 
-	browserCookie, err := s.decryptBrowserCookie(req.Cookie)
-	if err != nil {
-		zap.L().Error(
-			"can't decrypt cookie",
-			zap.Error(err),
-			zap.Any(errorFieldRequest, req),
-		)
-
-		rsp.Status = billingpb.ResponseStatusForbidden
-		rsp.Message = recurringErrorUnknown
-		return nil
+	req1 := &recurringpb.FindSubscriptionsRequest{
 	}
 
-	req1 := &recurringpb.FindSubscriptionsRequest{
-		CustomerId:   browserCookie.CustomerId,
+	if len(req.Cookie) > 0 {
+		browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+		if err != nil {
+			zap.L().Error(
+				"can't decrypt cookie",
+				zap.Error(err),
+				zap.Any(errorFieldRequest, req),
+			)
+
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringErrorUnknown
+			return nil
+		}
+		req1.CustomerId = browserCookie.CustomerId
+	} else {
+		req1.CustomerUuid = req.CustomerId
 	}
 
 	rsp1, err := s.rep.FindSubscriptions(ctx, req1)
