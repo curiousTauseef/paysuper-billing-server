@@ -135,7 +135,7 @@ var (
 	orderErrorRecurringNotAllowed                             = errors2.NewBillingServerErrorMsg("fm000082", "payment method not allowed recurring payments")
 	orderErrorRecurringDateEndInvalid                         = errors2.NewBillingServerErrorMsg("fm000083", "invalid the end date of recurring payments")
 	orderErrorRecurringDateEndOutOfRange                      = errors2.NewBillingServerErrorMsg("fm000084", "subscription period cannot be less than the selected period and more than one year")
-	orderErrorRecurringAlreadyExists                          = errors2.NewBillingServerErrorMsg("fm000085", "recurring subscription already exists")
+	orderErrorRecurringInvalidPeriod                          = errors2.NewBillingServerErrorMsg("fm000085", "recurring period subscription is invalid")
 
 	virtualCurrencyPayoutCurrencyMissed = errors2.NewBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
@@ -2769,28 +2769,14 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 			return orderErrorRecurringDateEndInvalid
 		}
 
-		/*		switch v.request.RecurringPeriod {
-				case recurringpb.RecurringPeriodDay:
-					currentTime = currentTime.AddDate(0, 0, 1)
-					break
-				case recurringpb.RecurringPeriodWeek:
-					currentTime = currentTime.AddDate(0, 0, 7)
-					break
-				case recurringpb.RecurringPeriodMonth:
-					currentTime = currentTime.AddDate(0, 1, 0)
-					break
-				case recurringpb.RecurringPeriodYear:
-					currentTime = currentTime.AddDate(1, 0, 0)
-					break
-				}*/
-
 		dateEnd = inputDateEnd.UTC()
 	}
 
 	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), dateEnd.Hour(), dateEnd.Minute(), dateEnd.Second(), 0, dateEnd.Location())
 	currentTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, currentTime.Location())
-	var interval float64
 	delta := dateEnd.Sub(currentTime).Hours()
+
+	var interval float64
 
 	switch v.request.RecurringPeriod {
 	case recurringpb.RecurringPeriodDay:
@@ -2805,6 +2791,8 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 	case recurringpb.RecurringPeriodYear:
 		interval = delta / 24 / 365
 		break
+	default:
+		return orderErrorRecurringInvalidPeriod
 	}
 
 	interval = math.Floor(interval)
@@ -2993,6 +2981,12 @@ func (v *OrderCreateRequestProcessor) processCustomerToken(ctx context.Context) 
 	v.checked.user.Uuid = customer.Uuid
 	v.checked.user.Object = pkg.ObjectTypeUser
 	v.checked.user.TechEmail = customer.TechEmail
+
+	if token.Settings.RecurringPeriod != "" {
+		if err = v.processRecurringSettings(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
