@@ -11,6 +11,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -368,7 +369,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 
 func (suite *VatReportsTestSuite) TestVatReports_PaymentDateSet() {
 	zap.ReplaceGlobals(suite.logObserver)
-	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, mocks.NewClientStatusOk())
+	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, payment_system.NewClientStatusOk())
 
 	nowTimestamp := time.Now().Unix()
 

@@ -7,6 +7,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	errors2 "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -33,24 +34,24 @@ const (
 )
 
 var (
-	accountingEntryErrorOrderNotFound              = newBillingServerErrorMsg("ae00001", "order not found for creating accounting entry")
-	accountingEntryErrorRefundNotFound             = newBillingServerErrorMsg("ae00002", "refund not found for creating accounting entry")
-	accountingEntryErrorMerchantNotFound           = newBillingServerErrorMsg("ae00003", "merchant not found for creating accounting entry")
-	accountingEntryErrorMerchantCommissionNotFound = newBillingServerErrorMsg("ae00004", "commission to merchant and payment method not found")
-	accountingEntryErrorExchangeFailed             = newBillingServerErrorMsg("ae00005", "currency exchange failed")
-	accountingEntryErrorUnknownEntry               = newBillingServerErrorMsg("ae00006", "unknown accounting entry type")
-	accountingEntryErrorUnknown                    = newBillingServerErrorMsg("ae00007", "unknown error. try request later")
-	accountingEntryErrorRefundExceedsOrderAmount   = newBillingServerErrorMsg("ae00008", "refund exceeds order amount")
-	accountingEntryErrorCountryNotFound            = newBillingServerErrorMsg("ae00009", "country not found")
-	accountingEntryUnknownEvent                    = newBillingServerErrorMsg("ae00010", "accounting unknown event")
-	accountingEntryErrorUnknownSourceType          = newBillingServerErrorMsg("ae00011", "unknown accounting entry source type")
-	accountingEntryErrorInvalidSourceId            = newBillingServerErrorMsg("ae00012", "accounting entry invalid source id")
-	accountingEntryErrorSystemCommissionNotFound   = newBillingServerErrorMsg("ae00013", "system commission for payment method not found")
-	accountingEntryAlreadyCreated                  = newBillingServerErrorMsg("ae00014", "accounting entries already created")
-	accountingEntryBalanceUpdateFailed             = newBillingServerErrorMsg("ae00015", "balance update failed after create accounting entry")
-	accountingEntryOriginalTaxNotFound             = newBillingServerErrorMsg("ae00016", "real_tax_fee entry from original order not found, refund processing failed")
-	accountingEntryVatCurrencyNotSet               = newBillingServerErrorMsg("ae00017", "vat currency not set")
-	accountingEntryErrorRoundFailed                = newBillingServerErrorMsg("ae00018", "amount rounding failed")
+	accountingEntryErrorOrderNotFound              = errors2.NewBillingServerErrorMsg("ae00001", "order not found for creating accounting entry")
+	accountingEntryErrorRefundNotFound             = errors2.NewBillingServerErrorMsg("ae00002", "refund not found for creating accounting entry")
+	accountingEntryErrorMerchantNotFound           = errors2.NewBillingServerErrorMsg("ae00003", "merchant not found for creating accounting entry")
+	accountingEntryErrorMerchantCommissionNotFound = errors2.NewBillingServerErrorMsg("ae00004", "commission to merchant and payment method not found")
+	accountingEntryErrorExchangeFailed             = errors2.NewBillingServerErrorMsg("ae00005", "currency exchange failed")
+	accountingEntryErrorUnknownEntry               = errors2.NewBillingServerErrorMsg("ae00006", "unknown accounting entry type")
+	accountingEntryErrorUnknown                    = errors2.NewBillingServerErrorMsg("ae00007", "unknown error. try request later")
+	accountingEntryErrorRefundExceedsOrderAmount   = errors2.NewBillingServerErrorMsg("ae00008", "refund exceeds order amount")
+	accountingEntryErrorCountryNotFound            = errors2.NewBillingServerErrorMsg("ae00009", "country not found")
+	accountingEntryUnknownEvent                    = errors2.NewBillingServerErrorMsg("ae00010", "accounting unknown event")
+	accountingEntryErrorUnknownSourceType          = errors2.NewBillingServerErrorMsg("ae00011", "unknown accounting entry source type")
+	accountingEntryErrorInvalidSourceId            = errors2.NewBillingServerErrorMsg("ae00012", "accounting entry invalid source id")
+	accountingEntryErrorSystemCommissionNotFound   = errors2.NewBillingServerErrorMsg("ae00013", "system commission for payment method not found")
+	accountingEntryAlreadyCreated                  = errors2.NewBillingServerErrorMsg("ae00014", "accounting entries already created")
+	accountingEntryBalanceUpdateFailed             = errors2.NewBillingServerErrorMsg("ae00015", "balance update failed after create accounting entry")
+	accountingEntryOriginalTaxNotFound             = errors2.NewBillingServerErrorMsg("ae00016", "real_tax_fee entry from original order not found, refund processing failed")
+	accountingEntryVatCurrencyNotSet               = errors2.NewBillingServerErrorMsg("ae00017", "vat currency not set")
+	accountingEntryErrorRoundFailed                = errors2.NewBillingServerErrorMsg("ae00018", "amount rounding failed")
 
 	availableAccountingEntries = map[string]bool{
 		pkg.AccountingEntryTypeRealGrossRevenue:                    true,

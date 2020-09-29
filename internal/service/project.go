@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
@@ -12,27 +13,27 @@ import (
 )
 
 var (
-	projectErrorUnknown                                          = newBillingServerErrorMsg("pr000001", "project unknown error")
-	projectErrorNotFound                                         = newBillingServerErrorMsg("pr000002", "project with specified identifier not found")
-	projectErrorNameDefaultLangRequired                          = newBillingServerErrorMsg("pr000003", "project name in \""+DefaultLanguage+"\" locale is required")
-	projectErrorCallbackCurrencyIncorrect                        = newBillingServerErrorMsg("pr000004", "project callback currency is incorrect")
-	projectErrorLimitCurrencyIncorrect                           = newBillingServerErrorMsg("pr000005", "project limit currency is incorrect")
-	projectErrorLimitCurrencyRequired                            = newBillingServerErrorMsg("pr000006", "project limit currency can't be empty if you send min or max payment amount")
-	projectErrorCurrencyIsNotSupport                             = newBillingServerErrorMsg("pr000007", `project currency is not supported`)
-	projectErrorVirtualCurrencyNameDefaultLangRequired           = newBillingServerErrorMsg("pr000008", "project virtual currency name in \""+DefaultLanguage+"\" locale is required")
-	projectErrorVirtualCurrencySuccessMessageDefaultLangRequired = newBillingServerErrorMsg("pr000009", "project virtual currency success message in \""+DefaultLanguage+"\" locale is required")
-	projectErrorVirtualCurrencyPriceCurrencyIsNotSupport         = newBillingServerErrorMsg("pr000010", `project virtual currency price currency is not support`)
-	projectErrorVirtualCurrencyLimitsIncorrect                   = newBillingServerErrorMsg("pr000011", `project virtual currency purchase limits is incorrect`)
-	projectErrorShortDescriptionDefaultLangRequired              = newBillingServerErrorMsg("pr000012", "project short description in \""+DefaultLanguage+"\" locale is required")
-	projectErrorFullDescriptionDefaultLangRequired               = newBillingServerErrorMsg("pr000013", "project full description in \""+DefaultLanguage+"\" locale is required")
-	projectErrorVatPayerUnknown                                  = newBillingServerErrorMsg("pr000014", "project vat payer unknown")
-	projectErrorRedirectModeSuccessfulUrlIsRequired              = newBillingServerErrorMsg("pr000015", "redirect url for user's redirect after payment successful ending for selected redirect mode is required")
-	projectErrorRedirectModeFailUrlIsRequired                    = newBillingServerErrorMsg("pr000016", "redirect url for user's redirect after failed payment for selected redirect mode is required")
-	projectErrorRedirectModeBothRedirectUrlsIsRequired           = newBillingServerErrorMsg("pr000017", "redirect urls for user's redirect after payment completed for selected redirect mode is required")
-	projectErrorButtonCaptionAllowedOnlyForAfterRedirect         = newBillingServerErrorMsg("pr000018", "caption for redirect button can't be set with non zero delay for auto redirect")
-	projectErrorRedirectModeIsRequired                           = newBillingServerErrorMsg("pr000019", "redirect mode must be selected")
-	projectErrorRedirectUsageIsRequired                          = newBillingServerErrorMsg("pr000020", "type of redirect usage must be selected")
-	projectErrorChangeStatusToProductionNotAllowed               = newBillingServerErrorMsg("pr000021", "project status change to production not allowed, because project's merchant onboarding not complete")
+	projectErrorUnknown                                          = errors.NewBillingServerErrorMsg("pr000001", "project unknown error")
+	projectErrorNotFound                                         = errors.NewBillingServerErrorMsg("pr000002", "project with specified identifier not found")
+	projectErrorNameDefaultLangRequired                          = errors.NewBillingServerErrorMsg("pr000003", "project name in \""+DefaultLanguage+"\" locale is required")
+	projectErrorCallbackCurrencyIncorrect                        = errors.NewBillingServerErrorMsg("pr000004", "project callback currency is incorrect")
+	projectErrorLimitCurrencyIncorrect                           = errors.NewBillingServerErrorMsg("pr000005", "project limit currency is incorrect")
+	projectErrorLimitCurrencyRequired                            = errors.NewBillingServerErrorMsg("pr000006", "project limit currency can't be empty if you send min or max payment amount")
+	projectErrorCurrencyIsNotSupport                             = errors.NewBillingServerErrorMsg("pr000007", `project currency is not supported`)
+	projectErrorVirtualCurrencyNameDefaultLangRequired           = errors.NewBillingServerErrorMsg("pr000008", "project virtual currency name in \""+DefaultLanguage+"\" locale is required")
+	projectErrorVirtualCurrencySuccessMessageDefaultLangRequired = errors.NewBillingServerErrorMsg("pr000009", "project virtual currency success message in \""+DefaultLanguage+"\" locale is required")
+	projectErrorVirtualCurrencyPriceCurrencyIsNotSupport         = errors.NewBillingServerErrorMsg("pr000010", `project virtual currency price currency is not support`)
+	projectErrorVirtualCurrencyLimitsIncorrect                   = errors.NewBillingServerErrorMsg("pr000011", `project virtual currency purchase limits is incorrect`)
+	projectErrorShortDescriptionDefaultLangRequired              = errors.NewBillingServerErrorMsg("pr000012", "project short description in \""+DefaultLanguage+"\" locale is required")
+	projectErrorFullDescriptionDefaultLangRequired               = errors.NewBillingServerErrorMsg("pr000013", "project full description in \""+DefaultLanguage+"\" locale is required")
+	projectErrorVatPayerUnknown                                  = errors.NewBillingServerErrorMsg("pr000014", "project vat payer unknown")
+	projectErrorRedirectModeSuccessfulUrlIsRequired              = errors.NewBillingServerErrorMsg("pr000015", "redirect url for user's redirect after payment successful ending for selected redirect mode is required")
+	projectErrorRedirectModeFailUrlIsRequired                    = errors.NewBillingServerErrorMsg("pr000016", "redirect url for user's redirect after failed payment for selected redirect mode is required")
+	projectErrorRedirectModeBothRedirectUrlsIsRequired           = errors.NewBillingServerErrorMsg("pr000017", "redirect urls for user's redirect after payment completed for selected redirect mode is required")
+	projectErrorButtonCaptionAllowedOnlyForAfterRedirect         = errors.NewBillingServerErrorMsg("pr000018", "caption for redirect button can't be set with non zero delay for auto redirect")
+	projectErrorRedirectModeIsRequired                           = errors.NewBillingServerErrorMsg("pr000019", "redirect mode must be selected")
+	projectErrorRedirectUsageIsRequired                          = errors.NewBillingServerErrorMsg("pr000020", "type of redirect usage must be selected")
+	projectErrorChangeStatusToProductionNotAllowed               = errors.NewBillingServerErrorMsg("pr000021", "project status change to production not allowed, because project's merchant onboarding not complete")
 )
 
 func (s *Service) ChangeProject(

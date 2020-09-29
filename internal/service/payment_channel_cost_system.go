@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,14 +17,14 @@ const (
 )
 
 var (
-	errorPaymentChannelSystemGetAll                    = newBillingServerErrorMsg("pcs000001", "can't get list of payment channel setting for system")
-	errorPaymentChannelSystemGet                       = newBillingServerErrorMsg("pcs000002", "can't get payment channel setting for system")
-	errorPaymentChannelSystemSetFailed                 = newBillingServerErrorMsg("pcs000003", "can't set payment channel setting for system")
-	errorPaymentChannelSystemDelete                    = newBillingServerErrorMsg("pcs000004", "can't delete payment channel setting for system")
-	errorPaymentChannelSystemCurrency                  = newBillingServerErrorMsg("pcs000005", "currency not supported")
-	errorPaymentChannelSystemCostAlreadyExist          = newBillingServerErrorMsg("pcs000006", "cost with specified parameters already exist")
-	errorPaymentChannelSystemMccCode                   = newBillingServerErrorMsg("pcs000007", "mcc code not supported")
-	errorPaymentChannelSystemOperatingCompanyNotExists = newBillingServerErrorMsg("pcs000008", "operating company not exists")
+	errorPaymentChannelSystemGetAll                    = errors.NewBillingServerErrorMsg("pcs000001", "can't get list of payment channel setting for system")
+	errorPaymentChannelSystemGet                       = errors.NewBillingServerErrorMsg("pcs000002", "can't get payment channel setting for system")
+	errorPaymentChannelSystemSetFailed                 = errors.NewBillingServerErrorMsg("pcs000003", "can't set payment channel setting for system")
+	errorPaymentChannelSystemDelete                    = errors.NewBillingServerErrorMsg("pcs000004", "can't delete payment channel setting for system")
+	errorPaymentChannelSystemCurrency                  = errors.NewBillingServerErrorMsg("pcs000005", "currency not supported")
+	errorPaymentChannelSystemCostAlreadyExist          = errors.NewBillingServerErrorMsg("pcs000006", "cost with specified parameters already exist")
+	errorPaymentChannelSystemMccCode                   = errors.NewBillingServerErrorMsg("pcs000007", "mcc code not supported")
+	errorPaymentChannelSystemOperatingCompanyNotExists = errors.NewBillingServerErrorMsg("pcs000008", "operating company not exists")
 )
 
 func (s *Service) GetAllPaymentChannelCostSystem(

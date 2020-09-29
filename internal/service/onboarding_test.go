@@ -11,6 +11,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -2280,7 +2281,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_SetMerchantS3Agreement_Ok() {
 			gocent.Config{
 				Addr:       "http://localhost",
 				Key:        "api_key",
-				HTTPClient: mocks.NewClientStatusOk(),
+				HTTPClient: payment_system.NewClientStatusOk(),
 			},
 		),
 	}

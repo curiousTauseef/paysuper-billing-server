@@ -11,6 +11,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	errors2 "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -859,7 +860,7 @@ func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertErr
 func (suite *PayoutsTestSuite) TestPayouts_CreatePayoutDocument_Failed_InsertErrorWithResponse() {
 
 	pds := &mocks.PayoutRepositoryInterface{}
-	pds.On("Insert", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(newBillingServerErrorMsg("0", "test"))
+	pds.On("Insert", mock2.Anything, mock2.Anything, mock2.Anything, mock2.Anything).Return(errors2.NewBillingServerErrorMsg("0", "test"))
 	pds.On("GetBalanceAmount", mock2.Anything, mock2.Anything, mock2.Anything).Return(float64(0), nil)
 	pds.On("GetLast", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, nil)
 	suite.service.payoutRepository = pds

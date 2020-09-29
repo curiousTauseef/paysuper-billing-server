@@ -3,15 +3,16 @@ package service
 import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
-	errorOperatingCompanyCountryAlreadyExists = newBillingServerErrorMsg("oc000001", "operating company for one of passed country already exists")
-	errorOperatingCompanyCountryUnknown       = newBillingServerErrorMsg("oc000002", "operating company country unknown")
-	errorOperatingCompanyNotFound             = newBillingServerErrorMsg("oc000003", "operating company not found")
+	errorOperatingCompanyCountryAlreadyExists = errors.NewBillingServerErrorMsg("oc000001", "operating company for one of passed country already exists")
+	errorOperatingCompanyCountryUnknown       = errors.NewBillingServerErrorMsg("oc000002", "operating company country unknown")
+	errorOperatingCompanyNotFound             = errors.NewBillingServerErrorMsg("oc000003", "operating company not found")
 )
 
 func (s *Service) GetOperatingCompaniesList(

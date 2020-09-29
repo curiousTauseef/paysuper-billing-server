@@ -4,14 +4,15 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.uber.org/zap"
 )
 
 var (
-	errorCountryNotFound        = newBillingServerErrorMsg("co000001", "country not found")
-	errorCountryRegionNotExists = newBillingServerErrorMsg("co000002", "region not exists")
-	errorCountryOrderIdRequired = newBillingServerErrorMsg("co000003", "order id required")
+	errorCountryNotFound        = errors.NewBillingServerErrorMsg("co000001", "country not found")
+	errorCountryRegionNotExists = errors.NewBillingServerErrorMsg("co000002", "region not exists")
+	errorCountryOrderIdRequired = errors.NewBillingServerErrorMsg("co000003", "order id required")
 )
 
 func (s *Service) GetCountriesList(

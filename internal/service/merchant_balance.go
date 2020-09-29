@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -12,7 +13,7 @@ import (
 )
 
 var (
-	errorMerchantPayoutCurrencyNotSet = newBillingServerErrorMsg("ba000001", "merchant payout currency not set")
+	errorMerchantPayoutCurrencyNotSet = errors.NewBillingServerErrorMsg("ba000001", "merchant payout currency not set")
 
 	accountingEntriesForRollingReserve = []string{
 		pkg.AccountingEntryTypeMerchantRollingReserveCreate,

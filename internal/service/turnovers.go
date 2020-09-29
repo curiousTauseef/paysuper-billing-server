@@ -6,6 +6,7 @@ import (
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	tools "github.com/paysuper/paysuper-tools/number"
@@ -20,8 +21,8 @@ const (
 )
 
 var (
-	errorTurnoversCurrencyRatesPolicyNotSupported = newBillingServerErrorMsg("to000001", "vat currency rates policy not supported")
-	errorTurnoversExchangeFailed                  = newBillingServerErrorMsg("to000002", "currency exchange failed")
+	errorTurnoversCurrencyRatesPolicyNotSupported = errors.NewBillingServerErrorMsg("to000001", "vat currency rates policy not supported")
+	errorTurnoversExchangeFailed                  = errors.NewBillingServerErrorMsg("to000002", "currency exchange failed")
 )
 
 func (s *Service) CalcAnnualTurnovers(ctx context.Context, req *billingpb.EmptyRequest, res *billingpb.EmptyResponse) error {

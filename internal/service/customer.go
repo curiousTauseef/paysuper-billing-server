@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,8 +18,8 @@ import (
 )
 
 var (
-	errorCustomerOrderTypeNotSupport = newBillingServerErrorMsg("cm000001", "order type is not support")
-	errorCustomerUnknown             = newBillingServerErrorMsg("cm000002", "unknown error")
+	errorCustomerOrderTypeNotSupport = errors.NewBillingServerErrorMsg("cm000001", "order type is not support")
+	errorCustomerUnknown             = errors.NewBillingServerErrorMsg("cm000002", "unknown error")
 )
 
 func (s *Service) SetCustomerPaymentActivity(
@@ -251,15 +252,9 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	rsp.Status = billingpb.ResponseStatusSystemError
 
 	if len(req.MerchantId) > 0 {
-		merchantOid, err := primitive.ObjectIDFromHex(req.MerchantId)
-
-		if err != nil {
-			return err
-		}
-
 		query["payment_activity"] = bson.M{
 			"$elemMatch": bson.M{
-				"merchant_id": merchantOid,
+				"merchant_id": req.MerchantId,
 			},
 		}
 	}
@@ -306,7 +301,7 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	result := make([]*billingpb.ShortCustomerInfo, len(customers))
 	for i, customer := range customers {
 		shortCustomer := &billingpb.ShortCustomerInfo{
-			Id:         customer.Id,
+			Id:         customer.Uuid,
 			ExternalId: customer.ExternalId,
 			Language:   customer.Locale,
 			LastOrder:  &timestamp.Timestamp{},

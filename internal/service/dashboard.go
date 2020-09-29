@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
-	dashboardErrorUnknown = newBillingServerErrorMsg("db000001", "unknown error. try request later")
+	dashboardErrorUnknown = errors.NewBillingServerErrorMsg("db000001", "unknown error. try request later")
 )
 
 func (s *Service) GetDashboardMainReport(

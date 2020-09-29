@@ -11,9 +11,11 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -135,7 +137,7 @@ func (suite *RefundTestSuite) SetupTest() {
 		AccountingPeriod:   "every-day",
 		Country:            "",
 		IsActive:           true,
-		Handler:            paymentSystemHandlerCardPayMock,
+		Handler:            PaymentSystemHandlerCardPayMock,
 	}
 	pmBankCard := &billingpb.PaymentMethod{
 		Id:               primitive.NewObjectID().Hex(),
@@ -1000,7 +1002,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefund_PaymentSystemNotExists_Err
 	err = suite.service.CreateRefund(context.TODO(), req2, rsp2)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp2.Status)
-	assert.Equal(suite.T(), paymentSystemErrorHandlerNotFound.Error(), rsp2.Message.Message)
+	assert.Equal(suite.T(), payment_system.PaymentSystemErrorHandlerNotFound.Error(), rsp2.Message.Message)
 	assert.Empty(suite.T(), rsp2.Item)
 }
 
@@ -1086,7 +1088,7 @@ func (suite *RefundTestSuite) TestRefund_CreateRefundProcessor_ProcessOrder_Orde
 
 	err1, ok := err.(*billingpb.ResponseError)
 	assert.True(suite.T(), ok)
-	assert.Equal(suite.T(), newBillingServerResponseError(billingpb.ResponseStatusNotFound, refundErrorNotFound), err1)
+	assert.Equal(suite.T(), errors.NewBillingServerResponseError(billingpb.ResponseStatusNotFound, refundErrorNotFound), err1)
 }
 
 func (suite *RefundTestSuite) TestRefund_CreateRefund_RefundNotAllowed_Error() {
@@ -1523,7 +1525,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -1531,7 +1533,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -1771,7 +1773,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownHandler_Er
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -1779,7 +1781,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownHandler_Er
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -1886,7 +1888,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_RefundNotFound_Er
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -1894,7 +1896,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_RefundNotFound_Er
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -2009,7 +2011,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -2017,7 +2019,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderNotFound_Err
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -2080,7 +2082,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownPaymentSys
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -2088,7 +2090,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_UnknownPaymentSys
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -2151,7 +2153,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundErro
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10000,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -2159,7 +2161,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundErro
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -2181,7 +2183,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_ProcessRefundErro
 	err = suite.service.ProcessRefundCallback(context.TODO(), req3, rsp3)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp3.Status)
-	assert.Equal(suite.T(), paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid.Error(), rsp3.Error)
+	assert.Equal(suite.T(), payment_system.PaymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid.Error(), rsp3.Error)
 
 	accountingEntries, err := suite.service.accountingRepository.FindBySource(ctx, rsp2.Item.Id, repository.CollectionRefund)
 	assert.NoError(suite.T(), err)
@@ -2228,7 +2230,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_TemporaryStatus_O
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   order.ChargeAmount,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusAuthorized,
@@ -2236,7 +2238,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_TemporaryStatus_O
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -2258,7 +2260,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_TemporaryStatus_O
 	err = suite.service.ProcessRefundCallback(context.TODO(), req3, rsp3)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp3.Status)
-	assert.Equal(suite.T(), paymentSystemErrorRequestTemporarySkipped.Error(), rsp3.Error)
+	assert.Equal(suite.T(), payment_system.PaymentSystemErrorRequestTemporarySkipped.Error(), rsp3.Error)
 
 	refund, err := suite.service.refundRepository.GetById(context.TODO(), rsp2.Item.Id)
 	assert.NoError(suite.T(), err)
@@ -2399,7 +2401,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   order.TotalPaymentAmount,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -2407,7 +2409,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_OrderFullyRefunde
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -2574,7 +2576,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -2582,7 +2584,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Chargeback_Ok() {
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -2854,7 +2856,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Declined() {
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusDeclined,
@@ -2862,7 +2864,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Declined() {
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,

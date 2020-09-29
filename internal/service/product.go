@@ -4,27 +4,28 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 )
 
 var (
-	productErrorUnknown                    = newBillingServerErrorMsg("pd000001", "unknown error with product")
-	productErrorNotFound                   = newBillingServerErrorMsg("pd000002", "products with specified ID not found")
-	productErrorIdListEmpty                = newBillingServerErrorMsg("pd000007", "ids list is empty")
-	productErrorMerchantNotEqual           = newBillingServerErrorMsg("pd000008", "merchant id is not equal in a product")
-	productErrorProjectNotEqual            = newBillingServerErrorMsg("pd000009", "project id is not equal in a product")
-	productErrorPriceDefaultCurrency       = newBillingServerErrorMsg("pd000010", "no price in default currency")
-	productErrorNameDefaultLanguage        = newBillingServerErrorMsg("pd000011", "no name in default language")
-	productErrorDescriptionDefaultLanguage = newBillingServerErrorMsg("pd000012", "no description in default language")
-	productErrorUpsert                     = newBillingServerErrorMsg("pd000013", "query to insert/update product failed")
-	productErrorDelete                     = newBillingServerErrorMsg("pd000014", "query to delete product failed")
-	productErrorProjectAndSkuAlreadyExists = newBillingServerErrorMsg("pd000015", "pair projectId+Sku already exists")
-	productErrorListPrices                 = newBillingServerErrorMsg("pd000016", "list of prices is empty")
-	productErrorPricesUpdate               = newBillingServerErrorMsg("pd000017", "query to update product prices is failed")
-	productSkuMismatch                     = newBillingServerErrorMsg("pd000018", "sku mismatch")
-	productNoPriceInCurrencyError          = newBillingServerErrorMsg("pd000019", "no product price in requested currency")
+	productErrorUnknown                    = errors.NewBillingServerErrorMsg("pd000001", "unknown error with product")
+	productErrorNotFound                   = errors.NewBillingServerErrorMsg("pd000002", "products with specified ID not found")
+	productErrorIdListEmpty                = errors.NewBillingServerErrorMsg("pd000007", "ids list is empty")
+	productErrorMerchantNotEqual           = errors.NewBillingServerErrorMsg("pd000008", "merchant id is not equal in a product")
+	productErrorProjectNotEqual            = errors.NewBillingServerErrorMsg("pd000009", "project id is not equal in a product")
+	productErrorPriceDefaultCurrency       = errors.NewBillingServerErrorMsg("pd000010", "no price in default currency")
+	productErrorNameDefaultLanguage        = errors.NewBillingServerErrorMsg("pd000011", "no name in default language")
+	productErrorDescriptionDefaultLanguage = errors.NewBillingServerErrorMsg("pd000012", "no description in default language")
+	productErrorUpsert                     = errors.NewBillingServerErrorMsg("pd000013", "query to insert/update product failed")
+	productErrorDelete                     = errors.NewBillingServerErrorMsg("pd000014", "query to delete product failed")
+	productErrorProjectAndSkuAlreadyExists = errors.NewBillingServerErrorMsg("pd000015", "pair projectId+Sku already exists")
+	productErrorListPrices                 = errors.NewBillingServerErrorMsg("pd000016", "list of prices is empty")
+	productErrorPricesUpdate               = errors.NewBillingServerErrorMsg("pd000017", "query to update product prices is failed")
+	productSkuMismatch                     = errors.NewBillingServerErrorMsg("pd000018", "sku mismatch")
+	productNoPriceInCurrencyError          = errors.NewBillingServerErrorMsg("pd000019", "no product price in requested currency")
 )
 
 func (s *Service) CreateOrUpdateProduct(ctx context.Context, req *billingpb.Product, res *billingpb.Product) error {
