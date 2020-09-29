@@ -307,7 +307,7 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	result := make([]*billingpb.ShortCustomerInfo, len(customers))
 	for i, customer := range customers {
 		shortCustomer := &billingpb.ShortCustomerInfo{
-			Id:         customer.Id,
+			Id:         customer.Uuid,
 			ExternalId: customer.ExternalId,
 			Language:   customer.Locale,
 			LastOrder:  &timestamp.Timestamp{},
