@@ -388,6 +388,7 @@ func (s *Service) DeleteCustomerCard(ctx context.Context, req *billingpb.DeleteC
 		Token: req.CustomerId,
 	}
 
+	zap.L().Info("DeleteCustomerCard", zap.Any("req1", req1))
 	rsp1, err := s.rep.DeleteSavedCard(ctx, req1)
 
 	if err != nil {
@@ -438,6 +439,7 @@ func (s *Service) GetCustomerSubscription(ctx context.Context, req *billingpb.Ge
 		Id: req.Id,
 	}
 
+	zap.L().Info("GetCustomerSubscription", zap.Any("req1", req1))
 	rsp1, err := s.rep.GetSubscription(ctx, req1)
 
 	if err != nil {
@@ -581,6 +583,8 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 		req1.CustomerUuid = req.CustomerId
 	}
 
+
+	zap.L().Info("FindSubscriptions", zap.Any("req1", req1))
 	rsp1, err := s.rep.FindSubscriptions(ctx, req1)
 
 	if err != nil {
@@ -602,6 +606,10 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 	rsp.List = make([]*billingpb.Subscription, len(rsp1.List))
 	for i, subscription := range rsp1.List {
 		rsp.List[i] = s.mapRecurringToBilling(subscription)
+	}
+
+	if len(rsp.List) == 0 {
+		rsp.List = []*billingpb.Subscription{}
 	}
 
 	return nil
