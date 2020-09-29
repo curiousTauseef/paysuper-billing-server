@@ -252,15 +252,9 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	rsp.Status = billingpb.ResponseStatusSystemError
 
 	if len(req.MerchantId) > 0 {
-		merchantOid, err := primitive.ObjectIDFromHex(req.MerchantId)
-
-		if err != nil {
-			return err
-		}
-
 		query["payment_activity"] = bson.M{
 			"$elemMatch": bson.M{
-				"merchant_id": merchantOid,
+				"merchant_id": req.MerchantId,
 			},
 		}
 	}
