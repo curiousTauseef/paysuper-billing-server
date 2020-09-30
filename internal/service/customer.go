@@ -234,14 +234,19 @@ func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustome
 	opts := options.Find()
 	opts.SetLimit(1)
 
-	customers, err := s.customerRepository.FindBy(ctx, bson.M{
+	query := bson.M{
 		"uuid": req.UserId,
-		"payment_activity": bson.M{
+	}
+
+	if len(req.MerchantId) > 0 {
+		query["payment_activity"] = bson.M{
 			"$elemMatch": bson.M{
 				"merchant_id": req.MerchantId,
 			},
-		},
-	}, opts)
+		}
+	}
+
+	customers, err := s.customerRepository.FindBy(ctx, query, opts)
 
 	if len(customers) == 0 {
 		rsp.Status = billingpb.ResponseStatusBadData
