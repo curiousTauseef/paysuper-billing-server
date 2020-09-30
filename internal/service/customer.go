@@ -299,19 +299,28 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	}
 
 	if len(req.Language) > 0 {
-		query["locale_history"] = bson.M{
-			"$elemMatch": bson.M{
-				"value": req.Language,
-			},
-		}
+		query["locale"] = req.Language
 	}
 
 	if len(req.Name) > 0 {
 		query["name"] = req.Name
 	}
 
+	if req.Amount != nil {
+		query["payment_activity.revenue.payment"] = bson.M{
+			"$gte": req.Amount.From,
+			"$lte": req.Amount.To,
+		}
+	}
+
 	opts := options.Find()
-	opts = opts.SetLimit(req.Limit)
+	if req.Limit > 0 {
+		opts = opts.SetLimit(req.Limit)
+	}
+
+	if req.Offset > 0 {
+		opts = opts.SetSkip(req.Offset)
+	}
 
 	customers, err := s.customerRepository.FindBy(ctx, query)
 	if err != nil {
