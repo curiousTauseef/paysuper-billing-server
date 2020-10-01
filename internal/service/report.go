@@ -217,7 +217,9 @@ func (s *Service) getOrdersList(
 				}
 			}
 			query["status"] = bson.M{"$in": statuses}
-			query["type"] = bson.M{"$in": types}
+			if len(types) > 0 {
+				query["type"] = bson.M{"$in": types}
+			}
 		}
 
 		if req.Account != "" {
