@@ -201,21 +201,23 @@ func (s *Service) getOrdersList(
 
 		if len(req.Status) > 0 {
 			var statuses []string
+			var types []string
 			for _, status := range req.Status {
 				statuses = append(statuses, status)
 				switch status {
 				case "refunded":
-					query["type"] = "refund"
+					types = append(types, "refund")
 					break
 				case "processed":
 					statuses = append(statuses, "refunded")
-					query["type"] = "order"
+					types = append(types, "order")
 					break
 				default:
 					break
 				}
 			}
 			query["status"] = bson.M{"$in": statuses}
+			query["type"] = bson.M{"$in": types}
 		}
 
 		if req.Account != "" {
