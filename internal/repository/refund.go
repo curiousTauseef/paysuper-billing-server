@@ -207,7 +207,11 @@ func (h *refundRepository) GetAmountByOrderId(ctx context.Context, orderId strin
 	query := []bson.M{
 		{
 			"$match": bson.M{
-				"status":            bson.M{"$nin": []int32{pkg.RefundStatusRejected}},
+				"status": bson.M{"$in": []int32{
+					pkg.RefundStatusCreated,
+					pkg.RefundStatusInProgress,
+					pkg.RefundStatusCompleted,
+				}},
 				"original_order.id": oid,
 			},
 		},
