@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
-	dashboardErrorUnknown = newBillingServerErrorMsg("db000001", "unknown error. try request later")
+	dashboardErrorUnknown = errors.NewBillingServerErrorMsg("db000001", "unknown error. try request later")
 )
 
 func (s *Service) GetDashboardMainReport(
@@ -105,6 +106,44 @@ func (s *Service) GetDashboardBaseReport(
 
 	rsp.Status = billingpb.ResponseStatusOk
 	rsp.Item = report
+
+	return nil
+}
+
+func (s *Service) GetDashboardCustomersReport(ctx context.Context, req *billingpb.DashboardCustomerReportRequest, rsp *billingpb.GetDashboardCustomerReportResponse) error {
+	report, err := s.dashboardRepository.GetCustomersReport(ctx, req.MerchantId, req.Period)
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = merchantErrorNotFound
+
+		if err != mongo.ErrNoDocuments {
+			rsp.Status = billingpb.ResponseStatusSystemError
+		}
+
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Item = report
+
+	return nil
+}
+
+func (s *Service) GetDashboardCustomerArpu(ctx context.Context, req *billingpb.DashboardCustomerReportArpuRequest, rsp *billingpb.DashboardCustomerReportArpuResponse) error {
+	chart, err := s.dashboardRepository.GetCustomerARPU(ctx, req.MerchantId, req.CustomerId)
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = merchantErrorNotFound
+
+		if err != mongo.ErrNoDocuments {
+			rsp.Status = billingpb.ResponseStatusSystemError
+		}
+
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Item = chart
 
 	return nil
 }

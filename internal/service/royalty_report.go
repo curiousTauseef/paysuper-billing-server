@@ -13,6 +13,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -38,18 +39,18 @@ const (
 var (
 	royaltyReportErrorNoTransactions = "no transactions for the period"
 
-	royaltyReportErrorReportNotFound                  = newBillingServerErrorMsg("rr00001", "royalty report with specified identifier not found")
-	royaltyReportErrorReportStatusChangeDenied        = newBillingServerErrorMsg("rr00002", "change royalty report to new status denied")
-	royaltyReportErrorCorrectionReasonRequired        = newBillingServerErrorMsg("rr00003", "correction reason required")
-	royaltyReportEntryErrorUnknown                    = newBillingServerErrorMsg("rr00004", "unknown error. try request later")
-	royaltyReportUpdateBalanceError                   = newBillingServerErrorMsg("rr00005", "update balance failed")
-	royaltyReportErrorEndOfPeriodIsInFuture           = newBillingServerErrorMsg("rr00006", "end of royalty report period is in future")
-	royaltyReportErrorTimezoneIncorrect               = newBillingServerErrorMsg("rr00007", "incorrect time zone")
-	royaltyReportErrorAlreadyExistsAndCannotBeUpdated = newBillingServerErrorMsg("rr00008", "report for this merchant and period already exists and can not be updated")
-	royaltyReportErrorCorrectionAmountRequired        = newBillingServerErrorMsg("rr00009", "correction amount required and must be not zero")
-	royaltyReportErrorPayoutDocumentIdInvalid         = newBillingServerErrorMsg("rr00010", "payout document id is invalid")
-	royaltyReportErrorNotOwnedByMerchant              = newBillingServerErrorMsg("rr00011", "payout document is not owned by merchant")
-	royaltyReportErrorMerchantNotFound                = newBillingServerErrorMsg("rr00012", "royalty report merchant owner not found")
+	royaltyReportErrorReportNotFound                  = errors.NewBillingServerErrorMsg("rr00001", "royalty report with specified identifier not found")
+	royaltyReportErrorReportStatusChangeDenied        = errors.NewBillingServerErrorMsg("rr00002", "change royalty report to new status denied")
+	royaltyReportErrorCorrectionReasonRequired        = errors.NewBillingServerErrorMsg("rr00003", "correction reason required")
+	royaltyReportEntryErrorUnknown                    = errors.NewBillingServerErrorMsg("rr00004", "unknown error. try request later")
+	royaltyReportUpdateBalanceError                   = errors.NewBillingServerErrorMsg("rr00005", "update balance failed")
+	royaltyReportErrorEndOfPeriodIsInFuture           = errors.NewBillingServerErrorMsg("rr00006", "end of royalty report period is in future")
+	royaltyReportErrorTimezoneIncorrect               = errors.NewBillingServerErrorMsg("rr00007", "incorrect time zone")
+	royaltyReportErrorAlreadyExistsAndCannotBeUpdated = errors.NewBillingServerErrorMsg("rr00008", "report for this merchant and period already exists and can not be updated")
+	royaltyReportErrorCorrectionAmountRequired        = errors.NewBillingServerErrorMsg("rr00009", "correction amount required and must be not zero")
+	royaltyReportErrorPayoutDocumentIdInvalid         = errors.NewBillingServerErrorMsg("rr00010", "payout document id is invalid")
+	royaltyReportErrorNotOwnedByMerchant              = errors.NewBillingServerErrorMsg("rr00011", "payout document is not owned by merchant")
+	royaltyReportErrorMerchantNotFound                = errors.NewBillingServerErrorMsg("rr00012", "royalty report merchant owner not found")
 
 	orderStatusForRoyaltyReports = []string{
 		recurringpb.OrderPublicStatusProcessed,

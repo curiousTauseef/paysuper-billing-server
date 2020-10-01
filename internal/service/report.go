@@ -6,6 +6,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -21,7 +22,7 @@ const (
 )
 
 var (
-	reportErrorUnknown = newBillingServerErrorMsg("rp000001", "request processing failed. try request later")
+	reportErrorUnknown = errors.NewBillingServerErrorMsg("rp000001", "request processing failed. try request later")
 	privateOrderMapper = models.NewOrderViewPrivateMapper()
 	publicOrderMapper  = models.NewOrderViewPublicMapper()
 	orderMapper        = models.NewOrderMapper()

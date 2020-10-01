@@ -8,6 +8,7 @@ import (
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/paysuper/paysuper-proto/go/reporterpb"
@@ -32,20 +33,20 @@ const (
 )
 
 var (
-	errorPayoutSourcesNotFound         = newBillingServerErrorMsg("po000001", "no source documents found for payout")
-	errorPayoutSourcesPending          = newBillingServerErrorMsg("po000002", "you have at least one royalty report waiting for acceptance")
-	errorPayoutSourcesDispute          = newBillingServerErrorMsg("po000003", "you have at least one unclosed dispute in your royalty reports")
-	errorPayoutNotFound                = newBillingServerErrorMsg("po000004", "payout document not found")
-	errorPayoutAmountInvalid           = newBillingServerErrorMsg("po000005", "payout amount is invalid")
-	errorPayoutUpdateBalance           = newBillingServerErrorMsg("po000008", "balance update failed")
-	errorPayoutBalanceError            = newBillingServerErrorMsg("po000009", "getting balance failed")
-	errorPayoutNotEnoughBalance        = newBillingServerErrorMsg("po000010", "not enough balance for payout")
-	errorPayoutUpdateRoyaltyReports    = newBillingServerErrorMsg("po000012", "royalty reports update failed")
-	errorPayoutStatusChangeIsForbidden = newBillingServerErrorMsg("po000014", "status change is forbidden")
-	errorPayoutManualPayoutsDisabled   = newBillingServerErrorMsg("po000015", "manual payouts disabled")
-	errorPayoutAutoPayoutsDisabled     = newBillingServerErrorMsg("po000016", "auto payouts disabled")
-	errorPayoutAutoPayoutsWithErrors   = newBillingServerErrorMsg("po000017", "auto payouts creation finished with errors")
-	errorPayoutRequireFailureFields    = newBillingServerErrorMsg("po000018", "fields failure_code and failure_message is required when status changing to failure")
+	errorPayoutSourcesNotFound         = errors.NewBillingServerErrorMsg("po000001", "no source documents found for payout")
+	errorPayoutSourcesPending          = errors.NewBillingServerErrorMsg("po000002", "you have at least one royalty report waiting for acceptance")
+	errorPayoutSourcesDispute          = errors.NewBillingServerErrorMsg("po000003", "you have at least one unclosed dispute in your royalty reports")
+	errorPayoutNotFound                = errors.NewBillingServerErrorMsg("po000004", "payout document not found")
+	errorPayoutAmountInvalid           = errors.NewBillingServerErrorMsg("po000005", "payout amount is invalid")
+	errorPayoutUpdateBalance           = errors.NewBillingServerErrorMsg("po000008", "balance update failed")
+	errorPayoutBalanceError            = errors.NewBillingServerErrorMsg("po000009", "getting balance failed")
+	errorPayoutNotEnoughBalance        = errors.NewBillingServerErrorMsg("po000010", "not enough balance for payout")
+	errorPayoutUpdateRoyaltyReports    = errors.NewBillingServerErrorMsg("po000012", "royalty reports update failed")
+	errorPayoutStatusChangeIsForbidden = errors.NewBillingServerErrorMsg("po000014", "status change is forbidden")
+	errorPayoutManualPayoutsDisabled   = errors.NewBillingServerErrorMsg("po000015", "manual payouts disabled")
+	errorPayoutAutoPayoutsDisabled     = errors.NewBillingServerErrorMsg("po000016", "auto payouts disabled")
+	errorPayoutAutoPayoutsWithErrors   = errors.NewBillingServerErrorMsg("po000017", "auto payouts creation finished with errors")
+	errorPayoutRequireFailureFields    = errors.NewBillingServerErrorMsg("po000018", "fields failure_code and failure_message is required when status changing to failure")
 
 	statusForUpdateBalance = map[string]bool{
 		pkg.PayoutDocumentStatusPending: true,

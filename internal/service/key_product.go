@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -19,27 +20,27 @@ const (
 )
 
 var (
-	keyProductMerchantMismatch              = newBillingServerErrorMsg("kp000001", "merchant id mismatch")
-	keyProductProjectMismatch               = newBillingServerErrorMsg("kp000002", "project id mismatch")
-	keyProductSkuMismatch                   = newBillingServerErrorMsg("kp000003", "sku mismatch")
-	keyProductNameNotProvided               = newBillingServerErrorMsg("kp000004", "name must be set")
-	keyProductDescriptionNotProvided        = newBillingServerErrorMsg("kp000005", "description must be set")
-	keyProductDuplicate                     = newBillingServerErrorMsg("kp000006", "sku+project id already exist")
-	keyProductIdsIsEmpty                    = newBillingServerErrorMsg("kp000007", "ids is empty")
-	keyProductAlreadyHasPlatform            = newBillingServerErrorMsg("kp000008", "product already has user defined platform")
-	keyProductActivationUrlEmpty            = newBillingServerErrorMsg("kp000009", "activation url must be set")
-	keyProductEulaEmpty                     = newBillingServerErrorMsg("kp000010", "eula url must be set")
-	keyProductPlatformName                  = newBillingServerErrorMsg("kp000011", "platform name must be set")
-	keyProductRetrieveError                 = newBillingServerErrorMsg("kp000012", "query to retrieve key product failed")
-	keyProductErrorUpsert                   = newBillingServerErrorMsg("kp000013", "query to insert/update key product failed")
-	keyProductErrorDelete                   = newBillingServerErrorMsg("kp000014", "query to remove key product failed")
-	keyProductMerchantNotFound              = newBillingServerErrorMsg("kp000015", "merchant not found")
-	keyProductNotFound                      = newBillingServerErrorMsg("kp000017", "key product not found")
-	keyProductInternalError                 = newBillingServerErrorMsg("kp000018", "unknown error")
-	keyProductOrderIsNotProcessedError      = newBillingServerErrorMsg("kp000019", "order has wrong public status")
-	keyProductPlatformDontHaveDefaultPrice  = newBillingServerErrorMsg("kp000020", "platform don't have price in default currency")
-	keyProductPlatformPriceMismatchCurrency = newBillingServerErrorMsg("kp000021", "platform don't have price with region that mismatch with currency")
-	keyProductNotPublished                  = newBillingServerErrorMsg("kp000023", "key product is not published")
+	keyProductMerchantMismatch              = errors.NewBillingServerErrorMsg("kp000001", "merchant id mismatch")
+	keyProductProjectMismatch               = errors.NewBillingServerErrorMsg("kp000002", "project id mismatch")
+	keyProductSkuMismatch                   = errors.NewBillingServerErrorMsg("kp000003", "sku mismatch")
+	keyProductNameNotProvided               = errors.NewBillingServerErrorMsg("kp000004", "name must be set")
+	keyProductDescriptionNotProvided        = errors.NewBillingServerErrorMsg("kp000005", "description must be set")
+	keyProductDuplicate                     = errors.NewBillingServerErrorMsg("kp000006", "sku+project id already exist")
+	keyProductIdsIsEmpty                    = errors.NewBillingServerErrorMsg("kp000007", "ids is empty")
+	keyProductAlreadyHasPlatform            = errors.NewBillingServerErrorMsg("kp000008", "product already has user defined platform")
+	keyProductActivationUrlEmpty            = errors.NewBillingServerErrorMsg("kp000009", "activation url must be set")
+	keyProductEulaEmpty                     = errors.NewBillingServerErrorMsg("kp000010", "eula url must be set")
+	keyProductPlatformName                  = errors.NewBillingServerErrorMsg("kp000011", "platform name must be set")
+	keyProductRetrieveError                 = errors.NewBillingServerErrorMsg("kp000012", "query to retrieve key product failed")
+	keyProductErrorUpsert                   = errors.NewBillingServerErrorMsg("kp000013", "query to insert/update key product failed")
+	keyProductErrorDelete                   = errors.NewBillingServerErrorMsg("kp000014", "query to remove key product failed")
+	keyProductMerchantNotFound              = errors.NewBillingServerErrorMsg("kp000015", "merchant not found")
+	keyProductNotFound                      = errors.NewBillingServerErrorMsg("kp000017", "key product not found")
+	keyProductInternalError                 = errors.NewBillingServerErrorMsg("kp000018", "unknown error")
+	keyProductOrderIsNotProcessedError      = errors.NewBillingServerErrorMsg("kp000019", "order has wrong public status")
+	keyProductPlatformDontHaveDefaultPrice  = errors.NewBillingServerErrorMsg("kp000020", "platform don't have price in default currency")
+	keyProductPlatformPriceMismatchCurrency = errors.NewBillingServerErrorMsg("kp000021", "platform don't have price with region that mismatch with currency")
+	keyProductNotPublished                  = errors.NewBillingServerErrorMsg("kp000023", "key product is not published")
 )
 
 var availablePlatforms = map[string]*billingpb.Platform{

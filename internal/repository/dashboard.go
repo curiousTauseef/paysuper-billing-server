@@ -25,6 +25,7 @@ const (
 	dashboardBaseRevenueByCountryCacheKey         = "dashboard:base:revenue_by_country:%x"
 	dashboardBaseSalesTodayCacheKey               = "dashboard:base:sales_today:%x"
 	dashboardBaseSourcesCacheKey                  = "dashboard:base:sources:%x"
+	dashboardCustomerCacheKey                  = "dashboard:customers:%x"
 
 	dashboardReportGroupByHour        = "$hour"
 	dashboardReportGroupByDay         = "$day"
@@ -50,11 +51,299 @@ var (
 
 type dashboardRepository repository
 
+
 // NewDashboardRepository create and return an object for working with the key repository.
 // The returned object implements the DashboardRepositoryInterface interface.
 func NewDashboardRepository(db mongodb.SourceInterface, cache database.CacheInterface) DashboardRepositoryInterface {
 	s := &dashboardRepository{db: db, cache: cache}
 	return s
+}
+
+func (r *dashboardRepository) getCustomersReturning(ctx context.Context, merchantId string, period string) (float32, error) {
+	processorCurrent, err := r.newDashboardReportProcessor(
+		merchantId,
+		period,
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	processorPrev, err := r.newDashboardReportProcessor(
+		merchantId,
+		dashboardReportBasePreviousPeriodsNames[period],
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	prevCustomers, err := processorPrev.ExecuteCustomers(ctx, nil)
+	if err != nil {
+		return 0.0, err
+	}
+
+	currCustomers, err := processorCurrent.ExecuteCustomers(ctx, nil)
+	if err != nil {
+		return 0.0, err
+	}
+
+	currCustomersTyped := currCustomers.([]*Customers)
+	prevCustomersTyped := prevCustomers.([]*Customers)
+
+	// Creating map for O(1) checking
+	currCustomersMap := map[string]*Customers{}
+	for _, customer := range currCustomersTyped {
+		currCustomersMap[customer.Id] = customer
+	}
+
+	returns := float32(0.0)
+	for _, customer := range prevCustomersTyped {
+		if _, ok := currCustomersMap[customer.Id]; ok {
+			returns++
+		}
+	}
+
+	if returns == 0 {
+		return 0.0, nil
+	}
+
+	return float32(len(currCustomersTyped)) / returns, nil
+}
+
+func (r *dashboardRepository) getCustomersNew(ctx context.Context, merchantId string, period string) (float32, error) {
+	processorCurrent, err := r.newDashboardReportProcessor(
+		merchantId,
+		period,
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	processorPrev, err := r.newDashboardReportProcessor(
+		merchantId,
+		dashboardReportBasePreviousPeriodsNames[period],
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	prevCustomers, err := processorPrev.ExecuteCustomers(ctx, nil)
+	if err != nil {
+		return 0.0, err
+	}
+
+	currCustomers, err := processorCurrent.ExecuteCustomers(ctx, nil)
+	if err != nil {
+		return 0.0, err
+	}
+
+	total, err := processorPrev.ExecuteCustomersCount(ctx, nil)
+	if err != nil {
+		return 0.0, err
+	}
+
+	totalTyped := total.(float32)
+	zero := float32(0.0)
+
+	if totalTyped == 0 {
+		return zero, nil
+	}
+
+	currCustomersTyped := currCustomers.([]*Customers)
+	prevCustomersTyped := prevCustomers.([]*Customers)
+
+	if len(currCustomersTyped) == 0 {
+		return zero, nil
+	}
+
+	// Creating map for O(1) checking
+	prevCustomersMap := map[string]*Customers{}
+	for _, customer := range prevCustomersTyped {
+		prevCustomersMap[customer.Id] = customer
+	}
+
+	newCustomers := zero
+	for _, customer := range currCustomersTyped {
+		if _, ok := prevCustomersMap[customer.Id]; !ok {
+			newCustomers++
+		}
+	}
+
+	res := newCustomers / totalTyped
+	return res, nil
+}
+
+func (r *dashboardRepository) getCustomersAvgLtv(ctx context.Context, merchantId string, period string) (float32, error) {
+	processorCurrent, err := r.newDashboardReportProcessor(
+		merchantId,
+		period,
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	ltv, err := processorCurrent.ExecuteCustomerLTV(ctx, nil)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	return ltv.(float32), nil
+}
+
+func (r *dashboardRepository) getCustomersAvgOrdersCount(ctx context.Context, merchantId string, period string) (float32, error) {
+	processorCurrent, err := r.newDashboardReportProcessor(
+		merchantId,
+		period,
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return 0.0, err
+	}
+
+	avgCount, err := processorCurrent.ExecuteCustomerAvgTransactionsCount(ctx, nil)
+	if err != nil {
+		return 0.0, err
+	}
+
+	return avgCount.(float32), nil
+}
+
+func (r *dashboardRepository) getTop20Customers(ctx context.Context, merchantId string, period string) (*billingpb.Top20Customers, error) {
+	processorCurrent, err := r.newDashboardReportProcessor(
+		merchantId,
+		period,
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := processorCurrent.ExecuteCustomerTop20(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return res.(*billingpb.Top20Customers), nil
+}
+
+
+func (r *dashboardRepository) getCustomersNewAndReturningChart(ctx context.Context, merchantId string, period string) ([]*billingpb.DashboardChartItemInt, error) {
+	processorCurrent, err := r.newDashboardReportProcessor(
+		merchantId,
+		period,
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	start, end, err := r.getStartAndEndOfPeriod(period)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := processorCurrent.ExecuteCustomersChart(ctx, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	return res.([]*billingpb.DashboardChartItemInt), nil
+}
+
+func (r *dashboardRepository) getCustomerArpu(ctx context.Context, merchantId string, customerId string) (*billingpb.DashboardAmountItemWithChart, error) {
+	processorCurrent, err := r.newDashboardReportProcessor(
+		merchantId,
+		pkg.DashboardPeriodCurrentYear,
+		dashboardCustomerCacheKey,
+		"processed",
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	chart, err := processorCurrent.ExecuteCustomerARPU(ctx, customerId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	chartTyped := chart.(*billingpb.DashboardAmountItemWithChart)
+	return chartTyped, nil
+}
+
+func (r *dashboardRepository) GetCustomerARPU(ctx context.Context, merchantId string, customerId string) (*billingpb.DashboardAmountItemWithChart, error) {
+	arpu, err := r.getCustomerArpu(ctx, merchantId, customerId)
+	if err != nil {
+		return nil, err
+	}
+
+	return arpu, nil
+}
+
+func (r *dashboardRepository) GetCustomersReport(ctx context.Context, merchantId string, period string) (*billingpb.DashboardCustomerReport, error) {
+	newCustomers, err := r.getCustomersNew(ctx, merchantId, period)
+	if err != nil {
+		return nil, err
+	}
+
+	returning, err := r.getCustomersReturning(ctx, merchantId, period)
+	if err != nil {
+		return nil, err
+	}
+
+	ltv, err := r.getCustomersAvgLtv(ctx, merchantId, period)
+	if err != nil {
+		return nil, err
+	}
+
+	avgOrders, err := r.getCustomersAvgOrdersCount(ctx, merchantId, period)
+	if err != nil {
+		return nil, err
+	}
+
+	top20, err := r.getTop20Customers(ctx, merchantId, period)
+	if err != nil {
+		return nil, err
+	}
+
+	chart, err := r.getCustomersNewAndReturningChart(ctx, merchantId, period)
+	if err != nil {
+		return nil, err
+	}
+
+	report := &billingpb.DashboardCustomerReport{
+		NewCustomersPercentage:       newCustomers,
+		ReturningCustomersPercentage: returning,
+		LostCustomersPercentage:      1 - returning,
+		AvgLtvCustomer:               ltv,
+		AvgOrdersCount:               avgOrders,
+		Top20Customers: 			  top20,
+		Chart: chart,
+	}
+
+	return report, nil
 }
 
 func (r *dashboardRepository) GetMainReport(
@@ -413,6 +702,80 @@ func (r *dashboardRepository) getBaseSourcesReport(
 	return dataCurrentTyped, nil
 }
 
+func (r *dashboardRepository) getStartAndEndOfPeriod(period string) (gte time.Time, lte time.Time, err error) {
+	switch period {
+	case pkg.DashboardPeriodCurrentDay:
+		gte = now.BeginningOfDay()
+		lte = now.EndOfDay()
+		break
+	case pkg.DashboardPeriodPreviousDay, pkg.DashboardPeriodTwoDaysAgo:
+		decrement := -1
+		if period == pkg.DashboardPeriodTwoDaysAgo {
+			decrement = decrement * 2
+		}
+		previousDay := time.Now().AddDate(0, 0, decrement)
+		gte = now.New(previousDay).BeginningOfDay()
+		lte = now.New(previousDay).EndOfDay()
+		break
+	case pkg.DashboardPeriodCurrentWeek:
+		gte = now.BeginningOfWeek()
+		lte = now.EndOfWeek()
+		break
+	case pkg.DashboardPeriodPreviousWeek, pkg.DashboardPeriodTwoWeeksAgo:
+		decrement := -7
+		if period == pkg.DashboardPeriodTwoWeeksAgo {
+			decrement = decrement * 2
+		}
+		previousWeek := time.Now().AddDate(0, 0, decrement)
+		gte = now.New(previousWeek).BeginningOfWeek()
+		lte = now.New(previousWeek).EndOfWeek()
+		break
+	case pkg.DashboardPeriodCurrentMonth:
+		gte = now.BeginningOfMonth()
+		lte = now.EndOfMonth()
+		break
+	case pkg.DashboardPeriodPreviousMonth, pkg.DashboardPeriodTwoMonthsAgo:
+		decrement := -1
+		if period == pkg.DashboardPeriodTwoMonthsAgo {
+			decrement = decrement * 2
+		}
+		previousMonth := now.New(time.Now()).BeginningOfMonth().AddDate(0, decrement, 0)
+		gte = now.New(previousMonth).BeginningOfMonth()
+		lte = now.New(previousMonth).EndOfMonth()
+		break
+	case pkg.DashboardPeriodCurrentQuarter:
+		gte = now.BeginningOfQuarter()
+		lte = now.EndOfQuarter()
+		break
+	case pkg.DashboardPeriodPreviousQuarter, pkg.DashboardPeriodTwoQuarterAgo:
+		decrement := -1
+		if period == pkg.DashboardPeriodTwoQuarterAgo {
+			decrement = decrement * 4
+		}
+		previousQuarter := now.BeginningOfQuarter().AddDate(0, decrement, 0)
+		gte = now.New(previousQuarter).BeginningOfQuarter()
+		lte = now.New(previousQuarter).EndOfQuarter()
+		break
+	case pkg.DashboardPeriodCurrentYear:
+		gte = now.BeginningOfYear()
+		lte = now.EndOfYear()
+		break
+	case pkg.DashboardPeriodPreviousYear, pkg.DashboardPeriodTwoYearsAgo:
+		decrement := -1
+		if period == pkg.DashboardPeriodTwoYearsAgo {
+			decrement = decrement * 2
+		}
+		previousYear := time.Now().AddDate(decrement, 0, 0)
+		gte = now.New(previousYear).BeginningOfYear()
+		lte = now.New(previousYear).EndOfYear()
+		break
+	default:
+		err = fmt.Errorf("incorrect dashboard period")
+	}
+
+	return
+}
+
 func (r *dashboardRepository) newDashboardReportProcessor(
 	merchantId, period, cacheKeyMask string,
 	status interface{},
@@ -554,3 +917,4 @@ func (r *dashboardRepository) newDashboardReportProcessor(
 
 	return processor, nil
 }
+

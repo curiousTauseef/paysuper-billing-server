@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
+	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -14,8 +18,8 @@ import (
 )
 
 var (
-	errorCustomerOrderTypeNotSupport = newBillingServerErrorMsg("cm000001", "order type is not support")
-	errorCustomerUnknown             = newBillingServerErrorMsg("cm000002", "unknown error")
+	errorCustomerOrderTypeNotSupport = errors.NewBillingServerErrorMsg("cm000001", "order type is not support")
+	errorCustomerUnknown             = errors.NewBillingServerErrorMsg("cm000002", "unknown error")
 )
 
 func (s *Service) SetCustomerPaymentActivity(
@@ -220,6 +224,424 @@ func (s *Service) UpdateCustomersPayments(ctx context.Context) error {
 	}
 
 	zap.L().Info("migration ended", zap.Int("customers", len(customers)))
+
+	return nil
+}
+
+func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustomerInfoRequest, rsp *billingpb.GetCustomerInfoResponse) error {
+	rsp.Status = billingpb.ResponseStatusSystemError
+
+	opts := options.Find()
+	opts.SetLimit(1)
+
+	query := bson.M{
+		"uuid": req.UserId,
+	}
+
+	if len(req.MerchantId) > 0 {
+		query["payment_activity"] = bson.M{
+			"$elemMatch": bson.M{
+				"merchant_id": req.MerchantId,
+			},
+		}
+	}
+
+	customers, err := s.customerRepository.FindBy(ctx, query, opts)
+
+	if len(customers) == 0 {
+		rsp.Status = billingpb.ResponseStatusBadData
+		zap.L().Error("no customers", zap.Any("req", req))
+		return nil
+	}
+
+	if err != nil {
+		zap.L().Error("can't get customer", zap.Error(err))
+		return nil
+	}
+
+	customer := customers[0]
+
+	// Protect. Do not send info that not needed
+	customer.PaymentActivity = nil
+	customer.Identity = nil
+
+	rsp.Item = customer
+	rsp.Status = billingpb.ResponseStatusOk
+
+	return nil
+}
+func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustomersRequest, rsp *billingpb.ListCustomersResponse) error {
+	query := bson.M{}
+	rsp.Status = billingpb.ResponseStatusSystemError
+
+	if len(req.MerchantId) > 0 {
+		query["payment_activity"] = bson.M{
+			"$elemMatch": bson.M{
+				"merchant_id": req.MerchantId,
+			},
+		}
+	}
+
+	if len(req.Country) > 0 {
+		query["address.country"] = req.Country
+	}
+
+	if len(req.Phone) > 0 {
+		query["phone"] = req.Phone
+	}
+
+	if len(req.Email) > 0 {
+		query["email"] = req.Email
+	}
+
+	if len(req.ExternalId) > 0 {
+		query["external_id"] = req.ExternalId
+	}
+
+	if len(req.Language) > 0 {
+		query["locale"] = req.Language
+	}
+
+	if len(req.Name) > 0 {
+		query["name"] = req.Name
+	}
+
+	if req.Amount != nil {
+		query["payment_activity.revenue.payment"] = bson.M{
+			"$gte": req.Amount.From,
+			"$lte": req.Amount.To,
+		}
+	}
+
+	opts := options.Find()
+	if req.Limit > 0 {
+		opts = opts.SetLimit(req.Limit)
+	}
+
+	if req.Offset > 0 {
+		opts = opts.SetSkip(req.Offset)
+	}
+
+	customers, err := s.customerRepository.FindBy(ctx, query)
+	if err != nil {
+		zap.L().Error("can't get customers", zap.Error(err), zap.Any("req", req))
+		return err
+	}
+
+	zap.L().Info("GetCustomerList", zap.Any("req", req), zap.Any("query", query), zap.Int("customers", len(customers)))
+
+	result := make([]*billingpb.ShortCustomerInfo, len(customers))
+	for i, customer := range customers {
+		shortCustomer := &billingpb.ShortCustomerInfo{
+			Id:         customer.Uuid,
+			ExternalId: customer.ExternalId,
+			Language:   customer.Locale,
+			LastOrder:  &timestamp.Timestamp{},
+		}
+
+		if customer.Address != nil {
+			shortCustomer.Country = customer.Address.Country
+		}
+
+		for key, activityItem := range customer.PaymentActivity {
+			if (len(req.MerchantId) > 0 && key == req.MerchantId) || len(req.MerchantId) == 0 {
+				if activityItem.Count != nil {
+					shortCustomer.Orders += activityItem.Count.Payment
+				}
+				if activityItem.Revenue != nil {
+					shortCustomer.Revenue += activityItem.Revenue.Payment
+				}
+				if activityItem.LastTxnAt != nil && activityItem.LastTxnAt.Payment != nil && shortCustomer.LastOrder.Seconds < activityItem.LastTxnAt.Payment.Seconds {
+					shortCustomer.LastOrder = activityItem.LastTxnAt.Payment
+				}
+			}
+		}
+
+		result[i] = shortCustomer
+	}
+
+	if len(result) == 0 {
+		result = []*billingpb.ShortCustomerInfo{}
+	}
+
+	rsp.Items = result
+	rsp.Status = billingpb.ResponseStatusOk
+
+	return nil
+}
+
+func (s *Service) DeserializeCookie(ctx context.Context, req *billingpb.DeserializeCookieRequest, rsp *billingpb.DeserializeCookieResponse) error {
+	browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+	rsp.Status = billingpb.ResponseStatusBadData
+
+	if err != nil {
+		return nil
+	}
+
+	rsp.Item = &billingpb.BrowserCookie{
+		CustomerId:        browserCookie.CustomerId,
+		VirtualCustomerId: browserCookie.VirtualCustomerId,
+		Ip:                browserCookie.Ip,
+		IpCountry:         browserCookie.IpCountry,
+		SelectedCountry:   browserCookie.SelectedCountry,
+		UserAgent:         browserCookie.UserAgent,
+		AcceptLanguage:    browserCookie.AcceptLanguage,
+		SessionCount:      browserCookie.SessionCount,
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	return nil
+}
+
+func (s *Service) DeleteCustomerCard(ctx context.Context, req *billingpb.DeleteCustomerCardRequest, rsp *billingpb.EmptyResponseWithStatus) error {
+	rsp.Status = billingpb.ResponseStatusBadData
+	rsp.Message = recurringErrorUnknown
+
+	req1 := &recurringpb.DeleteSavedCardRequest{
+		Id:    req.Id,
+		Token: req.CustomerId,
+	}
+
+	zap.L().Info("DeleteCustomerCard", zap.Any("req1", req1))
+	rsp1, err := s.rep.DeleteSavedCard(ctx, req1)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+			zap.String(errorFieldMethod, "DeleteSavedCard"),
+			zap.Any(errorFieldRequest, req),
+		)
+
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = recurringErrorUnknown
+		return nil
+	}
+
+	if rsp1.Status != billingpb.ResponseStatusOk {
+		rsp.Status = rsp1.Status
+
+		if rsp.Status == billingpb.ResponseStatusSystemError {
+			zap.L().Error(
+				pkg.ErrorGrpcServiceCallFailed,
+				zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+				zap.String(errorFieldMethod, "DeleteSavedCard"),
+				zap.Any(errorFieldRequest, req),
+				zap.Any(pkg.LogFieldResponse, rsp1),
+			)
+
+			rsp.Message = recurringErrorUnknown
+		} else {
+			rsp.Message = recurringSavedCardNotFount
+		}
+
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Message = nil
+
+	return nil
+}
+
+func (s *Service) GetCustomerSubscription(ctx context.Context, req *billingpb.GetSubscriptionRequest, rsp *billingpb.GetSubscriptionResponse) error {
+	rsp.Status = billingpb.ResponseStatusBadData
+	rsp.Message = recurringErrorUnknown
+
+	req1 := &recurringpb.GetSubscriptionRequest{
+		Id: req.Id,
+	}
+
+	customerId := req.CustomerId
+	if len(req.Cookie) > 0 {
+		browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+		if err != nil {
+			zap.L().Error(
+				"can't decrypt cookie",
+				zap.Error(err),
+				zap.Any(errorFieldRequest, req),
+			)
+
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringErrorUnknown
+			return nil
+		}
+		customerId = browserCookie.CustomerId
+	}
+
+	if len(customerId) == 0 {
+		zap.L().Error("customer_id is empty", zap.Any("req1", req1), zap.Any("req", req))
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = recurringCustomerNotFound
+		return nil
+	}
+
+	zap.L().Info("GetCustomerSubscription", zap.Any("req1", req1))
+	rsp1, err := s.rep.GetSubscription(ctx, req1)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+			zap.String(errorFieldMethod, "GetSubscription"),
+			zap.Any(errorFieldRequest, req),
+		)
+
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = recurringErrorUnknown
+		return nil
+	}
+
+	if rsp1.Status != billingpb.ResponseStatusOk {
+		rsp.Status = rsp1.Status
+
+		if rsp.Status == billingpb.ResponseStatusSystemError {
+			zap.L().Error(
+				pkg.ErrorGrpcServiceCallFailed,
+				zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+				zap.String(errorFieldMethod, "GetSubscription"),
+				zap.Any(errorFieldRequest, req),
+				zap.Any(pkg.LogFieldResponse, rsp1),
+			)
+
+			rsp.Message = recurringErrorUnknown
+		} else {
+			rsp.Message = recurringSavedCardNotFount
+		}
+
+		return nil
+	}
+
+	if len(req.Cookie) > 0 {
+		if rsp1.Subscription.CustomerId != customerId {
+			zap.L().Error("trying to get subscription for another customer", zap.String("customer_id", customerId), zap.String("subscription_customer_id", rsp1.Subscription.CustomerId), zap.String("subscription_id", rsp1.Subscription.Id))
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringSavedCardNotFount
+			return nil
+		}
+	} else {
+		if rsp1.Subscription.CustomerUuid != req.CustomerId {
+			zap.L().Error("trying to get subscription for another customer", zap.String("customer_id", req.CustomerId), zap.String("subscription_customer_id", rsp1.Subscription.CustomerUuid), zap.String("subscription_id", rsp1.Subscription.Id))
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringSavedCardNotFount
+			return nil
+		}
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Subscription = s.mapRecurringToBilling(rsp1.Subscription)
+
+	return nil
+}
+
+func (s *Service) mapRecurringToBilling(sub *recurringpb.Subscription) *billingpb.Subscription {
+	cust := sub.CustomerInfo
+
+	var info billingpb.CustomerInfo
+	if cust != nil {
+		info = billingpb.CustomerInfo{
+			ExternalId: cust.ExternalId,
+			Email:      cust.Email,
+			Phone:      cust.Phone,
+		}
+	}
+
+	return &billingpb.Subscription{
+		Id:                    sub.Id,
+		CustomerId:            sub.CustomerId,
+		CustomerUuid:          sub.CustomerUuid,
+		Period:                sub.Period,
+		MerchantId:            sub.MerchantId,
+		ProjectId:             sub.ProjectId,
+		Amount:                sub.Amount,
+		Currency:              sub.Currency,
+		ItemType:              sub.ItemType,
+		ItemList:              sub.ItemList,
+		IsActive:              sub.IsActive,
+		MaskedPan:             sub.MaskedPan,
+		CardpaySubscriptionId: sub.CardpaySubscriptionId,
+		CustomerInfo:          &info,
+		ExpireAt:              sub.ExpireAt,
+		LastPaymentAt:         sub.LastPaymentAt,
+		CreatedAt:             sub.CreatedAt,
+		UpdatedAt:             sub.UpdatedAt,
+	}
+}
+
+func (s *Service) mapBillingCustomerToRecurring(customer *billingpb.CustomerInfo) *recurringpb.CustomerInfo {
+	if customer == nil {
+		return nil
+	}
+
+	return &recurringpb.CustomerInfo{
+		ExternalId: customer.ExternalId,
+		Email:      customer.Email,
+		Phone:      customer.Phone,
+	}
+}
+
+func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubscriptionsRequest, rsp *billingpb.FindSubscriptionsResponse) error {
+	rsp.Status = billingpb.ResponseStatusBadData
+	rsp.Message = recurringErrorUnknown
+
+	req1 := &recurringpb.FindSubscriptionsRequest{
+	}
+
+	if len(req.Cookie) > 0 {
+		browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+		if err != nil {
+			zap.L().Error(
+				"can't decrypt cookie",
+				zap.Error(err),
+				zap.Any(errorFieldRequest, req),
+			)
+
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringErrorUnknown
+			return nil
+		}
+
+		if len(browserCookie.CustomerId) == 0 {
+			zap.L().Error("customer_id is empty", zap.Any("browserCookie", browserCookie), zap.Any("req", req))
+			rsp.Status = billingpb.ResponseStatusBadData
+			rsp.Message = recurringCustomerNotFound
+			return nil
+		}
+
+		req1.CustomerId = browserCookie.CustomerId
+	} else {
+		req1.CustomerUuid = req.CustomerId
+	}
+
+	zap.L().Info("FindSubscriptions", zap.Any("req1", req1))
+	rsp1, err := s.rep.FindSubscriptions(ctx, req1)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+			zap.String(errorFieldMethod, "FindSubscriptions"),
+			zap.Any(errorFieldRequest, req),
+		)
+
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = recurringErrorUnknown
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+
+	rsp.List = make([]*billingpb.Subscription, len(rsp1.List))
+	for i, subscription := range rsp1.List {
+		rsp.List[i] = s.mapRecurringToBilling(subscription)
+	}
+
+	if len(rsp.List) == 0 {
+		rsp.List = []*billingpb.Subscription{}
+	}
 
 	return nil
 }

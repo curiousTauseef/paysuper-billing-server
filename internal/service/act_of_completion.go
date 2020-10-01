@@ -2,15 +2,16 @@ package service
 
 import (
 	"context"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"math"
 	"time"
 )
 
 var (
-	invalidActOfCompletionDateFrom = newBillingServerErrorMsg("aoc000001", "invalid start date the act of completion")
-	invalidActOfCompletionDateTo   = newBillingServerErrorMsg("aoc000002", "invalid end date the act of completion")
-	invalidActOfCompletionMerchant = newBillingServerErrorMsg("aoc000003", "invalid merchant identity the act of completion")
+	invalidActOfCompletionDateFrom = errors.NewBillingServerErrorMsg("aoc000001", "invalid start date the act of completion")
+	invalidActOfCompletionDateTo   = errors.NewBillingServerErrorMsg("aoc000002", "invalid end date the act of completion")
+	invalidActOfCompletionMerchant = errors.NewBillingServerErrorMsg("aoc000003", "invalid merchant identity the act of completion")
 )
 
 func (s *Service) GetActOfCompletion(

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
 	"github.com/streadway/amqp"
@@ -22,9 +23,9 @@ const (
 )
 
 var (
-	userProfileErrorNotFound                  = newBillingServerErrorMsg("op000001", "user profile not found")
-	userProfileErrorUnknown                   = newBillingServerErrorMsg("op000002", "unknown error. try request later")
-	userProfileEmailConfirmationTokenNotFound = newBillingServerErrorMsg("op000003", "user email confirmation token not found")
+	userProfileErrorNotFound                  = errors.NewBillingServerErrorMsg("op000001", "user profile not found")
+	userProfileErrorUnknown                   = errors.NewBillingServerErrorMsg("op000002", "unknown error. try request later")
+	userProfileEmailConfirmationTokenNotFound = errors.NewBillingServerErrorMsg("op000003", "user email confirmation token not found")
 )
 
 type EmailConfirmToken struct {

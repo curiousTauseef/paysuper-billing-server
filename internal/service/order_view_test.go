@@ -38,6 +38,8 @@ type OrderViewTestSuite struct {
 	paymentMethod       *billingpb.PaymentMethod
 	paymentSystem       *billingpb.PaymentSystem
 	paylink1            *billingpb.Paylink
+	customer            *billingpb.Customer
+	cookie              string
 }
 
 func Test_OrderView(t *testing.T) {
@@ -114,7 +116,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 
 	suite.projectWithProducts = &billingpb.Project{
 		Id:                       primitive.NewObjectID().Hex(),
@@ -184,6 +186,16 @@ func (suite *OrderViewTestSuite) SetupTest() {
 
 	err = suite.service.paylinkRepository.Insert(context.TODO(), suite.paylink1)
 	assert.NoError(suite.T(), err)
+
+	browserCustomer := &BrowserCookieCustomer{
+		CustomerId: suite.customer.Id,
+		Ip:         "127.0.0.1",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	suite.cookie, err = suite.service.generateBrowserCookie(browserCustomer)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.cookie)
 }
 
 func (suite *OrderViewTestSuite) TearDownTest() {
@@ -216,6 +228,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_updateOrderView() {
 			countries[count%2],
 			suite.projectFixedAmount,
 			suite.paymentMethod,
+			suite.cookie,
 		)
 		assert.NotNil(suite.T(), order)
 		orders = append(orders, order)
@@ -235,6 +248,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Ok() {
 		"RU",
 		suite.projectFixedAmount,
 		suite.paymentMethod,
+		suite.cookie,
 	)
 
 	assert.False(suite.T(), suite.projectFixedAmount.IsProduction())
@@ -273,6 +287,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPublic_Productio
 		"RU",
 		productionProject,
 		suite.paymentMethod,
+		suite.cookie,
 	)
 
 	assert.True(suite.T(), productionProject.IsProduction())
@@ -291,6 +306,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetOrderFromViewPrivate_Ok() {
 		"RU",
 		suite.projectFixedAmount,
 		suite.paymentMethod,
+		suite.cookie,
 	)
 
 	op, err := suite.service.orderViewRepository.GetPrivateOrderBy(context.TODO(), order.Id, "", "")
@@ -313,6 +329,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
 		"RU",
 		suite.projectFixedAmount,
 		suite.paymentMethod,
+		suite.cookie,
 	)
 	_ = HelperCreateAndPayOrder(
 		suite.Suite,
@@ -322,6 +339,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_CountTransactions_Ok() {
 		"FI",
 		suite.projectFixedAmount,
 		suite.paymentMethod,
+		suite.cookie,
 	)
 
 	count, err := suite.service.orderViewRepository.CountTransactions(context.TODO(), bson.M{})
@@ -346,6 +364,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPublic_Ok() {
 		"RU",
 		suite.projectFixedAmount,
 		suite.paymentMethod,
+		suite.cookie,
 	)
 
 	transactions, err = suite.service.orderViewRepository.GetTransactionsPublic(context.TODO(), bson.M{}, 10, 0)
@@ -367,6 +386,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetTransactionsPrivate_Ok() {
 		"RU",
 		suite.projectFixedAmount,
 		suite.paymentMethod,
+		suite.cookie,
 	)
 
 	transactions, err = suite.service.orderViewRepository.GetTransactionsPrivate(context.TODO(), bson.M{}, 10, 0)
@@ -422,6 +442,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_OnlySales()
 			countries[count%2],
 			suite.projectFixedAmount,
 			suite.paymentMethod,
+			suite.cookie,
 		)
 		assert.NotNil(suite.T(), order)
 		orders = append(orders, order)
@@ -505,6 +526,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_HasExistsRepor
 			countries[count%2],
 			suite.projectFixedAmount,
 			suite.paymentMethod,
+			suite.cookie,
 		)
 		assert.NotNil(suite.T(), order)
 		orders = append(orders, order)
@@ -551,6 +573,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_Ok_SalesAndRef
 			countries[count%2],
 			suite.projectFixedAmount,
 			suite.paymentMethod,
+			suite.cookie,
 		)
 		assert.NotNil(suite.T(), order)
 		orders = append(orders, order)
@@ -661,6 +684,7 @@ func (suite *OrderViewTestSuite) Test_OrderView_PaylinkStat() {
 			suite.service,
 			suite.paylink1.Id,
 			countries[count%2],
+			suite.cookie,
 			suite.paymentMethod,
 			&billingpb.OrderIssuer{
 				Url:         referrers[count%2],

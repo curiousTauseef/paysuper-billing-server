@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	our "github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	priceGroupErrorNotFound = newBillingServerErrorMsg("pg000001", "price group not found")
+	priceGroupErrorNotFound = errors.NewBillingServerErrorMsg("pg000001", "price group not found")
 )
 
 func (s *Service) GetPriceGroup(

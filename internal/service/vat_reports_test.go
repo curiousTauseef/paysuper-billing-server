@@ -11,6 +11,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -36,6 +37,8 @@ type VatReportsTestSuite struct {
 	projectFixedAmount *billingpb.Project
 	paymentMethod      *billingpb.PaymentMethod
 	paymentSystem      *billingpb.PaymentSystem
+	customer           *billingpb.Customer
+	cookie             string
 
 	logObserver *zap.Logger
 	zapRecorder *observer.ObservedLogs
@@ -114,7 +117,54 @@ func (suite *VatReportsTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	_, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	_, suite.projectFixedAmount, suite.paymentMethod, suite.paymentSystem, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+
+	customerRequest := &billingpb.TokenRequest{
+		User: &billingpb.TokenUser{
+			Id: primitive.NewObjectID().Hex(),
+			Email: &billingpb.TokenUserEmailValue{
+				Value: "test@unit.test",
+			},
+			Phone: &billingpb.TokenUserPhoneValue{
+				Value: "1234567890",
+			},
+			Name: &billingpb.TokenUserValue{
+				Value: "Unit Test",
+			},
+			Ip: &billingpb.TokenUserIpValue{
+				Value: "127.0.0.1",
+			},
+			Locale: &billingpb.TokenUserLocaleValue{
+				Value: "ru",
+			},
+			Address: &billingpb.OrderBillingAddress{
+				Country:    "RU",
+				City:       "St.Petersburg",
+				PostalCode: "190000",
+				State:      "SPE",
+			},
+		},
+		Settings: &billingpb.TokenSettings{
+			ProjectId:   suite.projectFixedAmount.Id,
+			Currency:    "RUB",
+			Amount:      100,
+			Description: "test payment",
+		},
+	}
+	customer, err := suite.service.createCustomer(context.TODO(), customerRequest, suite.projectFixedAmount)
+	if err != nil {
+		suite.FailNow("Create customer failed", "%v", err)
+	}
+
+	browserCustomer := &BrowserCookieCustomer{
+		CustomerId: customer.Id,
+		Ip:         "127.0.0.1",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	suite.cookie, err = suite.service.generateBrowserCookie(browserCustomer)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.cookie)
 
 	var core zapcore.Core
 
@@ -248,6 +298,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 			countries[count%2],
 			suite.projectFixedAmount,
 			suite.paymentMethod,
+			suite.cookie,
 		)
 		assert.NotNil(suite.T(), order)
 		orders = append(orders, order)
@@ -318,7 +369,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 
 func (suite *VatReportsTestSuite) TestVatReports_PaymentDateSet() {
 	zap.ReplaceGlobals(suite.logObserver)
-	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, mocks.NewClientStatusOk())
+	suite.service.centrifugoDashboard = newCentrifugo(suite.service.cfg.CentrifugoDashboard, payment_system.NewClientStatusOk())
 
 	nowTimestamp := time.Now().Unix()
 
@@ -390,6 +441,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports_OnlyTestOrder
 			countries[count%2],
 			suite.projectFixedAmount,
 			suite.paymentMethod,
+			suite.cookie,
 		)
 		assert.NotNil(suite.T(), order)
 		orders = append(orders, order)

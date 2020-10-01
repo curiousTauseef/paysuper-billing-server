@@ -8,6 +8,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
@@ -37,6 +38,7 @@ type WebhookTestSuite struct {
 	merchant                      *billingpb.Merchant
 	project                       *billingpb.Project
 	projectWithoutVirtualCurrency *billingpb.Project
+	customer                      *billingpb.Customer
 	products                      []*billingpb.Product
 	keyProducts                   []*billingpb.KeyProduct
 
@@ -101,7 +103,7 @@ func (suite *WebhookTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, _, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, _, _, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 	suite.products = CreateProductsForProject(suite.Suite, suite.service, suite.project, 3)
 	suite.keyProducts = CreateKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
 	suite.projectWithoutVirtualCurrency = HelperCreateProject(suite.Suite, suite.service, suite.merchant.Id, billingpb.VatPayerBuyer)
@@ -337,7 +339,7 @@ func (suite *WebhookTestSuite) Test_SendWebhook_Product_Processor_ProcessPaylink
 	suite.request.Type = pkg.OrderType_product
 	suite.request.PrivateMetadata = map[string]string{"PaylinkId": "254e3736-000f-5000-8000-178d1d80bf70"}
 	suite.service.priceGroupRepository = priceGroupRepositoryMock
-	suite.service.centrifugoDashboard = newCentrifugo(suite.cfg.CentrifugoDashboard, mocks.NewClientStatusOk())
+	suite.service.centrifugoDashboard = newCentrifugo(suite.cfg.CentrifugoDashboard, payment_system.NewClientStatusOk())
 
 	rsp := &billingpb.SendWebhookToMerchantResponse{}
 	err := suite.service.SendWebhookToMerchant(ctx, suite.request, rsp)
@@ -404,7 +406,7 @@ func (suite *WebhookTestSuite) Test_SendWebhook_KeyProduct_Processor_ProcessPayl
 	suite.request.Products = []string{}
 	suite.request.Type = pkg.OrderType_key
 	suite.request.PrivateMetadata = map[string]string{"PaylinkId": "254e3736-000f-5000-8000-178d1d80bf70"}
-	suite.service.centrifugoDashboard = newCentrifugo(suite.cfg.CentrifugoDashboard, mocks.NewClientStatusOk())
+	suite.service.centrifugoDashboard = newCentrifugo(suite.cfg.CentrifugoDashboard, payment_system.NewClientStatusOk())
 
 	rsp := &billingpb.SendWebhookToMerchantResponse{}
 	err := suite.service.SendWebhookToMerchant(ctx, suite.request, rsp)

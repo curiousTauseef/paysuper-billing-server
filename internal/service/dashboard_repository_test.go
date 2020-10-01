@@ -61,6 +61,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/mongodb"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -73,6 +74,7 @@ import (
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
@@ -91,9 +93,9 @@ type DashboardRepositoryTestSuite struct {
 	project       *billingpb.Project
 	merchant      *billingpb.Merchant
 	paymentMethod *billingpb.PaymentMethod
-
-	products    []*billingpb.Product
-	keyProducts []*billingpb.KeyProduct
+	customer      *billingpb.Customer
+	products      []*billingpb.Product
+	keyProducts   []*billingpb.KeyProduct
 }
 
 func Test_DashboardRepository(t *testing.T) {
@@ -107,6 +109,15 @@ func (suite *DashboardRepositoryTestSuite) SetupTest() {
 	}
 	cfg.CardPayApiUrl = "https://sandbox.cardpay.com"
 
+	ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
+	opts := []mongodb.Option{mongodb.Context(ctx)}
+	db, err := mongodb.NewDatabase(opts...)
+	if err != nil {
+		suite.FailNow("Database connection failed", "%v", err)
+	}
+
+	err = db.Drop()
+
 	m, err := migrate.New(
 		"file://../../migrations/tests",
 		cfg.MongoDsn)
@@ -117,11 +128,8 @@ func (suite *DashboardRepositoryTestSuite) SetupTest() {
 		suite.FailNow("Migrations failed", "%v", err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
-	opts := []mongodb.Option{mongodb.Context(ctx)}
-	db, err := mongodb.NewDatabase(opts...)
 	if err != nil {
-		suite.FailNow("Database connection failed", "%v", err)
+		suite.FailNow("Database deletion failed", "%v", err)
 	}
 
 	suite.log, err = zap.NewProduction()
@@ -155,7 +163,7 @@ func (suite *DashboardRepositoryTestSuite) SetupTest() {
 		suite.FailNow("Billing service initialization failed", "%v", err)
 	}
 
-	suite.merchant, suite.project, suite.paymentMethod, _ = HelperCreateEntitiesForTests(suite.Suite, suite.service)
+	suite.merchant, suite.project, suite.paymentMethod, _, suite.customer = HelperCreateEntitiesForTests(suite.Suite, suite.service)
 	suite.products = CreateProductsForProject(suite.Suite, suite.service, suite.project, 3)
 	suite.keyProducts = CreateKeyProductsForProject(suite.Suite, suite.service, suite.project, 3)
 }
@@ -617,8 +625,102 @@ func (suite *DashboardRepositoryTestSuite) createOrdersForPeriod(
 			}
 		}
 
+		browserCustomer := &BrowserCookieCustomer{
+			CustomerId: suite.customer.Id,
+			Ip:         "127.0.0.1",
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+		cookie, _ := suite.service.generateBrowserCookie(browserCustomer)
+
 		for j := 0; j < rnd; j++ {
-			HelperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1", nil)
+			HelperCreateAndPayOrder2(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1", nil, cookie)
 		}
 	}
+}
+
+func (suite *DashboardRepositoryTestSuite) createOrdersForPeriodAndUsers(
+	iterations int,
+	periodType string,
+	periodStart time.Time,
+	users int,
+) {
+	amountMin := 100
+	amountMax := 1000
+	ordersCountMin := 1
+	ordersCountMax := 10
+	rand.Seed(time.Now().UnixNano())
+
+	for i := 0; i < iterations; i++ {
+		rnd := rand.Intn(ordersCountMax-ordersCountMin+1) + ordersCountMin
+		amount := float64(rand.Intn(amountMax-amountMin+1) + amountMin)
+		date := now.New(periodStart).Time
+
+		if i > 0 {
+			if periodType == pkg.DashboardPeriodCurrentMonth || periodType == pkg.DashboardPeriodPreviousMonth {
+				date = now.New(periodStart).AddDate(0, 0, i)
+			}
+
+			if periodType == pkg.DashboardPeriodCurrentQuarter || periodType == pkg.DashboardPeriodPreviousQuarter {
+				date = now.New(periodStart).AddDate(0, 0, i*7)
+			}
+
+			if periodType == pkg.DashboardPeriodCurrentYear || periodType == pkg.DashboardPeriodPreviousYear {
+				date = now.New(periodStart).AddDate(0, i, 0)
+			}
+		}
+
+		for j := 0; j < rnd; j++ {
+			for u := 0; u < users; u++ {
+				browserCustomer := &BrowserCookieCustomer{
+					CustomerId: suite.customer.Id,
+					Ip:         "127.0.0.1",
+					CreatedAt:  time.Now(),
+					UpdatedAt:  time.Now(),
+				}
+				cookie, _ := suite.service.generateBrowserCookie(browserCustomer)
+
+				user := fmt.Sprintf("%s@unit.com", RandomString(5))
+				HelperCreateAndPayOrderWithUser(suite.Suite, suite.service, amount, "USD", "RU", suite.project, suite.paymentMethod, date, nil, nil, "http://127.0.0.1", nil, user, cookie)
+			}
+		}
+	}
+}
+
+func (suite *DashboardRepositoryTestSuite) Test_GetDashboardCustomerReport_Ok() {
+	current := time.Now()
+	monthBeginning := now.BeginningOfMonth()
+	iterations := (current.Day() - monthBeginning.Day()) + 1
+	suite.createOrdersForPeriodAndUsers(iterations, pkg.DashboardPeriodCurrentMonth, monthBeginning, 2)
+
+	shouldBe := require.New(suite.T())
+	report, err := suite.service.dashboardRepository.GetCustomersReport(ctx, suite.project.MerchantId, pkg.DashboardPeriodCurrentMonth)
+	shouldBe.NoError(err)
+	shouldBe.NotNil(report)
+	shouldBe.NotZero(report.LostCustomersPercentage)
+	shouldBe.NotZero(report.AvgLtvCustomer)
+	shouldBe.NotZero(report.AvgOrdersCount)
+	shouldBe.NotZero(report.NewCustomersPercentage)
+	shouldBe.NotNil(report.Top20Customers)
+	shouldBe.NotZero(report.Top20Customers.Count)
+	shouldBe.NotZero(report.Top20Customers.Revenue)
+	shouldBe.NotNil(report.Chart)
+	shouldBe.NotEmpty(report.Chart)
+}
+
+func (suite *DashboardRepositoryTestSuite) Test_GetDashboardCustomerReport_Empty_Ok() {
+	shouldBe := require.New(suite.T())
+	report, err := suite.service.dashboardRepository.GetCustomersReport(ctx, suite.project.MerchantId, pkg.DashboardPeriodCurrentMonth)
+	shouldBe.NoError(err)
+	shouldBe.NotNil(report)
+	shouldBe.EqualValues(1, report.LostCustomersPercentage)
+	shouldBe.Zero(report.AvgLtvCustomer)
+	shouldBe.Zero(report.AvgOrdersCount)
+	shouldBe.Zero(report.NewCustomersPercentage)
+	shouldBe.Zero(report.ReturningCustomersPercentage)
+	shouldBe.NotNil(report.Top20Customers)
+	shouldBe.Zero(report.Top20Customers.Count)
+	shouldBe.Zero(report.Top20Customers.Revenue)
+	shouldBe.NotNil(report.Chart)
+	shouldBe.NotEmpty(report.Chart)
 }
