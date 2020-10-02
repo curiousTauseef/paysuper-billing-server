@@ -1349,30 +1349,16 @@ func (h *cardPay) createRecurringSubscription(
 }
 
 func (h *cardPay) IsSubscriptionCallback(request proto.Message) bool {
-	fmt.Println(333)
 	req := request.(*billingpb.CardPayPaymentCallback)
 	return req.RecurringData != nil && req.RecurringData.Subscription != nil && req.RecurringData.Subscription.Id != ""
 }
 
 func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription) error {
-	err := h.updateRecurringSubscription(order, subscription, cardPayStatusInactive)
+	err := h.updateRecurringSubscription(order, subscription, cardPayStatusCancelled)
 
 	if err != nil {
 		zap.L().Error(
 			"cardpay API: update recurring subscription request failed",
-			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
-			zap.Any(pkg.LogFieldRequest, subscription),
-			zap.Any(pkg.LogFieldOrder, order),
-		)
-		return err
-	}
-
-	err = h.deleteRecurringPlan(order, subscription)
-
-	if err != nil {
-		zap.L().Error(
-			"cardpay API: delete recurring plan request failed",
 			zap.Error(err),
 			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
 			zap.Any(pkg.LogFieldRequest, subscription),

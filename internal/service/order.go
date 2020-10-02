@@ -1356,6 +1356,7 @@ func (s *Service) PaymentCallbackProcess(
 			newOrder.Canceled = false
 			newOrder.CanceledAt = nil
 			newOrder.ReceiptUrl = ""
+			newOrder.PrivateStatus = recurringpb.OrderStatusNew
 			newOrder.ParentOrder = &billingpb.ParentOrder{
 				Id:   order.Id,
 				Uuid: order.Uuid,
@@ -1365,6 +1366,7 @@ func (s *Service) PaymentCallbackProcess(
 				return err
 			}
 
+			newOrder.PrivateStatus = order.PrivateStatus
 			order = newOrder
 		}
 	}

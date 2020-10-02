@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
@@ -839,9 +837,6 @@ func (m *DashboardReportProcessor) ExecuteCustomerLTV(ctx context.Context, i int
 		},
 	}
 
-	b, _ := json.Marshal(query)
-	s := string(b)
-	fmt.Println(s)
 	cursor, err := m.Db.Collection(m.Collection).Aggregate(ctx, query)
 
 	if err != nil {
@@ -1108,7 +1103,6 @@ func (m *DashboardReportProcessor) ExecuteCustomerTop20(ctx context.Context, i i
 	}
 	var receiverObj top20revenueWrapper
 
-
 	res := &billingpb.Top20Customers{
 		Count:   0,
 		Revenue: 0,
@@ -1284,7 +1278,7 @@ func (m *DashboardReportProcessor) ExecuteCustomersChart(ctx context.Context, st
 		{"$match": m.Match},
 		{
 			"$project": bson.M{
-				"date": bson.M{ "$dateToString": bson.M{"date": "$pm_order_close_date", "format": "%Y-%m-%d"}},
+				"date":    bson.M{"$dateToString": bson.M{"date": "$pm_order_close_date", "format": "%Y-%m-%d"}},
 				"user_id": "$user.external_id",
 			},
 		},
@@ -1295,7 +1289,7 @@ func (m *DashboardReportProcessor) ExecuteCustomersChart(ctx context.Context, st
 		},
 		{
 			"$group": bson.M{
-				"_id": "$_id.date",
+				"_id":   "$_id.date",
 				"count": bson.M{"$sum": 1},
 			},
 		},
@@ -1318,7 +1312,7 @@ func (m *DashboardReportProcessor) ExecuteCustomersChart(ctx context.Context, st
 
 	type dateChart struct {
 		Date  string `json:"_id" bson:"_id"`
-		Count int64 `json:"count" bson:"count"`
+		Count int64  `json:"count" bson:"count"`
 	}
 	var receiverObj []*dateChart
 
@@ -1335,15 +1329,15 @@ func (m *DashboardReportProcessor) ExecuteCustomersChart(ctx context.Context, st
 
 	days := int(end.Sub(startDate).Hours() / 24)
 	chart := make([]*billingpb.DashboardChartItemInt, days)
-	lastDate := startDate.AddDate(0,0,-1)
+	lastDate := startDate.AddDate(0, 0, -1)
 
 	currIndex := 0
 	currDate := time.Time{}
 
 	for i := 0; i < days; i++ {
-		lastDate = lastDate.AddDate(0,0,1)
+		lastDate = lastDate.AddDate(0, 0, 1)
 		val := &billingpb.DashboardChartItemInt{
-			Label: int64(i+1),
+			Label: int64(i + 1),
 		}
 		chart[i] = val
 
