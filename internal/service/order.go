@@ -2983,6 +2983,9 @@ func (v *OrderCreateRequestProcessor) processCustomerToken(ctx context.Context) 
 	v.checked.user.TechEmail = customer.TechEmail
 
 	if token.Settings.RecurringPeriod != "" {
+		v.request.RecurringPeriod = token.Settings.RecurringPeriod
+		v.request.RecurringDateEnd = token.Settings.RecurringDateEnd
+
 		if err = v.processRecurringSettings(); err != nil {
 			return err
 		}

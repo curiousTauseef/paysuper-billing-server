@@ -8065,11 +8065,12 @@ func (suite *OrderTestSuite) TestOrder_CreateOrderByToken_Ok() {
 			},
 		},
 		Settings: &billingpb.TokenSettings{
-			ProjectId:   suite.project.Id,
-			Currency:    "RUB",
-			Amount:      100,
-			Description: "test payment",
-			Type:        pkg.OrderType_simple,
+			ProjectId:       suite.project.Id,
+			Currency:        "RUB",
+			Amount:          100,
+			Description:     "test payment",
+			Type:            pkg.OrderType_simple,
+			RecurringPeriod: recurringpb.RecurringPeriodDay,
 		},
 	}
 	rsp := &billingpb.TokenResponse{}
@@ -8092,6 +8093,10 @@ func (suite *OrderTestSuite) TestOrder_CreateOrderByToken_Ok() {
 	assert.NotEmpty(suite.T(), rsp1.Id)
 	assert.Equal(suite.T(), req.Settings.ProjectId, rsp1.Project.Id)
 	assert.Equal(suite.T(), req.Settings.Description, rsp1.Description)
+	assert.NotEmpty(suite.T(), rsp1.RecurringSettings)
+	assert.Equal(suite.T(), req.Settings.RecurringPeriod, rsp1.RecurringSettings.Period)
+	assert.NotEmpty(suite.T(), rsp1.RecurringSettings.DateEnd)
+	assert.NotEmpty(suite.T(), rsp1.RecurringSettings.Interval)
 }
 
 func (suite *OrderTestSuite) TestOrder_CreateOrder_WithKeyProductAndEmptyPlatformId_Ok() {
