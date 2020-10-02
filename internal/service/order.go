@@ -1258,6 +1258,12 @@ func (s *Service) PaymentCallbackProcess(
 		rsp.Error = pErr.Error()
 		rsp.Status = pErr.Status
 
+		zap.L().Error(
+			"error on ProcessPayment method",
+			zap.Error(err),
+			zap.Any("request", req.Request),
+		)
+
 		if pErr.Status == pkg.StatusTemporary {
 			return nil
 		}
@@ -1308,7 +1314,7 @@ func (s *Service) PaymentCallbackProcess(
 	}
 
 	var subscription *recurringpb.Subscription
-
+	fmt.Println(order.Id)
 	if h.IsSubscriptionCallback(data) {
 		subscriptionRsp, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{Id: order.RecurringId})
 
@@ -1424,7 +1430,7 @@ func (s *Service) PaymentCallbackProcess(
 				return nil
 			}
 		}
-
+		fmt.Println(order.Id)
 		err = s.onPaymentNotify(ctx, order)
 
 		if err != nil {
