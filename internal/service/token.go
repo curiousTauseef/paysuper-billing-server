@@ -255,6 +255,18 @@ func (s *Service) CreateToken(
 		return err
 	}
 
+	if req.Settings.RecurringPeriod != "" {
+		if err := processor.processRecurringSettings(); err != nil {
+			zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
+			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
+				rsp.Status = billingpb.ResponseStatusBadData
+				rsp.Message = e
+				return nil
+			}
+			return err
+		}
+	}
+
 	token, err := s.createToken(req, customer)
 
 	if err != nil {

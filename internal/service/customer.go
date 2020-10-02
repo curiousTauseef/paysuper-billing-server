@@ -234,14 +234,19 @@ func (s *Service) GetCustomerInfo(ctx context.Context, req *billingpb.GetCustome
 	opts := options.Find()
 	opts.SetLimit(1)
 
-	customers, err := s.customerRepository.FindBy(ctx, bson.M{
+	query := bson.M{
 		"uuid": req.UserId,
-		"payment_activity": bson.M{
+	}
+
+	if len(req.MerchantId) > 0 {
+		query["payment_activity"] = bson.M{
 			"$elemMatch": bson.M{
 				"merchant_id": req.MerchantId,
 			},
-		},
-	}, opts)
+		}
+	}
+
+	customers, err := s.customerRepository.FindBy(ctx, query, opts)
 
 	if len(customers) == 0 {
 		rsp.Status = billingpb.ResponseStatusBadData
@@ -294,19 +299,28 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	}
 
 	if len(req.Language) > 0 {
-		query["locale_history"] = bson.M{
-			"$elemMatch": bson.M{
-				"value": req.Language,
-			},
-		}
+		query["locale"] = req.Language
 	}
 
 	if len(req.Name) > 0 {
 		query["name"] = req.Name
 	}
 
+	if req.Amount != nil {
+		query["payment_activity.revenue.payment"] = bson.M{
+			"$gte": req.Amount.From,
+			"$lte": req.Amount.To,
+		}
+	}
+
 	opts := options.Find()
-	opts = opts.SetLimit(req.Limit)
+	if req.Limit > 0 {
+		opts = opts.SetLimit(req.Limit)
+	}
+
+	if req.Offset > 0 {
+		opts = opts.SetSkip(req.Offset)
+	}
 
 	customers, err := s.customerRepository.FindBy(ctx, query)
 	if err != nil {
@@ -439,6 +453,30 @@ func (s *Service) GetCustomerSubscription(ctx context.Context, req *billingpb.Ge
 		Id: req.Id,
 	}
 
+	customerId := req.CustomerId
+	if len(req.Cookie) > 0 {
+		browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+		if err != nil {
+			zap.L().Error(
+				"can't decrypt cookie",
+				zap.Error(err),
+				zap.Any(errorFieldRequest, req),
+			)
+
+			rsp.Status = billingpb.ResponseStatusForbidden
+			rsp.Message = recurringErrorUnknown
+			return nil
+		}
+		customerId = browserCookie.CustomerId
+	}
+
+	if len(customerId) == 0 {
+		zap.L().Error("customer_id is empty", zap.Any("req1", req1), zap.Any("req", req))
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = recurringCustomerNotFound
+		return nil
+	}
+
 	zap.L().Info("GetCustomerSubscription", zap.Any("req1", req1))
 	rsp1, err := s.rep.GetSubscription(ctx, req1)
 
@@ -477,26 +515,12 @@ func (s *Service) GetCustomerSubscription(ctx context.Context, req *billingpb.Ge
 	}
 
 	if len(req.Cookie) > 0 {
-		browserCookie, err := s.decryptBrowserCookie(req.Cookie)
-		if err != nil {
-			zap.L().Error(
-				"can't decrypt cookie",
-				zap.Error(err),
-				zap.Any(errorFieldRequest, req),
-			)
-
-			rsp.Status = billingpb.ResponseStatusForbidden
-			rsp.Message = recurringErrorUnknown
-			return nil
-		}
-
-		if rsp1.Subscription.CustomerId != browserCookie.CustomerId {
-			zap.L().Error("trying to get subscription for another customer", zap.String("customer_id", browserCookie.CustomerId), zap.String("subscription_customer_id", rsp1.Subscription.CustomerId), zap.String("subscription_id", rsp1.Subscription.Id))
+		if rsp1.Subscription.CustomerId != customerId {
+			zap.L().Error("trying to get subscription for another customer", zap.String("customer_id", customerId), zap.String("subscription_customer_id", rsp1.Subscription.CustomerId), zap.String("subscription_id", rsp1.Subscription.Id))
 			rsp.Status = billingpb.ResponseStatusForbidden
 			rsp.Message = recurringSavedCardNotFount
 			return nil
 		}
-
 	} else {
 		if rsp1.Subscription.CustomerUuid != req.CustomerId {
 			zap.L().Error("trying to get subscription for another customer", zap.String("customer_id", req.CustomerId), zap.String("subscription_customer_id", rsp1.Subscription.CustomerUuid), zap.String("subscription_id", rsp1.Subscription.Id))
@@ -578,11 +602,18 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 			rsp.Message = recurringErrorUnknown
 			return nil
 		}
+
+		if len(browserCookie.CustomerId) == 0 {
+			zap.L().Error("customer_id is empty", zap.Any("browserCookie", browserCookie), zap.Any("req", req))
+			rsp.Status = billingpb.ResponseStatusBadData
+			rsp.Message = recurringCustomerNotFound
+			return nil
+		}
+
 		req1.CustomerId = browserCookie.CustomerId
 	} else {
 		req1.CustomerUuid = req.CustomerId
 	}
-
 
 	zap.L().Info("FindSubscriptions", zap.Any("req1", req1))
 	rsp1, err := s.rep.FindSubscriptions(ctx, req1)
