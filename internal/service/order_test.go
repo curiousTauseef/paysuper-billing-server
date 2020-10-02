@@ -4095,8 +4095,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 	err := suite.service.OrderCreateProcess(context.TODO(), req, rsp)
 
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), billingpb.ResponseStatusBadData, rsp.Status)
-	assert.Equal(suite.T(), orderErrorRecurringDateEndOutOfRange, rsp.Message)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
 }
 
 func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_MerchantDateEnd_MaxMonthLimit_Error() {
