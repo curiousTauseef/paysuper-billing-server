@@ -7,6 +7,7 @@ import (
 	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -35,15 +36,15 @@ const (
 )
 
 var (
-	errorVatReportNotEnabledForCountry          = newBillingServerErrorMsg("vr000001", "vat not enabled for country")
-	errorVatReportPeriodNotConfiguredForCountry = newBillingServerErrorMsg("vr000002", "vat period not configured for country")
-	errorVatReportCurrencyExchangeFailed        = newBillingServerErrorMsg("vr000003", "currency exchange failed")
-	errorVatReportStatusChangeNotAllowed        = newBillingServerErrorMsg("vr000004", "vat report status change not allowed")
-	errorVatReportStatusChangeFailed            = newBillingServerErrorMsg("vr000005", "vat report status change failed")
-	errorVatReportQueryError                    = newBillingServerErrorMsg("vr000006", "vat report db query error")
-	errorVatReportNotFound                      = newBillingServerErrorMsg("vr000007", "vat report not found")
-	errorVatReportInternal                      = newBillingServerErrorMsg("vr000008", "vat report internal error")
-	errorVatReportStatusIsTheSame               = newBillingServerErrorMsg("vr000009", "vat report status is the same")
+	errorVatReportNotEnabledForCountry          = errors.NewBillingServerErrorMsg("vr000001", "vat not enabled for country")
+	errorVatReportPeriodNotConfiguredForCountry = errors.NewBillingServerErrorMsg("vr000002", "vat period not configured for country")
+	errorVatReportCurrencyExchangeFailed        = errors.NewBillingServerErrorMsg("vr000003", "currency exchange failed")
+	errorVatReportStatusChangeNotAllowed        = errors.NewBillingServerErrorMsg("vr000004", "vat report status change not allowed")
+	errorVatReportStatusChangeFailed            = errors.NewBillingServerErrorMsg("vr000005", "vat report status change failed")
+	errorVatReportQueryError                    = errors.NewBillingServerErrorMsg("vr000006", "vat report db query error")
+	errorVatReportNotFound                      = errors.NewBillingServerErrorMsg("vr000007", "vat report not found")
+	errorVatReportInternal                      = errors.NewBillingServerErrorMsg("vr000008", "vat report internal error")
+	errorVatReportStatusIsTheSame               = errors.NewBillingServerErrorMsg("vr000009", "vat report status is the same")
 
 	VatReportOnStatusNotifyToCentrifugo = []string{
 		pkg.VatReportStatusNeedToPay,

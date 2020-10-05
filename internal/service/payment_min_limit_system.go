@@ -4,15 +4,16 @@ import (
 	"context"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
-	errorPaymentMinLimitSystemCurrencyUnknown = newBillingServerErrorMsg("pmls0001", "payment min limit system currency unknown")
-	errorPaymentMinLimitSystemNotFound        = newBillingServerErrorMsg("pmls0002", "payment min limit system not found")
-	errorPaymentMinLimitSystemInvalidAmount   = newBillingServerErrorMsg("pmls0003", "payment min limit system amount invalid")
+	errorPaymentMinLimitSystemCurrencyUnknown = errors.NewBillingServerErrorMsg("pmls0001", "payment min limit system currency unknown")
+	errorPaymentMinLimitSystemNotFound        = errors.NewBillingServerErrorMsg("pmls0002", "payment min limit system not found")
+	errorPaymentMinLimitSystemInvalidAmount   = errors.NewBillingServerErrorMsg("pmls0003", "payment min limit system amount invalid")
 )
 
 func (s *Service) GetPaymentMinLimitsSystem(

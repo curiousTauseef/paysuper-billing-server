@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -67,7 +68,7 @@ func HelperCreateEntitiesForTests(suite suite.Suite, service *Service) (
 		AccountingPeriod:   "every-day",
 		Country:            "",
 		IsActive:           true,
-		Handler:            paymentSystemHandlerCardPayMock,
+		Handler:            PaymentSystemHandlerCardPayMock,
 	}
 
 	pmBankCard := &billingpb.PaymentMethod{
@@ -1067,7 +1068,7 @@ func HelperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Orde
 		},
 		RefundData: &billingpb.CardPayRefundCallbackRefundData{
 			Amount:   10,
-			Created:  time.Now().Format(cardPayDateFormat),
+			Created:  time.Now().Format(payment_system.CardPayDateFormat),
 			Id:       primitive.NewObjectID().Hex(),
 			Currency: rsp2.Item.Currency,
 			Status:   billingpb.CardPayPaymentResponseStatusCompleted,
@@ -1075,7 +1076,7 @@ func HelperMakeRefund(suite suite.Suite, service *Service, order *billingpb.Orde
 			Is_3D:    true,
 			Rrn:      primitive.NewObjectID().Hex(),
 		},
-		CallbackTime: time.Now().Format(cardPayDateFormat),
+		CallbackTime: time.Now().Format(payment_system.CardPayDateFormat),
 		Customer: &billingpb.CardPayCustomer{
 			Email: order.User.Email,
 			Id:    order.User.Email,
@@ -1375,7 +1376,6 @@ func HelperCreateAndPayOrder2(
 	return order
 }
 
-
 func HelperCreateAndPayOrderWithUser(
 	suite suite.Suite,
 	service *Service,
@@ -1415,7 +1415,7 @@ func HelperCreateAndPayOrderWithUser(
 		},
 		IssuerUrl: issuerUrl,
 		Metadata:  metadata,
-		Cookie: cookie,
+		Cookie:    cookie,
 	}
 
 	if product != nil {
@@ -1450,7 +1450,7 @@ func HelperCreateAndPayOrderWithUser(
 			billingpb.PaymentCreateFieldYear:            time.Now().AddDate(1, 0, 0).Format("2006"),
 			billingpb.PaymentCreateFieldHolder:          "MR. CARD HOLDER",
 		},
-		Ip: "127.0.0.1",
+		Ip:     "127.0.0.1",
 		Cookie: cookie,
 	}
 

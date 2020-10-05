@@ -11,6 +11,8 @@ import (
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinMocks "github.com/paysuper/paysuper-proto/go/casbinpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
+	mocks2 "github.com/paysuper/paysuper-proto/go/recurringpb/mocks"
 	reportingMocks "github.com/paysuper/paysuper-proto/go/reporterpb/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -242,4 +244,40 @@ func (suite *CustomerTestSuite) TestCustomer_SetCustomerPaymentActivity_Customer
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
 	assert.Equal(suite.T(), errorCustomerUnknown, rsp.Message)
+}
+
+func (suite *CustomerTestSuite) TestCustomer_DeleteCard_Error() {
+	repMock := &mocks2.RepositoryService{}
+	repMock.On("DeleteSavedCard", mock.Anything, mock.Anything).Return(nil, errors.New("some error"))
+	suite.service.rep = repMock
+
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.DeleteCustomerCard(context.TODO(), &billingpb.DeleteCustomerCardRequest{}, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
+	assert.Equal(suite.T(), recurringErrorUnknown, rsp.Message)
+}
+
+func (suite *CustomerTestSuite) TestCustomer_DeleteCard_ServiceError() {
+	repMock := &mocks2.RepositoryService{}
+	repMock.On("DeleteSavedCard", mock.Anything, mock.Anything).Return(&recurringpb.DeleteSavedCardResponse{Status: 404, Message: "hello there"}, nil)
+	suite.service.rep = repMock
+
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.DeleteCustomerCard(context.TODO(), &billingpb.DeleteCustomerCardRequest{}, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusNotFound, rsp.Status)
+	assert.Equal(suite.T(), recurringSavedCardNotFount, rsp.Message)
+}
+
+func (suite *CustomerTestSuite) TestCustomer_DeleteCard_Ok() {
+	repMock := &mocks2.RepositoryService{}
+	repMock.On("DeleteSavedCard", mock.Anything, mock.Anything).Return(&recurringpb.DeleteSavedCardResponse{Status: 200}, nil)
+	suite.service.rep = repMock
+
+	rsp := &billingpb.EmptyResponseWithStatus{}
+	err := suite.service.DeleteCustomerCard(context.TODO(), &billingpb.DeleteCustomerCardRequest{}, rsp)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	assert.Empty(suite.T(), rsp.Message)
 }

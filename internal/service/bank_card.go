@@ -1,20 +1,21 @@
 package service
 
 import (
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"strconv"
 	"time"
 )
 
 var (
-	bankCardPanIsRequired         = newBillingServerErrorMsg("bc000001", "bank card number is required")
-	bankCardCvvIsRequired         = newBillingServerErrorMsg("bc000002", "bank card CVV number is required")
-	bankCardExpireMonthIsRequired = newBillingServerErrorMsg("bc000003", "bank card expire month is required")
-	bankCardExpireYearIsRequired  = newBillingServerErrorMsg("bc000004", "bank card expire year is required")
-	bankCardHolderIsRequired      = newBillingServerErrorMsg("bc000005", "bank card holder name is required")
-	bankCardMonthIsInvalid        = newBillingServerErrorMsg("bc000006", "invalid month of card expiration")
-	bankCardIsExpired             = newBillingServerErrorMsg("bc000007", "bank card is expired")
-	bankCardCvvIsInvalid          = newBillingServerErrorMsg("bc000008", "bank card CVV is invalid")
-	bankCardPanIsInvalid          = newBillingServerErrorMsg("bc000009", "bank card number is invalid")
+	bankCardPanIsRequired         = errors.NewBillingServerErrorMsg("bc000001", "bank card number is required")
+	bankCardCvvIsRequired         = errors.NewBillingServerErrorMsg("bc000002", "bank card CVV number is required")
+	bankCardExpireMonthIsRequired = errors.NewBillingServerErrorMsg("bc000003", "bank card expire month is required")
+	bankCardExpireYearIsRequired  = errors.NewBillingServerErrorMsg("bc000004", "bank card expire year is required")
+	bankCardHolderIsRequired      = errors.NewBillingServerErrorMsg("bc000005", "bank card holder name is required")
+	bankCardMonthIsInvalid        = errors.NewBillingServerErrorMsg("bc000006", "invalid month of card expiration")
+	bankCardIsExpired             = errors.NewBillingServerErrorMsg("bc000007", "bank card is expired")
+	bankCardCvvIsInvalid          = errors.NewBillingServerErrorMsg("bc000008", "bank card CVV is invalid")
+	bankCardPanIsInvalid          = errors.NewBillingServerErrorMsg("bc000009", "bank card number is invalid")
 )
 
 type bankCardValidator struct {

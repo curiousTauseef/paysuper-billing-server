@@ -1,11 +1,10 @@
-package service
+package payment_system
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
-	"github.com/paysuper/paysuper-billing-server/internal/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -36,7 +35,7 @@ var (
 			UrlSuccess: "http://localhost/success",
 			UrlFail:    "http://localhost/false",
 		},
-		Description:        fmt.Sprintf(orderDefaultDescription, primitive.NewObjectID().Hex()),
+		Description:        fmt.Sprintf(pkg.OrderDefaultDescription, primitive.NewObjectID().Hex()),
 		PrivateStatus:      recurringpb.OrderStatusNew,
 		CreatedAt:          ptypes.TimestampNow(),
 		IsJsonRequest:      false,
@@ -80,7 +79,7 @@ type CardPayTestSuite struct {
 	suite.Suite
 
 	cfg          *config.Config
-	handler      GateInterface
+	handler      PaymentSystemInterface
 	typedHandler *cardPay
 	logObserver  *zap.Logger
 	zapRecorder  *observer.ObservedLogs
@@ -106,7 +105,7 @@ func (suite *CardPayTestSuite) SetupTest() {
 	suite.logObserver = zap.New(core)
 	zap.ReplaceGlobals(suite.logObserver)
 
-	suite.handler = newCardPayHandler()
+	suite.handler = NewCardPayHandler()
 	handler, ok := suite.handler.(*cardPay)
 	assert.True(suite.T(), ok)
 	suite.typedHandler = handler
@@ -130,7 +129,7 @@ func (suite *CardPayTestSuite) TestCardPay_GetCardPayOrder_Ok() {
 }
 
 func (suite *CardPayTestSuite) TestCardPay_CreatePayment_Mock_Ok() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
 	url, err := suite.handler.CreatePayment(
 		orderSimpleBankCard,
 		suite.cfg.GetRedirectUrlSuccess(nil),
@@ -142,7 +141,7 @@ func (suite *CardPayTestSuite) TestCardPay_CreatePayment_Mock_Ok() {
 }
 
 func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_WithData_Ok() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
 	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
 		ApiUrl:     "http://127.0.0.1",
 		TerminalId: "test",
@@ -162,7 +161,7 @@ func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_WithData_Ok() {
 }
 
 func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_WithUrlParams_Ok() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
 	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
 		ApiUrl:     "http://127.0.0.1",
 		TerminalId: "test",
@@ -175,7 +174,7 @@ func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_WithUrlParams_Ok()
 }
 
 func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_InvalidAction() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
 	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
 		ApiUrl:     "http://127.0.0.1",
 		TerminalId: "test",
@@ -185,7 +184,7 @@ func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_InvalidAction() {
 }
 
 func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_InvalidApiUrl() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
 	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
 		ApiUrl:     "",
 		TerminalId: "test",
@@ -195,14 +194,14 @@ func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_InvalidApiUrl() {
 }
 
 func (suite *CardPayTestSuite) TestCardPay_getRequestWithAuth_CheckAuthHeader_Ok() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
 	order := &billingpb.Order{PaymentMethod: &billingpb.PaymentMethodOrder{Params: &billingpb.PaymentMethodParams{
 		ApiUrl:     "http://127.0.0.1",
 		TerminalId: "test",
 	}}}
 	req, err := suite.typedHandler.getRequestWithAuth(order, nil, pkg.PaymentSystemActionDeleteRecurringPlan)
 	assert.NoError(suite.T(), err)
-	assert.NotEmpty(suite.T(), req.Header.Get(HeaderAuthorization))
+	assert.NotEmpty(suite.T(), req.Header.Get(pkg.HeaderAuthorization))
 }
 
 func (suite *CardPayTestSuite) TestCardPay_IsSubscriptionCallback_True() {
@@ -218,8 +217,8 @@ func (suite *CardPayTestSuite) TestCardPay_IsSubscriptionCallback_False() {
 }
 
 func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_Ok() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
-	suite.typedHandler.httpClient.Transport = &mocks.TransportCardPayRecurringPlanOk{}
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient.Transport = &TransportCardPayRecurringPlanOk{}
 
 	order := orderSimpleBankCard
 	order.RecurringSettings = &billingpb.OrderRecurringSettings{Period: recurringpb.RecurringPeriodDay}
@@ -239,8 +238,8 @@ func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_Ok() {
 }
 
 func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_InactivePlan() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
-	suite.typedHandler.httpClient.Transport = &mocks.TransportCardPayRecurringPlanInactive{}
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient.Transport = &TransportCardPayRecurringPlanInactive{}
 
 	order := orderSimpleBankCard
 	order.RecurringSettings = &billingpb.OrderRecurringSettings{Period: recurringpb.RecurringPeriodDay}
@@ -258,7 +257,7 @@ func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_InactiveP
 }
 
 func (suite *CardPayTestSuite) TestCardPay_DeleteRecurringSubscription_Ok() {
-	suite.typedHandler.httpClient = mocks.NewCardPayHttpClientStatusOk()
+	suite.typedHandler.httpClient = NewCardPayHttpClientStatusOk()
 
 	subscription := &recurringpb.Subscription{
 		CardpayPlanId:         "planId",

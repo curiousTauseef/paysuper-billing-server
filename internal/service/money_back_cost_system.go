@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -13,15 +14,15 @@ import (
 )
 
 var (
-	errorMoneybackSystemGetAll                    = newBillingServerErrorMsg("mbs000001", "can't get list of money back setting for system")
-	errorMoneybackSystemGet                       = newBillingServerErrorMsg("mbs000002", "can't get money back setting for system")
-	errorMoneybackSystemSetFailed                 = newBillingServerErrorMsg("mbs000003", "can't set money back setting for system")
-	errorMoneybackSystemDelete                    = newBillingServerErrorMsg("mbs000004", "can't delete money back setting for system")
-	errorMoneybackSystemCurrency                  = newBillingServerErrorMsg("mbs000005", "currency not supported")
-	errorMoneybackCostAlreadyExist                = newBillingServerErrorMsg("mbs000006", "cost with specified parameters already exist")
-	errorMoneybackSystemMccCode                   = newBillingServerErrorMsg("mbs000007", "mcc code not supported")
-	errorMoneybackSystemOperatingCompanyNotExists = newBillingServerErrorMsg("mbs000008", "operating company not exists")
-	errorMoneybackSystemDaysMatchedNotFound       = newBillingServerErrorMsg("mbs000009", "days matched not found")
+	errorMoneybackSystemGetAll                    = errors.NewBillingServerErrorMsg("mbs000001", "can't get list of money back setting for system")
+	errorMoneybackSystemGet                       = errors.NewBillingServerErrorMsg("mbs000002", "can't get money back setting for system")
+	errorMoneybackSystemSetFailed                 = errors.NewBillingServerErrorMsg("mbs000003", "can't set money back setting for system")
+	errorMoneybackSystemDelete                    = errors.NewBillingServerErrorMsg("mbs000004", "can't delete money back setting for system")
+	errorMoneybackSystemCurrency                  = errors.NewBillingServerErrorMsg("mbs000005", "currency not supported")
+	errorMoneybackCostAlreadyExist                = errors.NewBillingServerErrorMsg("mbs000006", "cost with specified parameters already exist")
+	errorMoneybackSystemMccCode                   = errors.NewBillingServerErrorMsg("mbs000007", "mcc code not supported")
+	errorMoneybackSystemOperatingCompanyNotExists = errors.NewBillingServerErrorMsg("mbs000008", "operating company not exists")
+	errorMoneybackSystemDaysMatchedNotFound       = errors.NewBillingServerErrorMsg("mbs000009", "days matched not found")
 )
 
 func (s *Service) GetAllMoneyBackCostSystem(

@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/notifierpb"
 	constant "github.com/paysuper/paysuper-proto/go/recurringpb"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	webhookTypeIncorrect = newBillingServerErrorMsg("wh000001", "type for webhook is invalid")
+	webhookTypeIncorrect = errors.NewBillingServerErrorMsg("wh000001", "type for webhook is invalid")
 )
 
 const (

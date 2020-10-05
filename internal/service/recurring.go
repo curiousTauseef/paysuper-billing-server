@@ -3,16 +3,17 @@ package service
 import (
 	"context"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.uber.org/zap"
 )
 
 var (
-	recurringErrorIncorrectCookie = newBillingServerErrorMsg("re000001", "customer cookie value is incorrect")
-	recurringCustomerNotFound     = newBillingServerErrorMsg("re000002", "customer not found")
-	recurringErrorUnknown         = newBillingServerErrorMsg("re000003", "unknown error")
-	recurringSavedCardNotFount    = newBillingServerErrorMsg("re000005", "saved card for customer not found")
+	recurringErrorIncorrectCookie = errors.NewBillingServerErrorMsg("re000001", "customer cookie value is incorrect")
+	recurringCustomerNotFound     = errors.NewBillingServerErrorMsg("re000002", "customer not found")
+	recurringErrorUnknown         = errors.NewBillingServerErrorMsg("re000003", "unknown error")
+	recurringSavedCardNotFount    = errors.NewBillingServerErrorMsg("re000005", "saved card for customer not found")
 )
 
 func (s *Service) DeleteSavedCard(

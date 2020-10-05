@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -13,15 +14,15 @@ import (
 )
 
 var (
-	errorMoneybackMerchantGetAll              = newBillingServerErrorMsg("mbm000001", "can't get list of money back setting for merchant")
-	errorMoneybackMerchantGet                 = newBillingServerErrorMsg("mbm000002", "can't get money back setting for merchant")
-	errorMoneybackMerchantSetFailed           = newBillingServerErrorMsg("mbm000003", "can't set money back setting for merchant")
-	errorMoneybackMerchantDelete              = newBillingServerErrorMsg("mbm000004", "can't delete money back setting for merchant")
-	errorMoneybackMerchantCurrency            = newBillingServerErrorMsg("mbm000005", "currency not supported")
-	errorMoneybackMerchantCostAlreadyExist    = newBillingServerErrorMsg("mbm000006", "cost with specified parameters already exist")
-	errorMoneybackMerchantMccCode             = newBillingServerErrorMsg("mbm000007", "mcc code not supported")
-	errorMoneybackMerchantDaysMatchedNotFound = newBillingServerErrorMsg("mbm000008", "days matched not found")
-	errorCostRateNotFound                     = newBillingServerErrorMsg("cr000001", "cost rate with specified identifier not found")
+	errorMoneybackMerchantGetAll              = errors.NewBillingServerErrorMsg("mbm000001", "can't get list of money back setting for merchant")
+	errorMoneybackMerchantGet                 = errors.NewBillingServerErrorMsg("mbm000002", "can't get money back setting for merchant")
+	errorMoneybackMerchantSetFailed           = errors.NewBillingServerErrorMsg("mbm000003", "can't set money back setting for merchant")
+	errorMoneybackMerchantDelete              = errors.NewBillingServerErrorMsg("mbm000004", "can't delete money back setting for merchant")
+	errorMoneybackMerchantCurrency            = errors.NewBillingServerErrorMsg("mbm000005", "currency not supported")
+	errorMoneybackMerchantCostAlreadyExist    = errors.NewBillingServerErrorMsg("mbm000006", "cost with specified parameters already exist")
+	errorMoneybackMerchantMccCode             = errors.NewBillingServerErrorMsg("mbm000007", "mcc code not supported")
+	errorMoneybackMerchantDaysMatchedNotFound = errors.NewBillingServerErrorMsg("mbm000008", "days matched not found")
+	errorCostRateNotFound                     = errors.NewBillingServerErrorMsg("cr000001", "cost rate with specified identifier not found")
 )
 
 func (s *Service) GetAllMoneyBackCostMerchant(

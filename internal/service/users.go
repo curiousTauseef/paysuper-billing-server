@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	errors2 "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	casbinProto "github.com/paysuper/paysuper-proto/go/casbinpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -37,28 +38,28 @@ const (
 )
 
 var (
-	usersDbInternalError              = newBillingServerErrorMsg("uu000001", "unknown database error")
-	errorUserAlreadyExist             = newBillingServerErrorMsg("uu000002", "user already exist")
-	errorUserUnableToAdd              = newBillingServerErrorMsg("uu000003", "unable to add user")
-	errorUserNotFound                 = newBillingServerErrorMsg("uu000004", "user not found")
-	errorUserInviteAlreadyAccepted    = newBillingServerErrorMsg("uu000005", "user already accepted invite")
-	errorUserMerchantNotFound         = newBillingServerErrorMsg("uu000006", "merchant not found")
-	errorUserUnableToSendInvite       = newBillingServerErrorMsg("uu000007", "unable to send invite email")
-	errorUserConfirmEmail             = newBillingServerErrorMsg("uu000008", "unable to confirm email")
-	errorUserUnableToCreateToken      = newBillingServerErrorMsg("uu000009", "unable to create invite token")
-	errorUserInvalidToken             = newBillingServerErrorMsg("uu000010", "invalid token string")
-	errorUserInvalidInviteEmail       = newBillingServerErrorMsg("uu000011", "email in request and token are not equal")
-	errorUserUnableToSave             = newBillingServerErrorMsg("uu000013", "can't update user in db")
-	errorUserUnableToAddToCasbin      = newBillingServerErrorMsg("uu000014", "unable to add user to the casbin server")
-	errorUserUnsupportedRoleType      = newBillingServerErrorMsg("uu000015", "unsupported role type")
-	errorUserUnableToDelete           = newBillingServerErrorMsg("uu000016", "unable to delete user")
-	errorUserUnableToDeleteFromCasbin = newBillingServerErrorMsg("uu000017", "unable to delete user from the casbin server")
-	errorUserDontHaveRole             = newBillingServerErrorMsg("uu000018", "user dont have any role")
-	errorUserUnableResendInvite       = newBillingServerErrorMsg("uu000019", "unable to resend invite")
-	errorUserGetImplicitPermissions   = newBillingServerErrorMsg("uu000020", "unable to get implicit permission for user")
-	errorUserProfileNotFound          = newBillingServerErrorMsg("uu000021", "unable to get user profile")
-	errorUserEmptyNames               = newBillingServerErrorMsg("uu000022", "first and last names cannot be empty")
-	errorUserEmptyCompanyName         = newBillingServerErrorMsg("uu000023", "company name cannot be empty")
+	usersDbInternalError              = errors2.NewBillingServerErrorMsg("uu000001", "unknown database error")
+	errorUserAlreadyExist             = errors2.NewBillingServerErrorMsg("uu000002", "user already exist")
+	errorUserUnableToAdd              = errors2.NewBillingServerErrorMsg("uu000003", "unable to add user")
+	errorUserNotFound                 = errors2.NewBillingServerErrorMsg("uu000004", "user not found")
+	errorUserInviteAlreadyAccepted    = errors2.NewBillingServerErrorMsg("uu000005", "user already accepted invite")
+	errorUserMerchantNotFound         = errors2.NewBillingServerErrorMsg("uu000006", "merchant not found")
+	errorUserUnableToSendInvite       = errors2.NewBillingServerErrorMsg("uu000007", "unable to send invite email")
+	errorUserConfirmEmail             = errors2.NewBillingServerErrorMsg("uu000008", "unable to confirm email")
+	errorUserUnableToCreateToken      = errors2.NewBillingServerErrorMsg("uu000009", "unable to create invite token")
+	errorUserInvalidToken             = errors2.NewBillingServerErrorMsg("uu000010", "invalid token string")
+	errorUserInvalidInviteEmail       = errors2.NewBillingServerErrorMsg("uu000011", "email in request and token are not equal")
+	errorUserUnableToSave             = errors2.NewBillingServerErrorMsg("uu000013", "can't update user in db")
+	errorUserUnableToAddToCasbin      = errors2.NewBillingServerErrorMsg("uu000014", "unable to add user to the casbin server")
+	errorUserUnsupportedRoleType      = errors2.NewBillingServerErrorMsg("uu000015", "unsupported role type")
+	errorUserUnableToDelete           = errors2.NewBillingServerErrorMsg("uu000016", "unable to delete user")
+	errorUserUnableToDeleteFromCasbin = errors2.NewBillingServerErrorMsg("uu000017", "unable to delete user from the casbin server")
+	errorUserDontHaveRole             = errors2.NewBillingServerErrorMsg("uu000018", "user dont have any role")
+	errorUserUnableResendInvite       = errors2.NewBillingServerErrorMsg("uu000019", "unable to resend invite")
+	errorUserGetImplicitPermissions   = errors2.NewBillingServerErrorMsg("uu000020", "unable to get implicit permission for user")
+	errorUserProfileNotFound          = errors2.NewBillingServerErrorMsg("uu000021", "unable to get user profile")
+	errorUserEmptyNames               = errors2.NewBillingServerErrorMsg("uu000022", "first and last names cannot be empty")
+	errorUserEmptyCompanyName         = errors2.NewBillingServerErrorMsg("uu000023", "company name cannot be empty")
 
 	merchantUserRoles = map[string][]*billingpb.RoleListItem{
 		pkg.RoleTypeMerchant: {

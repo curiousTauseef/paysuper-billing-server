@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	tools "github.com/paysuper/paysuper-tools/number"
@@ -22,13 +23,13 @@ const (
 )
 
 var (
-	refundErrorUnknown            = newBillingServerErrorMsg("rf000001", "refund can't be create. try request later")
-	refundErrorNotAllowed         = newBillingServerErrorMsg("rf000002", "create refund for order not allowed")
-	refundErrorAlreadyRefunded    = newBillingServerErrorMsg("rf000003", "amount by order was fully refunded")
-	refundErrorPaymentAmountLess  = newBillingServerErrorMsg("rf000004", "refund unavailable, because payment amount less than total refunds amount")
-	refundErrorNotFound           = newBillingServerErrorMsg("rf000005", "refund with specified data not found")
-	refundErrorOrderNotFound      = newBillingServerErrorMsg("rf000006", "information about payment for refund with specified data not found")
-	refundErrorCostsRatesNotFound = newBillingServerErrorMsg("rf000007", "settings to calculate commissions for refund not found")
+	refundErrorUnknown            = errors.NewBillingServerErrorMsg("rf000001", "refund can't be create. try request later")
+	refundErrorNotAllowed         = errors.NewBillingServerErrorMsg("rf000002", "create refund for order not allowed")
+	refundErrorAlreadyRefunded    = errors.NewBillingServerErrorMsg("rf000003", "amount by order was fully refunded")
+	refundErrorPaymentAmountLess  = errors.NewBillingServerErrorMsg("rf000004", "refund unavailable, because payment amount less than total refunds amount")
+	refundErrorNotFound           = errors.NewBillingServerErrorMsg("rf000005", "refund with specified data not found")
+	refundErrorOrderNotFound      = errors.NewBillingServerErrorMsg("rf000006", "information about payment for refund with specified data not found")
+	refundErrorCostsRatesNotFound = errors.NewBillingServerErrorMsg("rf000007", "settings to calculate commissions for refund not found")
 )
 
 type createRefundChecked struct {
@@ -63,7 +64,7 @@ func (s *Service) CreateRefund(
 		return nil
 	}
 
-	h, err := s.paymentSystemGateway.getGateway(processor.checked.order.PaymentMethod.Handler)
+	h, err := s.paymentSystemGateway.GetGateway(processor.checked.order.PaymentMethod.Handler)
 
 	if err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err)
@@ -210,7 +211,7 @@ func (s *Service) ProcessRefundCallback(
 		return nil
 	}
 
-	h, err := s.paymentSystemGateway.getGateway(order.PaymentMethod.Handler)
+	h, err := s.paymentSystemGateway.GetGateway(order.PaymentMethod.Handler)
 
 	if err != nil {
 		zap.L().Error(
@@ -225,6 +226,19 @@ func (s *Service) ProcessRefundCallback(
 	}
 
 	pErr := h.ProcessRefund(order, refund, data, string(req.Body), req.Signature)
+
+	zap.L().Info(
+		"h.ProcessRefund is error in result?",
+		zap.Error(pErr),
+		zap.Any("refund", refund),
+	)
+
+	if err = s.refundRepository.Update(ctx, refund); err != nil {
+		rsp.Error = orderErrorUnknown.Error()
+		rsp.Status = billingpb.ResponseStatusSystemError
+
+		return nil
+	}
 
 	if pErr != nil {
 		rsp.Error = pErr.Error()
@@ -283,6 +297,11 @@ func (s *Service) ProcessRefundCallback(
 			return nil
 		}
 	}
+
+	zap.L().Info(
+		"Before s.refundRepository.Update line 307",
+		zap.Any("refund", refund),
+	)
 
 	if err = s.refundRepository.Update(ctx, refund); err != nil {
 		rsp.Error = orderErrorUnknown.Error()
@@ -451,7 +470,7 @@ func (p *createRefundProcessor) processCreateRefund() (*billingpb.Refund, error)
 	}
 
 	if !p.hasMoneyBackCosts(p.ctx, p.checked.order) {
-		return nil, newBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorCostsRatesNotFound)
+		return nil, errors.NewBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorCostsRatesNotFound)
 	}
 
 	err = p.processRefundsByOrder()
@@ -497,7 +516,7 @@ func (p *createRefundProcessor) processCreateRefund() (*billingpb.Refund, error)
 	}
 
 	if err = p.service.refundRepository.Insert(p.ctx, refund); err != nil {
-		return nil, newBillingServerResponseError(billingpb.ResponseStatusBadData, orderErrorUnknown)
+		return nil, errors.NewBillingServerResponseError(billingpb.ResponseStatusBadData, orderErrorUnknown)
 	}
 
 	return refund, nil
@@ -507,15 +526,15 @@ func (p *createRefundProcessor) processOrder() error {
 	order, err := p.service.orderRepository.GetByUuidAndMerchantId(p.ctx, p.request.OrderId, p.request.MerchantId)
 
 	if err != nil {
-		return newBillingServerResponseError(billingpb.ResponseStatusNotFound, refundErrorNotFound)
+		return errors.NewBillingServerResponseError(billingpb.ResponseStatusNotFound, refundErrorNotFound)
 	}
 
 	if order.PrivateStatus == recurringpb.OrderStatusRefund {
-		return newBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorAlreadyRefunded)
+		return errors.NewBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorAlreadyRefunded)
 	}
 
 	if order.RefundAllowed() == false {
-		return newBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorNotAllowed)
+		return errors.NewBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorNotAllowed)
 	}
 
 	p.checked.order = order
@@ -527,11 +546,11 @@ func (p *createRefundProcessor) processRefundsByOrder() error {
 	refundedAmount, err := p.service.refundRepository.GetAmountByOrderId(p.ctx, p.checked.order.Id)
 
 	if err != nil {
-		return newBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorUnknown)
+		return errors.NewBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorUnknown)
 	}
 
 	if refundedAmount > 0 {
-		return newBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorPaymentAmountLess)
+		return errors.NewBillingServerResponseError(billingpb.ResponseStatusBadData, refundErrorPaymentAmountLess)
 	}
 
 	return nil

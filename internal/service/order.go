@@ -16,8 +16,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	intPkg "github.com/paysuper/paysuper-billing-server/internal/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	errors2 "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/currenciespb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -46,8 +48,7 @@ const (
 	orderErrorPublishNotificationFailed = "publish order notification failed"
 	orderErrorUpdateOrderDataFailed     = "update order data failed"
 	brokerPublicationFailed             = "message publication to broker failed"
-
-	orderDefaultDescription = "Payment by order # %s"
+	subscriptionUpdateFailed            = "unable to update recurring subscription"
 
 	defaultExpireDateToFormInput = 30
 	cookieCounterUpdateTime      = 1800
@@ -59,84 +60,84 @@ const (
 )
 
 var (
-	orderErrorProjectIdIncorrect                              = newBillingServerErrorMsg("fm000001", "project identifier is incorrect")
-	orderErrorProjectNotFound                                 = newBillingServerErrorMsg("fm000002", "project with specified identifier not found")
-	orderErrorProjectInactive                                 = newBillingServerErrorMsg("fm000003", "project with specified identifier is inactive")
-	orderErrorProjectMerchantInactive                         = newBillingServerErrorMsg("fm000004", "merchant for project with specified identifier is inactive")
-	orderErrorPaymentMethodNotAllowed                         = newBillingServerErrorMsg("fm000005", "payment Method not available for project")
-	orderErrorPaymentMethodNotFound                           = newBillingServerErrorMsg("fm000006", "payment Method with specified identifier not found")
-	orderErrorPaymentMethodInactive                           = newBillingServerErrorMsg("fm000007", "payment Method with specified identifier is inactive")
-	orderErrorConvertionCurrency                              = newBillingServerErrorMsg("fm000008", "currency conversion error")
-	orderErrorPaymentMethodEmptySettings                      = newBillingServerErrorMsg("fm000009", "payment Method setting for project is empty")
-	orderErrorPaymentSystemInactive                           = newBillingServerErrorMsg("fm000010", "payment system for specified payment Method is inactive")
-	orderErrorPayerRegionUnknown                              = newBillingServerErrorMsg("fm000011", "payer region can't be found")
-	orderErrorDynamicNotifyUrlsNotAllowed                     = newBillingServerErrorMsg("fm000013", "dynamic verify url or notify url not allowed for project")
-	orderErrorDynamicRedirectUrlsNotAllowed                   = newBillingServerErrorMsg("fm000014", "dynamic payer redirect urls not allowed for project")
-	orderErrorCurrencyNotFound                                = newBillingServerErrorMsg("fm000015", "currency received from request not found")
-	orderErrorAmountLowerThanMinAllowed                       = newBillingServerErrorMsg("fm000016", "order amount is lower than min allowed payment amount for project")
-	orderErrorAmountGreaterThanMaxAllowed                     = newBillingServerErrorMsg("fm000017", "order amount is greater than max allowed payment amount for project")
-	orderErrorAmountLowerThanMinAllowedPaymentMethod          = newBillingServerErrorMsg("fm000018", "order amount is lower than min allowed payment amount for payment Method")
-	orderErrorAmountGreaterThanMaxAllowedPaymentMethod        = newBillingServerErrorMsg("fm000019", "order amount is greater than max allowed payment amount for payment Method")
-	orderErrorCanNotCreate                                    = newBillingServerErrorMsg("fm000020", "order can't create. try request later")
-	orderErrorNotFound                                        = newBillingServerErrorMsg("fm000021", "order with specified identifier not found")
-	orderErrorOrderCreatedAnotherProject                      = newBillingServerErrorMsg("fm000022", "order created for another project")
-	orderErrorFormInputTimeExpired                            = newBillingServerErrorMsg("fm000023", "time to enter date on payment form expired")
-	orderErrorCurrencyIsRequired                              = newBillingServerErrorMsg("fm000024", "parameter currency in create order request is required")
-	orderErrorUnknown                                         = newBillingServerErrorMsg("fm000025", "unknown error. try request later")
-	orderCountryPaymentRestrictedError                        = newBillingServerErrorMsg("fm000027", "payments from your country are not allowed")
-	orderGetSavedCardError                                    = newBillingServerErrorMsg("fm000028", "saved card data with specified identifier not found")
-	orderErrorCountryByPaymentAccountNotFound                 = newBillingServerErrorMsg("fm000029", "information about user country can't be found")
-	orderErrorPaymentAccountIncorrect                         = newBillingServerErrorMsg("fm000030", "account in payment system is incorrect")
-	orderErrorProductsEmpty                                   = newBillingServerErrorMsg("fm000031", "products set is empty")
-	orderErrorProductsInvalid                                 = newBillingServerErrorMsg("fm000032", "some products in set are invalid or inactive")
-	orderErrorNoProductsCommonCurrency                        = newBillingServerErrorMsg("fm000033", "no common prices neither in requested currency nor in default currency")
-	orderErrorNoNameInDefaultLanguage                         = newBillingServerErrorMsg("fm000034", "no name in default language %s")
-	orderErrorNoNameInRequiredLanguage                        = newBillingServerErrorMsg("fm000035", "no name in required language %s")
-	orderErrorNoDescriptionInDefaultLanguage                  = newBillingServerErrorMsg("fm000036", "no description in default language %s")
-	orderErrorNoDescriptionInRequiredLanguage                 = newBillingServerErrorMsg("fm000037", "no description in required language %s")
-	orderErrorProjectMerchantNotFound                         = newBillingServerErrorMsg("fm000038", "merchant for project with specified identifier not found")
-	orderErrorRecurringCardNotOwnToUser                       = newBillingServerErrorMsg("fm000039", "you can't use not own bank card for payment")
-	orderErrorNotRestricted                                   = newBillingServerErrorMsg("fm000040", "order country not restricted")
-	orderErrorEmailRequired                                   = newBillingServerErrorMsg("fm000041", "email is required")
-	orderErrorCreatePaymentRequiredFieldIdNotFound            = newBillingServerErrorMsg("fm000042", "required field with order identifier not found")
-	orderErrorCreatePaymentRequiredFieldPaymentMethodNotFound = newBillingServerErrorMsg("fm000043", "required field with payment Method identifier not found")
-	orderErrorCreatePaymentRequiredFieldEmailNotFound         = newBillingServerErrorMsg("fm000044", "required field \"email\" not found")
-	orderErrorCreatePaymentRequiredFieldUserCountryNotFound   = newBillingServerErrorMsg("fm000045", "user country is required")
-	orderErrorCreatePaymentRequiredFieldUserZipNotFound       = newBillingServerErrorMsg("fm000046", "user zip is required")
-	orderErrorOrderAlreadyComplete                            = newBillingServerErrorMsg("fm000047", "order with specified identifier paid early")
-	orderErrorSignatureInvalid                                = newBillingServerErrorMsg("fm000048", "request signature is invalid")
-	orderErrorProductsPrice                                   = newBillingServerErrorMsg("fm000051", "can't get product price")
-	orderErrorCheckoutWithoutProducts                         = newBillingServerErrorMsg("fm000052", "order products not specified")
-	orderErrorCheckoutWithoutAmount                           = newBillingServerErrorMsg("fm000053", "order amount not specified")
-	orderErrorUnknownType                                     = newBillingServerErrorMsg("fm000055", "unknown type of order")
-	orderErrorMerchantBadTariffs                              = newBillingServerErrorMsg("fm000056", "merchant don't have tariffs")
-	orderErrorReceiptNotEquals                                = newBillingServerErrorMsg("fm000057", "receipts not equals")
-	orderErrorDuringFormattingCurrency                        = newBillingServerErrorMsg("fm000058", "error during formatting currency")
-	orderErrorDuringFormattingDate                            = newBillingServerErrorMsg("fm000059", "error during formatting date")
-	orderErrorMerchantForOrderNotFound                        = newBillingServerErrorMsg("fm000060", "merchant for order not found")
-	orderErrorNoPlatforms                                     = newBillingServerErrorMsg("fm000062", "no available platforms")
-	orderCountryPaymentRestricted                             = newBillingServerErrorMsg("fm000063", "payments from your country are not allowed")
-	orderErrorCostsRatesNotFound                              = newBillingServerErrorMsg("fm000064", "settings to calculate commissions for order not found")
-	orderErrorVirtualCurrencyNotFilled                        = newBillingServerErrorMsg("fm000065", "virtual currency is not filled")
-	orderErrorVirtualCurrencyFracNotSupported                 = newBillingServerErrorMsg("fm000066", "fractional numbers is not supported for this virtual currency")
-	orderErrorVirtualCurrencyLimits                           = newBillingServerErrorMsg("fm000067", "amount of order is more than max amount or less than minimal amount for virtual currency")
-	orderErrorCheckoutWithProducts                            = newBillingServerErrorMsg("fm000069", "request to processing simple payment can't contain products list")
-	orderErrorMerchantDoNotHaveBanking                        = newBillingServerErrorMsg("fm000071", "merchant don't have completed banking info")
-	orderErrorMerchantUserAccountNotChecked                   = newBillingServerErrorMsg("fm000073", "failed to check user account")
-	orderErrorAmountLowerThanMinLimitSystem                   = newBillingServerErrorMsg("fm000074", "order amount is lower than min system limit")
-	orderErrorAlreadyProcessed                                = newBillingServerErrorMsg("fm000075", "order is already processed")
-	orderErrorDontHaveReceiptUrl                              = newBillingServerErrorMsg("fm000076", "processed order don't have receipt url")
-	orderErrorWrongPrivateStatus                              = newBillingServerErrorMsg("fm000077", "order has wrong private status and cannot be recreated")
-	orderCountryChangeRestrictedError                         = newBillingServerErrorMsg("fm000078", "change country is not allowed")
-	orderErrorVatPayerUnknown                                 = newBillingServerErrorMsg("fm000079", "vat payer unknown")
-	orderErrorCookieIsEmpty                                   = newBillingServerErrorMsg("fm000080", "can't get payment cookie")
-	orderErrorCookieInvalid                                   = newBillingServerErrorMsg("fm000081", "unable to read payment cookie")
-	orderErrorRecurringNotAllowed                             = newBillingServerErrorMsg("fm000082", "payment method not allowed recurring payments")
-	orderErrorRecurringDateEndInvalid                         = newBillingServerErrorMsg("fm000083", "invalid the end date of recurring payments")
-	orderErrorRecurringDateEndOutOfRange                      = newBillingServerErrorMsg("fm000084", "subscription period cannot be less than the selected period and more than one year")
-	orderErrorRecurringAlreadyExists                          = newBillingServerErrorMsg("fm000085", "recurring subscription already exists")
+	orderErrorProjectIdIncorrect                              = errors2.NewBillingServerErrorMsg("fm000001", "project identifier is incorrect")
+	orderErrorProjectNotFound                                 = errors2.NewBillingServerErrorMsg("fm000002", "project with specified identifier not found")
+	orderErrorProjectInactive                                 = errors2.NewBillingServerErrorMsg("fm000003", "project with specified identifier is inactive")
+	orderErrorProjectMerchantInactive                         = errors2.NewBillingServerErrorMsg("fm000004", "merchant for project with specified identifier is inactive")
+	orderErrorPaymentMethodNotAllowed                         = errors2.NewBillingServerErrorMsg("fm000005", "payment Method not available for project")
+	orderErrorPaymentMethodNotFound                           = errors2.NewBillingServerErrorMsg("fm000006", "payment Method with specified identifier not found")
+	orderErrorPaymentMethodInactive                           = errors2.NewBillingServerErrorMsg("fm000007", "payment Method with specified identifier is inactive")
+	orderErrorConvertionCurrency                              = errors2.NewBillingServerErrorMsg("fm000008", "currency conversion error")
+	orderErrorPaymentMethodEmptySettings                      = errors2.NewBillingServerErrorMsg("fm000009", "payment Method setting for project is empty")
+	orderErrorPaymentSystemInactive                           = errors2.NewBillingServerErrorMsg("fm000010", "payment system for specified payment Method is inactive")
+	orderErrorPayerRegionUnknown                              = errors2.NewBillingServerErrorMsg("fm000011", "payer region can't be found")
+	orderErrorDynamicNotifyUrlsNotAllowed                     = errors2.NewBillingServerErrorMsg("fm000013", "dynamic verify url or notify url not allowed for project")
+	orderErrorDynamicRedirectUrlsNotAllowed                   = errors2.NewBillingServerErrorMsg("fm000014", "dynamic payer redirect urls not allowed for project")
+	orderErrorCurrencyNotFound                                = errors2.NewBillingServerErrorMsg("fm000015", "currency received from request not found")
+	orderErrorAmountLowerThanMinAllowed                       = errors2.NewBillingServerErrorMsg("fm000016", "order amount is lower than min allowed payment amount for project")
+	orderErrorAmountGreaterThanMaxAllowed                     = errors2.NewBillingServerErrorMsg("fm000017", "order amount is greater than max allowed payment amount for project")
+	orderErrorAmountLowerThanMinAllowedPaymentMethod          = errors2.NewBillingServerErrorMsg("fm000018", "order amount is lower than min allowed payment amount for payment Method")
+	orderErrorAmountGreaterThanMaxAllowedPaymentMethod        = errors2.NewBillingServerErrorMsg("fm000019", "order amount is greater than max allowed payment amount for payment Method")
+	orderErrorCanNotCreate                                    = errors2.NewBillingServerErrorMsg("fm000020", "order can't create. try request later")
+	orderErrorNotFound                                        = errors2.NewBillingServerErrorMsg("fm000021", "order with specified identifier not found")
+	orderErrorOrderCreatedAnotherProject                      = errors2.NewBillingServerErrorMsg("fm000022", "order created for another project")
+	orderErrorFormInputTimeExpired                            = errors2.NewBillingServerErrorMsg("fm000023", "time to enter date on payment form expired")
+	orderErrorCurrencyIsRequired                              = errors2.NewBillingServerErrorMsg("fm000024", "parameter currency in create order request is required")
+	orderErrorUnknown                                         = errors2.NewBillingServerErrorMsg("fm000025", "unknown error. try request later")
+	orderCountryPaymentRestrictedError                        = errors2.NewBillingServerErrorMsg("fm000027", "payments from your country are not allowed")
+	orderGetSavedCardError                                    = errors2.NewBillingServerErrorMsg("fm000028", "saved card data with specified identifier not found")
+	orderErrorCountryByPaymentAccountNotFound                 = errors2.NewBillingServerErrorMsg("fm000029", "information about user country can't be found")
+	orderErrorPaymentAccountIncorrect                         = errors2.NewBillingServerErrorMsg("fm000030", "account in payment system is incorrect")
+	orderErrorProductsEmpty                                   = errors2.NewBillingServerErrorMsg("fm000031", "products set is empty")
+	orderErrorProductsInvalid                                 = errors2.NewBillingServerErrorMsg("fm000032", "some products in set are invalid or inactive")
+	orderErrorNoProductsCommonCurrency                        = errors2.NewBillingServerErrorMsg("fm000033", "no common prices neither in requested currency nor in default currency")
+	orderErrorNoNameInDefaultLanguage                         = errors2.NewBillingServerErrorMsg("fm000034", "no name in default language %s")
+	orderErrorNoNameInRequiredLanguage                        = errors2.NewBillingServerErrorMsg("fm000035", "no name in required language %s")
+	orderErrorNoDescriptionInDefaultLanguage                  = errors2.NewBillingServerErrorMsg("fm000036", "no description in default language %s")
+	orderErrorNoDescriptionInRequiredLanguage                 = errors2.NewBillingServerErrorMsg("fm000037", "no description in required language %s")
+	orderErrorProjectMerchantNotFound                         = errors2.NewBillingServerErrorMsg("fm000038", "merchant for project with specified identifier not found")
+	orderErrorRecurringCardNotOwnToUser                       = errors2.NewBillingServerErrorMsg("fm000039", "you can't use not own bank card for payment")
+	orderErrorNotRestricted                                   = errors2.NewBillingServerErrorMsg("fm000040", "order country not restricted")
+	orderErrorEmailRequired                                   = errors2.NewBillingServerErrorMsg("fm000041", "email is required")
+	orderErrorCreatePaymentRequiredFieldIdNotFound            = errors2.NewBillingServerErrorMsg("fm000042", "required field with order identifier not found")
+	orderErrorCreatePaymentRequiredFieldPaymentMethodNotFound = errors2.NewBillingServerErrorMsg("fm000043", "required field with payment Method identifier not found")
+	orderErrorCreatePaymentRequiredFieldEmailNotFound         = errors2.NewBillingServerErrorMsg("fm000044", "required field \"email\" not found")
+	orderErrorCreatePaymentRequiredFieldUserCountryNotFound   = errors2.NewBillingServerErrorMsg("fm000045", "user country is required")
+	orderErrorCreatePaymentRequiredFieldUserZipNotFound       = errors2.NewBillingServerErrorMsg("fm000046", "user zip is required")
+	orderErrorOrderAlreadyComplete                            = errors2.NewBillingServerErrorMsg("fm000047", "order with specified identifier paid early")
+	orderErrorSignatureInvalid                                = errors2.NewBillingServerErrorMsg("fm000048", "request signature is invalid")
+	orderErrorProductsPrice                                   = errors2.NewBillingServerErrorMsg("fm000051", "can't get product price")
+	orderErrorCheckoutWithoutProducts                         = errors2.NewBillingServerErrorMsg("fm000052", "order products not specified")
+	orderErrorCheckoutWithoutAmount                           = errors2.NewBillingServerErrorMsg("fm000053", "order amount not specified")
+	orderErrorUnknownType                                     = errors2.NewBillingServerErrorMsg("fm000055", "unknown type of order")
+	orderErrorMerchantBadTariffs                              = errors2.NewBillingServerErrorMsg("fm000056", "merchant don't have tariffs")
+	orderErrorReceiptNotEquals                                = errors2.NewBillingServerErrorMsg("fm000057", "receipts not equals")
+	orderErrorDuringFormattingCurrency                        = errors2.NewBillingServerErrorMsg("fm000058", "error during formatting currency")
+	orderErrorDuringFormattingDate                            = errors2.NewBillingServerErrorMsg("fm000059", "error during formatting date")
+	orderErrorMerchantForOrderNotFound                        = errors2.NewBillingServerErrorMsg("fm000060", "merchant for order not found")
+	orderErrorNoPlatforms                                     = errors2.NewBillingServerErrorMsg("fm000062", "no available platforms")
+	orderCountryPaymentRestricted                             = errors2.NewBillingServerErrorMsg("fm000063", "payments from your country are not allowed")
+	orderErrorCostsRatesNotFound                              = errors2.NewBillingServerErrorMsg("fm000064", "settings to calculate commissions for order not found")
+	orderErrorVirtualCurrencyNotFilled                        = errors2.NewBillingServerErrorMsg("fm000065", "virtual currency is not filled")
+	orderErrorVirtualCurrencyFracNotSupported                 = errors2.NewBillingServerErrorMsg("fm000066", "fractional numbers is not supported for this virtual currency")
+	orderErrorVirtualCurrencyLimits                           = errors2.NewBillingServerErrorMsg("fm000067", "amount of order is more than max amount or less than minimal amount for virtual currency")
+	orderErrorCheckoutWithProducts                            = errors2.NewBillingServerErrorMsg("fm000069", "request to processing simple payment can't contain products list")
+	orderErrorMerchantDoNotHaveBanking                        = errors2.NewBillingServerErrorMsg("fm000071", "merchant don't have completed banking info")
+	orderErrorMerchantUserAccountNotChecked                   = errors2.NewBillingServerErrorMsg("fm000073", "failed to check user account")
+	orderErrorAmountLowerThanMinLimitSystem                   = errors2.NewBillingServerErrorMsg("fm000074", "order amount is lower than min system limit")
+	orderErrorAlreadyProcessed                                = errors2.NewBillingServerErrorMsg("fm000075", "order is already processed")
+	orderErrorDontHaveReceiptUrl                              = errors2.NewBillingServerErrorMsg("fm000076", "processed order don't have receipt url")
+	orderErrorWrongPrivateStatus                              = errors2.NewBillingServerErrorMsg("fm000077", "order has wrong private status and cannot be recreated")
+	orderCountryChangeRestrictedError                         = errors2.NewBillingServerErrorMsg("fm000078", "change country is not allowed")
+	orderErrorVatPayerUnknown                                 = errors2.NewBillingServerErrorMsg("fm000079", "vat payer unknown")
+	orderErrorCookieIsEmpty                                   = errors2.NewBillingServerErrorMsg("fm000080", "can't get payment cookie")
+	orderErrorCookieInvalid                                   = errors2.NewBillingServerErrorMsg("fm000081", "unable to read payment cookie")
+	orderErrorRecurringNotAllowed                             = errors2.NewBillingServerErrorMsg("fm000082", "payment method not allowed recurring payments")
+	orderErrorRecurringDateEndInvalid                         = errors2.NewBillingServerErrorMsg("fm000083", "invalid the end date of recurring payments")
+	orderErrorRecurringDateEndOutOfRange                      = errors2.NewBillingServerErrorMsg("fm000084", "subscription period cannot be less than the selected period and more than one year")
+	orderErrorRecurringInvalidPeriod                          = errors2.NewBillingServerErrorMsg("fm000085", "recurring period subscription is invalid")
 
-	virtualCurrencyPayoutCurrencyMissed = newBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
+	virtualCurrencyPayoutCurrencyMissed = errors2.NewBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
 	paymentSystemPaymentProcessingSuccessStatus = "PAYMENT_SYSTEM_PROCESSING_SUCCESS"
 
@@ -1114,7 +1115,7 @@ func (s *Service) PaymentCreateProcess(
 		return nil
 	}
 
-	h, err := s.paymentSystemGateway.getGateway(order.PaymentMethod.Handler)
+	h, err := s.paymentSystemGateway.GetGateway(order.PaymentMethod.Handler)
 
 	if err != nil {
 		zap.S().Errorw(pkg.MethodFinishedWithError, "err", err.Error())
@@ -1231,7 +1232,7 @@ func (s *Service) PaymentCallbackProcess(
 	}
 
 	switch ps.Handler {
-	case billingpb.PaymentSystemHandlerCardPay, paymentSystemHandlerCardPayMock:
+	case billingpb.PaymentSystemHandlerCardPay, PaymentSystemHandlerCardPayMock:
 		data = &billingpb.CardPayPaymentCallback{}
 		err := json.Unmarshal(req.Request, data)
 
@@ -1243,7 +1244,7 @@ func (s *Service) PaymentCallbackProcess(
 		return orderErrorPaymentMethodNotFound
 	}
 
-	h, err := s.paymentSystemGateway.getGateway(ps.Handler)
+	h, err := s.paymentSystemGateway.GetGateway(ps.Handler)
 
 	if err != nil {
 		return err
@@ -1256,6 +1257,12 @@ func (s *Service) PaymentCallbackProcess(
 
 		rsp.Error = pErr.Error()
 		rsp.Status = pErr.Status
+
+		zap.L().Error(
+			"error on ProcessPayment method",
+			zap.Error(err),
+			zap.Any("request", req.Request),
+		)
 
 		if pErr.Status == pkg.StatusTemporary {
 			return nil
@@ -1306,6 +1313,64 @@ func (s *Service) PaymentCallbackProcess(
 		}
 	}
 
+	var subscription *recurringpb.Subscription
+	fmt.Println(order.Id)
+	if h.IsSubscriptionCallback(data) {
+		subscriptionRsp, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{Id: order.RecurringId})
+
+		if err != nil || subscriptionRsp.Status != billingpb.ResponseStatusOk {
+			if err == nil {
+				err = errors.New(subscriptionRsp.Message)
+			}
+
+			zap.L().Error(
+				pkg.MethodFinishedWithError,
+				zap.String("Method", "GetSubscription"),
+				zap.Error(err),
+				zap.String("orderId", order.Id),
+				zap.String("subscriptionId", order.RecurringId),
+			)
+			return err
+		}
+
+		subscription = subscriptionRsp.Subscription
+
+		if subscription.LastPaymentAt != nil {
+			newOrder := new(billingpb.Order)
+			err = copier.Copy(&newOrder, &order)
+
+			if err != nil {
+				zap.S().Error(
+					"Copy order to new structure order by recurring subscription failed",
+					zap.Error(err),
+					zap.Any("order", order),
+				)
+				return err
+			}
+
+			newOrder.Id = primitive.NewObjectID().Hex()
+			newOrder.Uuid = uuid.New().String()
+			newOrder.ReceiptId = uuid.New().String()
+			newOrder.CreatedAt = ptypes.TimestampNow()
+			newOrder.UpdatedAt = ptypes.TimestampNow()
+			newOrder.Canceled = false
+			newOrder.CanceledAt = nil
+			newOrder.ReceiptUrl = ""
+			newOrder.PrivateStatus = recurringpb.OrderStatusNew
+			newOrder.ParentOrder = &billingpb.ParentOrder{
+				Id:   order.Id,
+				Uuid: order.Uuid,
+			}
+
+			if err = s.orderRepository.Insert(ctx, newOrder); err != nil {
+				return err
+			}
+
+			newOrder.PrivateStatus = order.PrivateStatus
+			order = newOrder
+		}
+	}
+
 	err = s.updateOrder(ctx, order)
 
 	if err != nil {
@@ -1319,6 +1384,45 @@ func (s *Service) PaymentCallbackProcess(
 	}
 
 	if pErr == nil {
+		if h.IsSubscriptionCallback(data) && subscription != nil {
+			if order.PrivateStatus != recurringpb.OrderStatusPaymentSystemComplete {
+				err = h.DeleteRecurringSubscription(order, subscription)
+
+				if err != nil {
+					zap.L().Error(
+						pkg.MethodFinishedWithError,
+						zap.String("Method", "DeleteRecurringSubscription"),
+						zap.Error(err),
+						zap.String("orderId", order.Id),
+						zap.String("subscriptionId", order.RecurringId),
+						zap.String("planId", subscription.CardpaySubscriptionId),
+					)
+					return err
+				}
+			} else {
+				t := time.Now().UTC()
+				latestPayment, _ := ptypes.TimestampProto(time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, t.Location()))
+
+				subscription.IsActive = true
+				subscription.LastPaymentAt = latestPayment
+				updateRsp, err := s.rep.UpdateSubscription(ctx, subscription)
+
+				if err != nil || updateRsp.Status != billingpb.ResponseStatusOk {
+					zap.L().Error(
+						pkg.MethodFinishedWithError,
+						zap.String("Method", "UpdateSubscription"),
+						zap.Error(err),
+						zap.String("orderId", order.Id),
+						zap.String("subscriptionId", order.RecurringId),
+						zap.String("planId", subscription.CardpaySubscriptionId),
+						zap.Any("update_response", updateRsp),
+					)
+
+					return errors.New(subscriptionUpdateFailed)
+				}
+			}
+		}
+
 		if order.PrivateStatus == recurringpb.OrderStatusPaymentSystemComplete {
 			err = s.paymentSystemPaymentCallbackComplete(ctx, order)
 
@@ -1328,7 +1432,7 @@ func (s *Service) PaymentCallbackProcess(
 				return nil
 			}
 		}
-
+		fmt.Println(order.Id)
 		err = s.onPaymentNotify(ctx, order)
 
 		if err != nil {
@@ -1357,56 +1461,6 @@ func (s *Service) PaymentCallbackProcess(
 		}
 
 		rsp.Status = pkg.StatusOK
-	}
-
-	if h.IsSubscriptionCallback(data) && order.Recurring {
-		subscription, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{Id: order.RecurringId})
-
-		if err != nil || subscription.Status != billingpb.ResponseStatusOk {
-			zap.L().Error(
-				pkg.MethodFinishedWithError,
-				zap.String("Method", "GetSubscription"),
-				zap.Error(err),
-				zap.String("orderId", order.Id),
-				zap.String("subscriptionId", order.RecurringId),
-			)
-			return err
-		}
-
-		if pErr != nil || order.PrivateStatus != recurringpb.OrderStatusPaymentSystemComplete {
-			err = h.DeleteRecurringSubscription(order, subscription.Subscription)
-
-			if err != nil {
-				zap.L().Error(
-					pkg.MethodFinishedWithError,
-					zap.String("Method", "DeleteRecurringSubscription"),
-					zap.Error(err),
-					zap.String("orderId", order.Id),
-					zap.String("subscriptionId", order.RecurringId),
-					zap.String("planId", subscription.Subscription.CardpaySubscriptionId),
-				)
-				return err
-			}
-		} else {
-			t := time.Now().UTC()
-			latestPayment, _ := ptypes.TimestampProto(time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, t.Location()))
-
-			subscription.Subscription.IsActive = true
-			subscription.Subscription.LastPaymentAt = latestPayment
-			rsp, err := s.rep.UpdateSubscription(ctx, subscription.Subscription)
-
-			if err != nil || rsp.Status != billingpb.ResponseStatusOk {
-				zap.L().Error(
-					pkg.MethodFinishedWithError,
-					zap.String("Method", "UpdateSubscription"),
-					zap.Error(err),
-					zap.String("orderId", order.Id),
-					zap.String("subscriptionId", order.RecurringId),
-					zap.String("planId", subscription.Subscription.CardpaySubscriptionId),
-				)
-				return err
-			}
-		}
 	}
 
 	return nil
@@ -2291,7 +2345,7 @@ func (v *OrderCreateRequestProcessor) prepareOrder() (*billingpb.Order, error) {
 			RedirectSettings:        v.checked.project.RedirectSettings,
 			FirstPaymentAt:          v.checked.merchant.FirstPaymentAt,
 		},
-		Description:   fmt.Sprintf(orderDefaultDescription, id),
+		Description:   fmt.Sprintf(pkg.OrderDefaultDescription, id),
 		PrivateStatus: recurringpb.OrderStatusNew,
 		CreatedAt:     ptypes.TimestampNow(),
 		IsJsonRequest: v.request.IsJson,
@@ -2713,8 +2767,8 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 		return orderErrorRecurringNotAllowed
 	}
 
-	currentTime := time.Now()
-	dateEnd := currentTime.AddDate(1, 0, 0).UTC()
+	currentTime := time.Now().UTC()
+	dateEnd := currentTime.AddDate(1, 0, 0)
 
 	if v.request.RecurringDateEnd != "" {
 		inputDateEnd, err := time.Parse(billingpb.FilterDateFormat, v.request.RecurringDateEnd)
@@ -2723,28 +2777,14 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 			return orderErrorRecurringDateEndInvalid
 		}
 
-		switch v.request.RecurringPeriod {
-		case recurringpb.RecurringPeriodDay:
-			currentTime = currentTime.AddDate(0, 0, 1)
-			break
-		case recurringpb.RecurringPeriodWeek:
-			currentTime = currentTime.AddDate(0, 0, 7)
-			break
-		case recurringpb.RecurringPeriodMonth:
-			currentTime = currentTime.AddDate(0, 1, 0)
-			break
-		case recurringpb.RecurringPeriodYear:
-			currentTime = currentTime.AddDate(1, 0, 0)
-			break
-		}
-
 		dateEnd = inputDateEnd.UTC()
 	}
 
 	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), dateEnd.Hour(), dateEnd.Minute(), dateEnd.Second(), 0, dateEnd.Location())
-	current := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, dateEnd.Location())
+	currentTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, currentTime.Location())
+	delta := dateEnd.Sub(currentTime).Hours()
+
 	var interval float64
-	delta := dateEnd.Sub(current).Hours()
 
 	switch v.request.RecurringPeriod {
 	case recurringpb.RecurringPeriodDay:
@@ -2759,6 +2799,8 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 	case recurringpb.RecurringPeriodYear:
 		interval = delta / 24 / 365
 		break
+	default:
+		return orderErrorRecurringInvalidPeriod
 	}
 
 	interval = math.Floor(interval)
@@ -2947,6 +2989,15 @@ func (v *OrderCreateRequestProcessor) processCustomerToken(ctx context.Context) 
 	v.checked.user.Uuid = customer.Uuid
 	v.checked.user.Object = pkg.ObjectTypeUser
 	v.checked.user.TechEmail = customer.TechEmail
+
+	if token.Settings.RecurringPeriod != "" {
+		v.request.RecurringPeriod = token.Settings.RecurringPeriod
+		v.request.RecurringDateEnd = token.Settings.RecurringDateEnd
+
+		if err = v.processRecurringSettings(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -3416,7 +3467,7 @@ func (v *PaymentCreateProcessor) processPaymentFormData(ctx context.Context) err
 		}
 
 		if account == "" {
-			return paymentSystemErrorEWalletIdentifierIsInvalid
+			return payment_system.PaymentSystemErrorEWalletIdentifierIsInvalid
 		}
 
 		order.PaymentRequisites = v.data
@@ -5046,7 +5097,7 @@ func (s *Service) processKeyProducts(
 }
 
 func (s *Service) addRecurringSubscription(
-	ctx context.Context, order *billingpb.Order, h GateInterface, data map[string]string,
+	ctx context.Context, order *billingpb.Order, h payment_system.PaymentSystemInterface, data map[string]string,
 ) (*recurringpb.Subscription, string, error) {
 	maskedPan := ""
 

@@ -2,10 +2,13 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/internal/mocks"
+	"github.com/paysuper/paysuper-billing-server/internal/payment_system"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	errors2 "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/stretchr/testify/mock"
@@ -16,16 +19,16 @@ import (
 type PaymentSystemMockOk struct{}
 type PaymentSystemMockError struct{}
 
-func NewPaymentSystemMockOk() GateInterface {
+func NewPaymentSystemMockOk() payment_system.PaymentSystemInterface {
 	return &PaymentSystemMockOk{}
 }
 
-func NewPaymentSystemMockError() GateInterface {
+func NewPaymentSystemMockError() payment_system.PaymentSystemInterface {
 	return &PaymentSystemMockError{}
 }
 
-func NewCardPayMock() GateInterface {
-	cpMock := &mocks.GateInterface{}
+func NewCardPayMock() payment_system.PaymentSystemInterface {
+	cpMock := &mocks.PaymentSystemInterface{}
 	cpMock.On("CreatePayment", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(
 			func(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) string {
@@ -39,7 +42,7 @@ func NewCardPayMock() GateInterface {
 			func(order *billingpb.Order, message proto.Message, raw, signature string) error {
 				req := message.(*billingpb.CardPayPaymentCallback)
 
-				t, _ := time.Parse(cardPayDateFormat, req.CallbackTime)
+				t, _ := time.Parse(payment_system.CardPayDateFormat, req.CallbackTime)
 				ts, _ := ptypes.TimestampProto(t)
 
 				order.PaymentMethodTxnParams = map[string]string{
@@ -56,7 +59,7 @@ func NewCardPayMock() GateInterface {
 				order.PaymentMethodOrderClosedAt = ts
 
 				if req.GetAmount() == 123 {
-					return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestAmountOrCurrencyIsInvalid)
+					return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, payment_system.PaymentSystemErrorRequestAmountOrCurrencyIsInvalid)
 				}
 
 				return nil
@@ -79,7 +82,7 @@ func NewCardPayMock() GateInterface {
 			func(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error {
 				req := message.(*billingpb.CardPayRefundCallback)
 
-				t, _ := time.Parse(cardPayDateFormat, req.CallbackTime)
+				t, _ := time.Parse(payment_system.CardPayDateFormat, req.CallbackTime)
 				ts, _ := ptypes.TimestampProto(t)
 
 				if refund.Reason == "unit test decline" {
@@ -103,7 +106,7 @@ func NewCardPayMock() GateInterface {
 			},
 			nil,
 		)
-	cpMock.On("IsSubscriptionCallback", mock.Anything).Return(true, nil)
+	cpMock.On("IsSubscriptionCallback", mock.Anything).Return(false, nil)
 	cpMock.On("DeleteRecurringSubscription", mock.Anything, mock.Anything).
 		Return(nil, nil)
 	return cpMock
@@ -144,7 +147,8 @@ func (m *PaymentSystemMockOk) CreateRecurringSubscription(_ *billingpb.Order, _ 
 }
 
 func (m *PaymentSystemMockOk) IsSubscriptionCallback(_ proto.Message) bool {
-	return true
+	fmt.Println(222)
+	return false
 }
 
 func (m *PaymentSystemMockOk) DeleteRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription) error {
@@ -174,7 +178,7 @@ func (m *PaymentSystemMockError) CreateRefund(_ *billingpb.Order, refund *billin
 
 func (m *PaymentSystemMockError) ProcessRefund(_ *billingpb.Order, refund *billingpb.Refund, _ proto.Message, _, _ string) error {
 	refund.Status = pkg.RefundStatusRejected
-	return newBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid)
+	return errors2.NewBillingServerResponseError(billingpb.ResponseStatusBadData, payment_system.PaymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid)
 }
 
 func (m *PaymentSystemMockError) CreateRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription, _, _ string, _ map[string]string) (string, error) {
@@ -182,7 +186,8 @@ func (m *PaymentSystemMockError) CreateRecurringSubscription(_ *billingpb.Order,
 }
 
 func (m *PaymentSystemMockError) IsSubscriptionCallback(_ proto.Message) bool {
-	return true
+	fmt.Println(111)
+	return false
 }
 
 func (m *PaymentSystemMockError) DeleteRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription) error {

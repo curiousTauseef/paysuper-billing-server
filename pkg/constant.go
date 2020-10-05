@@ -261,6 +261,14 @@ const (
 	DefaultMerchantBankingCurrency = "EUR"
 	DefaultMerchantTariffsRegion   = billingpb.TariffRegionEurope
 	DefaultMerchantOperationType   = MerchantOperationTypeLowRisk
+
+	OrderDefaultDescription = "Payment by order # %s"
+
+	HeaderContentType   = "Content-Type"
+	HeaderAuthorization = "Authorization"
+	HeaderContentLength = "Content-Length"
+	MIMEApplicationForm = "application/x-www-form-urlencoded"
+	MIMEApplicationJSON = "application/json"
 )
 
 var (

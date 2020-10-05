@@ -1,4 +1,4 @@
-package service
+package payment_system
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	errors2 "github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	tools "github.com/paysuper/paysuper-tools/string"
@@ -34,7 +35,7 @@ const (
 	cardPayGrantTypePassword     = "password"
 	cardPayGrantTypeRefreshToken = "refresh_token"
 
-	cardPayDateFormat          = "2006-01-02T15:04:05Z"
+	CardPayDateFormat          = "2006-01-02T15:04:05Z"
 	cardPayInitiatorCardholder = "cit"
 
 	cardPayMaxItemNameLength        = 50
@@ -300,7 +301,7 @@ func (m *CardPayRefundResponse) IsSuccessStatus() bool {
 	return ok && v == true
 }
 
-func newCardPayHandler() GateInterface {
+func NewCardPayHandler() PaymentSystemInterface {
 	return &cardPay{
 		tokens: make(map[string]*cardPayToken),
 		httpClient: &http.Client{
@@ -437,34 +438,34 @@ func (h *cardPay) ProcessPayment(order *billingpb.Order, message proto.Message, 
 	}
 
 	if !req.IsPaymentAllowedStatus() {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestStatusIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestStatusIsInvalid)
 	}
 
 	if req.IsRecurring() && req.IsSuccess() && (req.RecurringData.Filing == nil || req.RecurringData.Filing.Id == "") {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestRecurringIdFieldIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestRecurringIdFieldIsInvalid)
 	}
 
-	t, err := time.Parse(cardPayDateFormat, req.CallbackTime)
+	t, err := time.Parse(CardPayDateFormat, req.CallbackTime)
 
 	if err != nil {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
 	}
 
 	ts, err := ptypes.TimestampProto(t)
 
 	if err != nil {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
 	}
 
 	if req.PaymentMethod != order.PaymentMethod.ExternalId {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestPaymentMethodIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestPaymentMethodIsInvalid)
 	}
 
 	reqAmount := req.GetAmount()
 
 	if reqAmount != order.ChargeAmount ||
 		req.GetCurrency() != order.ChargeCurrency {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestAmountOrCurrencyIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, PaymentSystemErrorRequestAmountOrCurrencyIsInvalid)
 	}
 
 	switch req.PaymentMethod {
@@ -481,7 +482,7 @@ func (h *cardPay) ProcessPayment(order *billingpb.Order, message proto.Message, 
 		order.PaymentMethodTxnParams = req.GetCryptoCurrencyTxnParams()
 		break
 	default:
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestPaymentMethodIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestPaymentMethodIsInvalid)
 	}
 
 	status := req.GetStatus()
@@ -500,7 +501,7 @@ func (h *cardPay) ProcessPayment(order *billingpb.Order, message proto.Message, 
 
 		break
 	default:
-		return newBillingServerResponseError(pkg.StatusTemporary, paymentSystemErrorRequestTemporarySkipped)
+		return errors2.NewBillingServerResponseError(pkg.StatusTemporary, PaymentSystemErrorRequestTemporarySkipped)
 	}
 
 	if status == billingpb.CardPayPaymentResponseStatusDeclined || status == billingpb.CardPayPaymentResponseStatusCancelled {
@@ -565,8 +566,8 @@ func (h *cardPay) auth(order *billingpb.Order) error {
 		return err
 	}
 
-	req.Header.Add(HeaderContentType, MIMEApplicationForm)
-	req.Header.Add(HeaderContentLength, strconv.Itoa(len(data.Encode())))
+	req.Header.Add(pkg.HeaderContentType, pkg.MIMEApplicationForm)
+	req.Header.Add(pkg.HeaderContentLength, strconv.Itoa(len(data.Encode())))
 
 	rsp, err := h.httpClient.Do(req)
 
@@ -627,8 +628,8 @@ func (h *cardPay) refresh(order *billingpb.Order) error {
 		return err
 	}
 
-	req.Header.Add(HeaderContentType, MIMEApplicationForm)
-	req.Header.Add(HeaderContentLength, strconv.Itoa(len(data.Encode())))
+	req.Header.Add(pkg.HeaderContentType, pkg.MIMEApplicationForm)
+	req.Header.Add(pkg.HeaderContentLength, strconv.Itoa(len(data.Encode())))
 
 	resp, err := h.httpClient.Do(req)
 
@@ -762,7 +763,7 @@ func (h *cardPay) getCardPayOrder(
 	cardPayOrder := &CardPayOrder{
 		Request: &CardPayRequest{
 			Id:   order.Id,
-			Time: time.Now().UTC().Format(cardPayDateFormat),
+			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		MerchantOrder: &CardPayMerchantOrder{
 			Id:          order.Id,
@@ -866,7 +867,7 @@ func (h *cardPay) checkCallbackRequestSignature(order *billingpb.Order, raw, sig
 			"cardpay API: payment callback signature is invalid",
 			zap.Any(pkg.LogFieldOrder, order),
 		)
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestSignatureIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestSignatureIsInvalid)
 	}
 
 	return nil
@@ -941,7 +942,7 @@ func (h *cardPay) CreateRefund(order *billingpb.Order, refund *billingpb.Refund)
 	data := &CardPayRefundRequest{
 		Request: &CardPayRequest{
 			Id:   refund.Id,
-			Time: time.Now().UTC().Format(cardPayDateFormat),
+			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		MerchantOrder: &CardPayMerchantOrder{
 			Id:          refund.Id,
@@ -1043,6 +1044,7 @@ func (h *cardPay) ProcessRefund(
 	raw, signature string,
 ) error {
 	req := message.(*billingpb.CardPayRefundCallback)
+	refundInitialStatus := refund.Status
 	refund.Status = pkg.RefundStatusRejected
 
 	err := h.checkCallbackRequestSignature(order, raw, signature)
@@ -1053,27 +1055,27 @@ func (h *cardPay) ProcessRefund(
 	}
 
 	if !req.IsRefundAllowedStatus() {
-		return newBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRequestStatusIsInvalid)
+		return errors2.NewBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRequestStatusIsInvalid)
 	}
 
 	if req.PaymentMethod != order.PaymentMethod.ExternalId {
-		return newBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRequestPaymentMethodIsInvalid)
+		return errors2.NewBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRequestPaymentMethodIsInvalid)
 	}
 
 	if req.RefundData.Amount != refund.Amount || req.RefundData.Currency != refund.Currency {
-		return newBillingServerResponseError(billingpb.ResponseStatusBadData, paymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid)
+		return errors2.NewBillingServerResponseError(billingpb.ResponseStatusBadData, PaymentSystemErrorRefundRequestAmountOrCurrencyIsInvalid)
 	}
 
-	t, err := time.Parse(cardPayDateFormat, req.CallbackTime)
+	t, err := time.Parse(CardPayDateFormat, req.CallbackTime)
 
 	if err != nil {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
 	}
 
 	ts, err := ptypes.TimestampProto(t)
 
 	if err != nil {
-		return newBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
+		return errors2.NewBillingServerResponseError(pkg.StatusErrorValidation, paymentSystemErrorRequestTimeFieldIsInvalid)
 	}
 
 	switch req.RefundData.Status {
@@ -1087,7 +1089,8 @@ func (h *cardPay) ProcessRefund(
 		refund.Status = pkg.RefundStatusCompleted
 		break
 	default:
-		return newBillingServerResponseError(billingpb.ResponseStatusTemporary, paymentSystemErrorRequestTemporarySkipped)
+		refund.Status = refundInitialStatus
+		return errors2.NewBillingServerResponseError(billingpb.ResponseStatusTemporary, PaymentSystemErrorRequestTemporarySkipped)
 	}
 
 	refund.ExternalId = req.RefundData.Id
@@ -1135,7 +1138,7 @@ func (h *cardPay) createRecurringPlan(order *billingpb.Order) (string, error) {
 	data := &CardPayRecurringPlanRequest{
 		Request: &CardPayRequest{
 			Id:   order.Id,
-			Time: time.Now().UTC().Format(cardPayDateFormat),
+			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		PlanData: &CardPayRecurringPlanData{
 			Amount:   order.TotalPaymentAmount,
@@ -1236,7 +1239,7 @@ func (h *cardPay) createRecurringSubscription(
 	data := &CardPayRecurringSubscriptionRequest{
 		Request: &CardPayRequest{
 			Id:   planId,
-			Time: time.Now().UTC().Format(cardPayDateFormat),
+			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		Customer: &CardPayCustomer{
 			Ip:      order.User.Ip,
@@ -1353,24 +1356,11 @@ func (h *cardPay) IsSubscriptionCallback(request proto.Message) bool {
 }
 
 func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription) error {
-	err := h.updateRecurringSubscription(order, subscription, cardPayStatusInactive)
+	err := h.updateRecurringSubscription(order, subscription, cardPayStatusCancelled)
 
 	if err != nil {
 		zap.L().Error(
 			"cardpay API: update recurring subscription request failed",
-			zap.Error(err),
-			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
-			zap.Any(pkg.LogFieldRequest, subscription),
-			zap.Any(pkg.LogFieldOrder, order),
-		)
-		return err
-	}
-
-	err = h.deleteRecurringPlan(order, subscription)
-
-	if err != nil {
-		zap.L().Error(
-			"cardpay API: delete recurring plan request failed",
 			zap.Error(err),
 			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
 			zap.Any(pkg.LogFieldRequest, subscription),
@@ -1386,7 +1376,7 @@ func (h *cardPay) updateRecurringSubscription(order *billingpb.Order, subscripti
 	data := &CardPayRecurringSubscriptionUpdateRequest{
 		Request: &CardPayRequest{
 			Id:   subscription.CardpaySubscriptionId,
-			Time: time.Now().UTC().Format(cardPayDateFormat),
+			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		Operation: "CHANGE_STATUS",
 		SubscriptionData: &CardPaySubscriptionDataRequest{
@@ -1493,8 +1483,8 @@ func (h *cardPay) getRequestWithAuth(order *billingpb.Order, data interface{}, a
 	token := h.getToken(order)
 	auth := strings.Title(token.TokenType) + " " + token.AccessToken
 
-	req.Header.Add(HeaderContentType, MIMEApplicationJSON)
-	req.Header.Add(HeaderAuthorization, auth)
+	req.Header.Add(pkg.HeaderContentType, pkg.MIMEApplicationJSON)
+	req.Header.Add(pkg.HeaderAuthorization, auth)
 
 	return req, nil
 }
