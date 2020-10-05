@@ -1044,6 +1044,7 @@ func (h *cardPay) ProcessRefund(
 	raw, signature string,
 ) error {
 	req := message.(*billingpb.CardPayRefundCallback)
+	refundInitialStatus := refund.Status
 	refund.Status = pkg.RefundStatusRejected
 
 	err := h.checkCallbackRequestSignature(order, raw, signature)
@@ -1088,6 +1089,7 @@ func (h *cardPay) ProcessRefund(
 		refund.Status = pkg.RefundStatusCompleted
 		break
 	default:
+		refund.Status = refundInitialStatus
 		return errors2.NewBillingServerResponseError(billingpb.ResponseStatusTemporary, PaymentSystemErrorRequestTemporarySkipped)
 	}
 
