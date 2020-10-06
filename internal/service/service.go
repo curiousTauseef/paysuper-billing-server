@@ -113,6 +113,7 @@ type Service struct {
 	moneyRegistryMx                        sync.Mutex
 }
 
+
 func NewBillingService(
 	db mongodb.SourceInterface,
 	cfg *config.Config,
