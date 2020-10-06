@@ -227,12 +227,6 @@ func (s *Service) ProcessRefundCallback(
 
 	pErr := h.ProcessRefund(order, refund, data, string(req.Body), req.Signature)
 
-	zap.L().Info(
-		"h.ProcessRefund is error in result?",
-		zap.Error(pErr),
-		zap.Any("refund", refund),
-	)
-
 	if err = s.refundRepository.Update(ctx, refund); err != nil {
 		rsp.Error = orderErrorUnknown.Error()
 		rsp.Status = billingpb.ResponseStatusSystemError
@@ -297,11 +291,6 @@ func (s *Service) ProcessRefundCallback(
 			return nil
 		}
 	}
-
-	zap.L().Info(
-		"Before s.refundRepository.Update line 307",
-		zap.Any("refund", refund),
-	)
 
 	if err = s.refundRepository.Update(ctx, refund); err != nil {
 		rsp.Error = orderErrorUnknown.Error()
