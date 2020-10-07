@@ -209,3 +209,85 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 	rsp.Status = billingpb.ResponseStatusOk
 	return nil
 }
+
+func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.GetMerchantSubscriptionsRequest, rsp *billingpb.GetMerchantSubscriptionsResponse) error {
+	req1 := &recurringpb.GetMerchantSubscriptionsRequest{
+		MerchantId:  req.MerchantId,
+		QuickFilter: req.QuickFilter,
+		Limit:       req.Limit,
+		Offset:      req.Offset,
+	}
+	res, err := s.rep.GetMerchantSubscriptions(ctx, req1)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+			zap.String(errorFieldMethod, "GetSubscription"),
+			zap.Any(errorFieldRequest, req),
+		)
+
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = recurringErrorUnknown
+		return nil
+	}
+
+	if res.Status != billingpb.ResponseStatusOk {
+		rsp.Status = res.Status
+
+		if rsp.Status == billingpb.ResponseStatusSystemError {
+			zap.L().Error(
+				pkg.ErrorGrpcServiceCallFailed,
+				zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+				zap.String(errorFieldMethod, "GetMerchantSubscriptions"),
+				zap.Any(errorFieldRequest, req),
+				zap.Any(pkg.LogFieldResponse, res),
+			)
+
+			rsp.Message = recurringErrorUnknown
+		} else {
+			rsp.Message = recurringCustomerNotFound
+		}
+
+		return nil
+	}
+
+	items := make([]*billingpb.MerchantSubscription, len(res.List))
+
+	projectNames := map[string]string{}
+
+	for i, subscription := range res.List {
+		items[i] = &billingpb.MerchantSubscription{
+			Start: subscription.Start,
+			Amount: subscription.Amount,
+			Currency: subscription.Currency,
+			Email: subscription.Email,
+			SubscriptionId: subscription.SubscriptionId,
+			ProjectId: subscription.ProjectId,
+		}
+
+		name, ok := projectNames[subscription.ProjectId]
+		if !ok {
+			project, err := s.project.GetById(ctx, subscription.ProjectId)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorDatabaseQueryFailed,
+					zap.Error(err),
+				)
+
+				rsp.Status = billingpb.ResponseStatusSystemError
+				rsp.Message = recurringErrorUnknown
+				return nil
+			}
+			name = project.Name[DefaultLanguage]
+			projectNames[subscription.ProjectId] = name
+		}
+
+		items[i].ProjectName = name
+	}
+
+	rsp.List = items
+	rsp.Status = billingpb.ResponseStatusOk
+	return nil
+}
