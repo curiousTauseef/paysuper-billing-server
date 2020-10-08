@@ -5112,6 +5112,7 @@ func (s *Service) addRecurringSubscription(
 	tsExpireAt, _ := ptypes.TimestampProto(expireAt)
 
 	subscription := &recurringpb.Subscription{
+		OrderId:      order.Id,
 		MerchantId:   order.Project.MerchantId,
 		ProjectId:    order.Project.Id,
 		CustomerId:   order.User.Id,

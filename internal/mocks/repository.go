@@ -72,7 +72,7 @@ func (r *RepositoryServiceError) AddSubscription(ctx context.Context, in *recurr
 }
 
 func (r *RepositoryServiceError) UpdateSubscription(ctx context.Context, in *recurringpb.Subscription, opts ...client.CallOption) (*recurringpb.UpdateSubscriptionResponse, error) {
-	panic("implement me")	
+	panic("implement me")
 }
 
 func (r *RepositoryServiceError) GetSubscription(ctx context.Context, in *recurringpb.GetSubscriptionRequest, opts ...client.CallOption) (*recurringpb.GetSubscriptionResponse, error) {
