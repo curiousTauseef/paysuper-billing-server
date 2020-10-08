@@ -587,6 +587,7 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 	rsp.Message = recurringErrorUnknown
 
 	req1 := &recurringpb.FindSubscriptionsRequest{
+		MerchantId: req.MerchantId,
 	}
 
 	if len(req.Cookie) > 0 {
@@ -637,10 +638,6 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 	rsp.List = make([]*billingpb.Subscription, len(rsp1.List))
 	for i, subscription := range rsp1.List {
 		rsp.List[i] = s.mapRecurringToBilling(subscription)
-	}
-
-	if len(rsp.List) == 0 {
-		rsp.List = []*billingpb.Subscription{}
 	}
 
 	return nil
