@@ -26,13 +26,13 @@ require (
 	github.com/micro/go-plugins/registry/kubernetes v0.0.0-20200119172437-4fe21aa238fd
 	github.com/micro/go-plugins/wrapper/monitoring/prometheus v0.0.0-20200119172437-4fe21aa238fd
 	github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b
-	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20200929151029-4ea96d388ed4
+	github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201006074718-57af8d310f40
 	github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200831113431-b8d2b94f7600
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200406132246-777573b2beed
 	github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200622151400-1714a8ed580b
-	github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200924072214-e535669bf4c2
+	github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201006074718-57af8d310f40
 	github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200903095509-7c6a53abe84b
 	github.com/paysuper/paysuper-proto/go/taxpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-tools v0.0.0-20200615100217-a4fcd1148ac0
