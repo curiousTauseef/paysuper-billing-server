@@ -462,6 +462,8 @@ github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201006063807-feb44338c1
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201006063807-feb44338c152/go.mod h1:nzAuryXupP6jYt4glcwc+kquCT2QjwGd+JeW/DdANC4=
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201006074718-57af8d310f40 h1:zF9eLiIPq9tXiiw4ZfCDM0K6uzcND+rgdkuHfs3cP4A=
 github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201006074718-57af8d310f40/go.mod h1:nzAuryXupP6jYt4glcwc+kquCT2QjwGd+JeW/DdANC4=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201008074348-299d9442d4ad h1:Ik1wsLv0JtFgLMHfQvzB3JptRlwENWol1Z75HcXZSUg=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201008074348-299d9442d4ad/go.mod h1:nzAuryXupP6jYt4glcwc+kquCT2QjwGd+JeW/DdANC4=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b h1:s61VyrEMY6uw95yLCIoL5addjUbEyQ8mFpc33dDG/6w=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:sdQKpEC56et7ND0Otfqwf2HZAMsIm+5NkznUaC4HSqk=
 github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200831113431-b8d2b94f7600 h1:8yt8sNVRpvezeH/Z6NJPhjdKk8SpFvkqvnnO+JYADWo=
@@ -477,6 +479,8 @@ github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200924072214-e535669b
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200924072214-e535669bf4c2/go.mod h1:U5OOpXvY31QrRsI1gnoMcC7Q4vvyt2SXvXzdIpdDrAo=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201006074718-57af8d310f40 h1:7Vtr6MWKCDEkIE1Y2RtOVlU0dEvPrvNx3SoXcIC0pg0=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201006074718-57af8d310f40/go.mod h1:U5OOpXvY31QrRsI1gnoMcC7Q4vvyt2SXvXzdIpdDrAo=
+github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201008074348-299d9442d4ad h1:jIQX+iWEYKcDCtR/xUSzYaHJM/H7VQ1WCIUlnJBqDuY=
+github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201008074348-299d9442d4ad/go.mod h1:U5OOpXvY31QrRsI1gnoMcC7Q4vvyt2SXvXzdIpdDrAo=
 github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200903095509-7c6a53abe84b h1:UnruSoDk2K3ql0s367nWgyb9d6e1UB9dWMdtoPW8NM4=
 github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20200903095509-7c6a53abe84b/go.mod h1:HZp0q1eCu7eeIGYMGbbl4AJzZi3UO9POGPeQ/+KwBv4=
 github.com/paysuper/paysuper-proto/go/taxpb v0.0.0-20200302133127-ba8bd156664b h1:9U+WLmhNEvy+vywQ88FceMtGigLxKcPOOWf5PQztGM4=
