@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"math"
 	"net"
+	"regexp"
 )
 
 var (
@@ -304,6 +305,33 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 
 	if len(req.Name) > 0 {
 		query["name"] = req.Name
+	}
+
+	if len(req.ProjectId) > 0 {
+		oid, err := primitive.ObjectIDFromHex(req.ProjectId)
+		if err != nil {
+			zap.L().Error("can't parse ObjectId", zap.Error(err), zap.Any("req", req))
+			rsp.Status = billingpb.ResponseStatusBadData
+			rsp.Message = customerNotFound
+			return nil
+		}
+		query["identity"] = bson.M{
+			"$elemMatch": bson.M{
+				"project_id": oid,
+			},
+		}
+	}
+
+	if len(req.QuickSearch) > 0 {
+		r := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.QuickSearch) + ".*", Options: "i"}
+
+		query["$or"] = []bson.M{
+			{"uuid": bson.M{"$regex": r}},
+			{"external_id": bson.M{"$regex": r, "$exists": true}},
+			{"email": bson.M{"$regex": r, "$exists": true}},
+			{"phone": bson.M{"$regex": r, "$exists": true}},
+			{"address.city": bson.M{"$regex": r}},
+		}
 	}
 
 	if req.Amount != nil {
