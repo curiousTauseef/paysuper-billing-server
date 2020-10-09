@@ -1141,8 +1141,8 @@ func (h *cardPay) createRecurringPlan(order *billingpb.Order) (string, error) {
 			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		PlanData: &CardPayRecurringPlanData{
-			Amount:   order.TotalPaymentAmount,
-			Currency: order.Currency,
+			Amount:   order.ChargeAmount,
+			Currency: order.ChargeCurrency,
 			Interval: order.RecurringSettings.Interval,
 			Name:     order.Id,
 			Period:   order.RecurringSettings.Period,

@@ -235,6 +235,8 @@ func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_Ok() {
 	assert.NotEmpty(suite.T(), url)
 	assert.NotEmpty(suite.T(), subscription.CardpayPlanId)
 	assert.NotEmpty(suite.T(), subscription.CardpaySubscriptionId)
+	assert.Equal(suite.T(), order.ChargeAmount, subscription.Amount)
+	assert.Equal(suite.T(), order.ChargeCurrency, subscription.Currency)
 }
 
 func (suite *CardPayTestSuite) TestCardPay_CreateRecurringSubscription_InactivePlan() {

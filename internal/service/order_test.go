@@ -5761,8 +5761,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_WithRecurring_Ok() {
 	recurring.On("AddSubscription", mock.Anything, &recurringpb.Subscription{
 		Period:       req.RecurringPeriod,
 		ExpireAt:     tsExpireAt,
-		Currency:     req.Currency,
-		Amount:       8675.31,
+		Currency:     order.ChargeCurrency,
+		Amount:       order.ChargeAmount,
 		ItemType:     pkg.OrderType_product,
 		ItemList:     suite.productIds,
 		IsActive:     false,

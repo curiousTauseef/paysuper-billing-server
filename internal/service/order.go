@@ -1433,7 +1433,7 @@ func (s *Service) PaymentCallbackProcess(
 				return nil
 			}
 		}
-		fmt.Println(order.Id)
+
 		err = s.onPaymentNotify(ctx, order)
 
 		if err != nil {
@@ -5126,8 +5126,8 @@ func (s *Service) addRecurringSubscription(
 		IsActive: false,
 		Period:   order.RecurringSettings.Period,
 		ExpireAt: tsExpireAt,
-		Amount:   order.TotalPaymentAmount,
-		Currency: order.Currency,
+		Amount:   order.ChargeAmount,
+		Currency: order.ChargeCurrency,
 	}
 
 	switch order.ProductType {
