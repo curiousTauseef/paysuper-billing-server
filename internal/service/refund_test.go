@@ -1562,6 +1562,7 @@ func (suite *RefundTestSuite) TestRefund_ProcessRefundCallback_Ok() {
 	assert.NotNil(suite.T(), refund)
 	assert.Equal(suite.T(), pkg.RefundStatusCompleted, refund.Status)
 	assert.False(suite.T(), refund.IsChargeback)
+	assert.NotEmpty(suite.T(), refund.CreatedOrderId)
 
 	accountingEntries, err = suite.service.accountingRepository.FindBySource(ctx, refund.CreatedOrderId, repository.CollectionRefund)
 	assert.NoError(suite.T(), err)

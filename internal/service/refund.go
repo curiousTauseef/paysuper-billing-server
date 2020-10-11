@@ -227,6 +227,13 @@ func (s *Service) ProcessRefundCallback(
 
 	pErr := h.ProcessRefund(order, refund, data, string(req.Body), req.Signature)
 
+	if err = s.refundRepository.Update(ctx, refund); err != nil {
+		rsp.Error = orderErrorUnknown.Error()
+		rsp.Status = billingpb.ResponseStatusSystemError
+
+		return nil
+	}
+
 	if pErr != nil {
 		rsp.Error = pErr.Error()
 		rsp.Status = pErr.(*billingpb.ResponseError).Status

@@ -136,6 +136,7 @@ var (
 	orderErrorRecurringDateEndInvalid                         = errors2.NewBillingServerErrorMsg("fm000083", "invalid the end date of recurring payments")
 	orderErrorRecurringDateEndOutOfRange                      = errors2.NewBillingServerErrorMsg("fm000084", "subscription period cannot be less than the selected period and more than one year")
 	orderErrorRecurringInvalidPeriod                          = errors2.NewBillingServerErrorMsg("fm000085", "recurring period subscription is invalid")
+	orderErrorRecurringSubscriptionNotFound                   = errors2.NewBillingServerErrorMsg("fm000086", "recurring subscription not found")
 
 	virtualCurrencyPayoutCurrencyMissed = errors2.NewBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
@@ -1258,6 +1259,12 @@ func (s *Service) PaymentCallbackProcess(
 		rsp.Error = pErr.Error()
 		rsp.Status = pErr.Status
 
+		zap.L().Error(
+			"error on ProcessPayment method",
+			zap.Error(err),
+			zap.Any("request", req.Request),
+		)
+
 		if pErr.Status == pkg.StatusTemporary {
 			return nil
 		}
@@ -1350,6 +1357,7 @@ func (s *Service) PaymentCallbackProcess(
 			newOrder.Canceled = false
 			newOrder.CanceledAt = nil
 			newOrder.ReceiptUrl = ""
+			newOrder.PrivateStatus = recurringpb.OrderStatusNew
 			newOrder.ParentOrder = &billingpb.ParentOrder{
 				Id:   order.Id,
 				Uuid: order.Uuid,
@@ -1359,6 +1367,7 @@ func (s *Service) PaymentCallbackProcess(
 				return err
 			}
 
+			newOrder.PrivateStatus = order.PrivateStatus
 			order = newOrder
 		}
 	}
@@ -2800,6 +2809,7 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 
 	if interval < 1 || totalDays > 365 ||
 		(v.request.RecurringPeriod == recurringpb.RecurringPeriodDay && interval > 365) ||
+		(v.request.RecurringPeriod == recurringpb.RecurringPeriodDay && interval < 7) ||
 		(v.request.RecurringPeriod == recurringpb.RecurringPeriodWeek && interval > 52) ||
 		(v.request.RecurringPeriod == recurringpb.RecurringPeriodMonth && interval > 12) ||
 		(v.request.RecurringPeriod == recurringpb.RecurringPeriodYear && interval > 1) {
@@ -2807,7 +2817,7 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 	}
 
 	v.checked.recurringPeriod = v.request.RecurringPeriod
-	v.checked.recurringInterval = int32(interval)
+	v.checked.recurringInterval = int32(1)
 	v.checked.recurringDateEnd = dateEnd.Format(billingpb.FilterDateFormat)
 
 	return
@@ -5102,6 +5112,7 @@ func (s *Service) addRecurringSubscription(
 	tsExpireAt, _ := ptypes.TimestampProto(expireAt)
 
 	subscription := &recurringpb.Subscription{
+		OrderId:      order.Id,
 		MerchantId:   order.Project.MerchantId,
 		ProjectId:    order.Project.Id,
 		CustomerId:   order.User.Id,
@@ -5115,8 +5126,8 @@ func (s *Service) addRecurringSubscription(
 		IsActive: false,
 		Period:   order.RecurringSettings.Period,
 		ExpireAt: tsExpireAt,
-		Amount:   order.TotalPaymentAmount,
-		Currency: order.Currency,
+		Amount:   order.ChargeAmount,
+		Currency: order.ChargeCurrency,
 	}
 
 	switch order.ProductType {
@@ -5161,6 +5172,44 @@ func (s *Service) addRecurringSubscription(
 	subscription.Id = res.SubscriptionId
 
 	return subscription, url, nil
+}
+
+func (s *Service) DeleteRecurringSubscription(
+	ctx context.Context,
+	req *billingpb.DeleteRecurringSubscriptionRequest,
+	res *billingpb.EmptyResponseWithStatus,
+) error {
+	order, err := s.orderRepository.GetById(ctx, req.OrderId)
+
+	if err != nil {
+		return orderErrorNotFound
+	}
+
+	rsp, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{Id: order.RecurringId})
+
+	if err != nil || rsp.Status != billingpb.ResponseStatusOk {
+		return orderErrorRecurringSubscriptionNotFound
+	}
+
+	ps, err := s.paymentSystemRepository.GetById(ctx, order.PaymentMethod.PaymentSystemId)
+
+	if err != nil {
+		return orderErrorPaymentSystemInactive
+	}
+
+	h, err := s.paymentSystemGateway.GetGateway(ps.Handler)
+
+	if err != nil {
+		return err
+	}
+
+	err = h.DeleteRecurringSubscription(order, rsp.Subscription)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Set caption for redirect button in payment form

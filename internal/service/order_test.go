@@ -3746,7 +3746,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 	paymentMethod.RecurringAllowed = true
 	_ = suite.service.paymentMethodRepository.Update(context.TODO(), paymentMethod)
 
-	dateEnd := time.Now().AddDate(0, 0, 5).UTC().Format(billingpb.FilterDateFormat)
+	dateEnd := time.Now().AddDate(0, 0, 7).UTC().Format(billingpb.FilterDateFormat)
 
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,
@@ -3788,7 +3788,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 	paymentMethod.RecurringAllowed = true
 	_ = suite.service.paymentMethodRepository.Update(context.TODO(), paymentMethod)
 
-	dateEnd := time.Now().UTC().Format(billingpb.FilterDateFormat)
+	dateEnd := time.Now().UTC().AddDate(0, 0, 6).Format(billingpb.FilterDateFormat)
 
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,
@@ -3820,7 +3820,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 	paymentMethod.RecurringAllowed = true
 	_ = suite.service.paymentMethodRepository.Update(context.TODO(), paymentMethod)
 
-	dateEnd := time.Now().UTC().AddDate(0, 0, 1).Format(billingpb.FilterDateFormat)
+	dateEnd := time.Now().UTC().AddDate(0, 0, 7).Format(billingpb.FilterDateFormat)
 
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,
@@ -3883,7 +3883,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 	paymentMethod.RecurringAllowed = true
 	_ = suite.service.paymentMethodRepository.Update(context.TODO(), paymentMethod)
 
-	dateEnd := time.Now().UTC().AddDate(0, 0, 1).Format(billingpb.FilterDateFormat)
+	dateEnd := time.Now().UTC().AddDate(0, 0, 7).Format(billingpb.FilterDateFormat)
 
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,
@@ -5704,7 +5704,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_WithRecurring_Ok() {
 	paymentMethod.RecurringAllowed = true
 	_ = suite.service.paymentMethodRepository.Update(context.TODO(), paymentMethod)
 
-	dateEnd := time.Now().AddDate(0, 0, 5)
+	dateEnd := time.Now().AddDate(0, 0, 7)
 	loc, _ := time.LoadLocation("UTC")
 	expireAt := time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), 23, 59, 59, 0, loc)
 	tsExpireAt, _ := ptypes.TimestampProto(expireAt)
@@ -5729,6 +5729,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_WithRecurring_Ok() {
 
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp1.Status)
+	assert.NotEmpty(suite.T(), rsp1.Item)
 	order := rsp1.Item
 
 	expireYear := time.Now().AddDate(1, 0, 0)
@@ -5760,8 +5761,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_WithRecurring_Ok() {
 	recurring.On("AddSubscription", mock.Anything, &recurringpb.Subscription{
 		Period:       req.RecurringPeriod,
 		ExpireAt:     tsExpireAt,
-		Currency:     req.Currency,
-		Amount:       8675.31,
+		Currency:     order.ChargeCurrency,
+		Amount:       order.ChargeAmount,
 		ItemType:     pkg.OrderType_product,
 		ItemList:     suite.productIds,
 		IsActive:     false,
@@ -5775,6 +5776,7 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_WithRecurring_Ok() {
 			Email:      order.User.Email,
 			Phone:      order.User.Phone,
 		},
+		OrderId: order.Id,
 	}).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
 	suite.service.rep = recurring
@@ -11144,4 +11146,251 @@ func (suite *OrderTestSuite) TestOrder_OrderWithProducts_BankingCurrencyNotMatch
 		assert.EqualValues(suite.T(), entry.Amount, v.Amount)
 		assert.Equal(suite.T(), entry.Currency, v.Currency)
 	}
+}
+
+func (suite *OrderTestSuite) TestOrder_DeleteRecurringSubscription_Ok() {
+	order := &billingpb.Order{
+		Id:             primitive.NewObjectID().Hex(),
+		Status:         recurringpb.OrderPublicStatusProcessed,
+		PrivateStatus:  recurringpb.OrderStatusProjectComplete,
+		BillingAddress: &billingpb.OrderBillingAddress{},
+		Tax:            &billingpb.OrderTax{},
+		Project: &billingpb.ProjectOrder{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: primitive.NewObjectID().Hex(),
+		},
+		PaymentMethod: &billingpb.PaymentMethodOrder{
+			Id:              suite.paymentMethod.Id,
+			PaymentSystemId: suite.paymentMethod.PaymentSystemId,
+		},
+		Type:         pkg.OrderTypeOrder,
+		IsProduction: true,
+		RecurringId:  "recurring_id",
+	}
+	err := suite.service.orderRepository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	recurring := &recurringMocks.RepositoryService{}
+	recurring.On("GetSubscription", mock.Anything, mock.Anything).Return(&recurringpb.GetSubscriptionResponse{
+		Status:       billingpb.ResponseStatusOk,
+		Subscription: &recurringpb.Subscription{},
+	}, nil)
+	suite.service.rep = recurring
+
+	paymentSystem := &mocks.PaymentSystemInterface{}
+	paymentSystem.On("DeleteRecurringSubscription", mock.Anything, mock.Anything).Return(nil)
+
+	gatewayManagerMock := &mocks.PaymentSystemManagerInterface{}
+	gatewayManagerMock.On("GetGateway", mock.Anything).Return(paymentSystem, nil)
+	suite.service.paymentSystemGateway = gatewayManagerMock
+
+	rsp2 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.DeleteRecurringSubscription(context.Background(), &billingpb.DeleteRecurringSubscriptionRequest{
+		OrderId: order.Id,
+	}, rsp2)
+	assert.NoError(suite.T(), err)
+}
+
+func (suite *OrderTestSuite) TestOrder_DeleteRecurringSubscription_Error_OrderNotFound() {
+	order := &billingpb.Order{
+		Id:             primitive.NewObjectID().Hex(),
+		Status:         recurringpb.OrderPublicStatusProcessed,
+		PrivateStatus:  recurringpb.OrderStatusProjectComplete,
+		BillingAddress: &billingpb.OrderBillingAddress{},
+		Tax:            &billingpb.OrderTax{},
+		Project: &billingpb.ProjectOrder{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: primitive.NewObjectID().Hex(),
+		},
+		PaymentMethod: &billingpb.PaymentMethodOrder{
+			Id:              suite.paymentMethod.Id,
+			PaymentSystemId: suite.paymentMethod.PaymentSystemId,
+		},
+		Type:         pkg.OrderTypeOrder,
+		IsProduction: true,
+		RecurringId:  "recurring_id",
+	}
+	err := suite.service.orderRepository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	rsp2 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.DeleteRecurringSubscription(context.Background(), &billingpb.DeleteRecurringSubscriptionRequest{
+		OrderId: primitive.NewObjectID().Hex(),
+	}, rsp2)
+	assert.Equal(suite.T(), orderErrorNotFound, err)
+}
+
+func (suite *OrderTestSuite) TestOrder_DeleteRecurringSubscription_Error_SubscriptionNotFound() {
+	order := &billingpb.Order{
+		Id:             primitive.NewObjectID().Hex(),
+		Status:         recurringpb.OrderPublicStatusProcessed,
+		PrivateStatus:  recurringpb.OrderStatusProjectComplete,
+		BillingAddress: &billingpb.OrderBillingAddress{},
+		Tax:            &billingpb.OrderTax{},
+		Project: &billingpb.ProjectOrder{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: primitive.NewObjectID().Hex(),
+		},
+		PaymentMethod: &billingpb.PaymentMethodOrder{
+			Id:              suite.paymentMethod.Id,
+			PaymentSystemId: suite.paymentMethod.PaymentSystemId,
+		},
+		Type:         pkg.OrderTypeOrder,
+		IsProduction: true,
+		RecurringId:  "recurring_id",
+	}
+	err := suite.service.orderRepository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	recurring := &recurringMocks.RepositoryService{}
+	recurring.On("GetSubscription", mock.Anything, mock.Anything).Return(nil, orderErrorRecurringSubscriptionNotFound)
+	suite.service.rep = recurring
+
+	rsp2 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.DeleteRecurringSubscription(context.Background(), &billingpb.DeleteRecurringSubscriptionRequest{
+		OrderId: order.Id,
+	}, rsp2)
+	assert.Equal(suite.T(), orderErrorRecurringSubscriptionNotFound, err)
+}
+
+func (suite *OrderTestSuite) TestOrder_DeleteRecurringSubscription_Error_PaymentSystemInactive() {
+	order := &billingpb.Order{
+		Id:             primitive.NewObjectID().Hex(),
+		Status:         recurringpb.OrderPublicStatusProcessed,
+		PrivateStatus:  recurringpb.OrderStatusProjectComplete,
+		BillingAddress: &billingpb.OrderBillingAddress{},
+		Tax:            &billingpb.OrderTax{},
+		Project: &billingpb.ProjectOrder{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: primitive.NewObjectID().Hex(),
+		},
+		PaymentMethod: &billingpb.PaymentMethodOrder{
+			Id:              suite.paymentMethod.Id,
+			PaymentSystemId: suite.paymentMethod.PaymentSystemId,
+		},
+		Type:         pkg.OrderTypeOrder,
+		IsProduction: true,
+		RecurringId:  "recurring_id",
+	}
+	err := suite.service.orderRepository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	recurring := &recurringMocks.RepositoryService{}
+	recurring.On("GetSubscription", mock.Anything, mock.Anything).Return(&recurringpb.GetSubscriptionResponse{
+		Status:       billingpb.ResponseStatusOk,
+		Subscription: &recurringpb.Subscription{},
+	}, nil)
+	suite.service.rep = recurring
+
+	paymentSystem := &mocks.PaymentSystemRepositoryInterface{}
+	paymentSystem.On("GetById", mock.Anything, mock.Anything).Return(nil, orderErrorPaymentSystemInactive)
+	suite.service.paymentSystemRepository = paymentSystem
+
+	rsp2 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.DeleteRecurringSubscription(context.Background(), &billingpb.DeleteRecurringSubscriptionRequest{
+		OrderId: order.Id,
+	}, rsp2)
+	assert.Equal(suite.T(), orderErrorPaymentSystemInactive, err)
+}
+
+func (suite *OrderTestSuite) TestOrder_DeleteRecurringSubscription_Error_GetGateway() {
+	order := &billingpb.Order{
+		Id:             primitive.NewObjectID().Hex(),
+		Status:         recurringpb.OrderPublicStatusProcessed,
+		PrivateStatus:  recurringpb.OrderStatusProjectComplete,
+		BillingAddress: &billingpb.OrderBillingAddress{},
+		Tax:            &billingpb.OrderTax{},
+		Project: &billingpb.ProjectOrder{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: primitive.NewObjectID().Hex(),
+		},
+		PaymentMethod: &billingpb.PaymentMethodOrder{
+			Id:              suite.paymentMethod.Id,
+			PaymentSystemId: suite.paymentMethod.PaymentSystemId,
+		},
+		Type:         pkg.OrderTypeOrder,
+		IsProduction: true,
+		RecurringId:  "recurring_id",
+	}
+	err := suite.service.orderRepository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	recurring := &recurringMocks.RepositoryService{}
+	recurring.On("GetSubscription", mock.Anything, mock.Anything).Return(&recurringpb.GetSubscriptionResponse{
+		Status:       billingpb.ResponseStatusOk,
+		Subscription: &recurringpb.Subscription{},
+	}, nil)
+	suite.service.rep = recurring
+
+	gatewayManagerMock := &mocks.PaymentSystemManagerInterface{}
+	gatewayManagerMock.On("GetGateway", mock.Anything).Return(nil, errors.New("err"))
+	suite.service.paymentSystemGateway = gatewayManagerMock
+
+	rsp2 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.DeleteRecurringSubscription(context.Background(), &billingpb.DeleteRecurringSubscriptionRequest{
+		OrderId: order.Id,
+	}, rsp2)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *OrderTestSuite) TestOrder_DeleteRecurringSubscription_Error_DeleteRecurringSubscription() {
+	order := &billingpb.Order{
+		Id:             primitive.NewObjectID().Hex(),
+		Status:         recurringpb.OrderPublicStatusProcessed,
+		PrivateStatus:  recurringpb.OrderStatusProjectComplete,
+		BillingAddress: &billingpb.OrderBillingAddress{},
+		Tax:            &billingpb.OrderTax{},
+		Project: &billingpb.ProjectOrder{
+			Id:         primitive.NewObjectID().Hex(),
+			MerchantId: primitive.NewObjectID().Hex(),
+		},
+		PaymentMethod: &billingpb.PaymentMethodOrder{
+			Id:              suite.paymentMethod.Id,
+			PaymentSystemId: suite.paymentMethod.PaymentSystemId,
+		},
+		Type:         pkg.OrderTypeOrder,
+		IsProduction: true,
+		RecurringId:  "recurring_id",
+	}
+	err := suite.service.orderRepository.Insert(context.TODO(), order)
+	assert.NoError(suite.T(), err)
+
+	recurring := &recurringMocks.RepositoryService{}
+	recurring.On("GetSubscription", mock.Anything, mock.Anything).Return(&recurringpb.GetSubscriptionResponse{
+		Status:       billingpb.ResponseStatusOk,
+		Subscription: &recurringpb.Subscription{},
+	}, nil)
+	suite.service.rep = recurring
+
+	paymentSystem := &mocks.PaymentSystemInterface{}
+	paymentSystem.On("DeleteRecurringSubscription", mock.Anything, mock.Anything).Return(errors.New("err"))
+
+	gatewayManagerMock := &mocks.PaymentSystemManagerInterface{}
+	gatewayManagerMock.On("GetGateway", mock.Anything).Return(paymentSystem, nil)
+	suite.service.paymentSystemGateway = gatewayManagerMock
+
+	rsp2 := &billingpb.EmptyResponseWithStatus{}
+	err = suite.service.DeleteRecurringSubscription(context.Background(), &billingpb.DeleteRecurringSubscriptionRequest{
+		OrderId: order.Id,
+	}, rsp2)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *OrderTestSuite) TestOrder_processRecurringSettings_CalculateInterval_AlwaysOne() {
+	req := &billingpb.OrderCreateRequest{
+		Type:            pkg.OrderType_simple,
+		ProjectId:       suite.project.Id,
+		RecurringPeriod: recurringpb.RecurringPeriodDay,
+	}
+	processor := &OrderCreateRequestProcessor{
+		Service: suite.service,
+		request: req,
+		checked: &orderCreateRequestProcessorChecked{
+			paymentMethod: &billingpb.PaymentMethod{RecurringAllowed: true},
+		},
+	}
+
+	err := processor.processRecurringSettings()
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), int32(1), processor.checked.recurringInterval)
 }

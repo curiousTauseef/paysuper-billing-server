@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"math"
 	"net"
+	"regexp"
 )
 
 var (
@@ -306,6 +307,33 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 		query["name"] = req.Name
 	}
 
+	if len(req.ProjectId) > 0 {
+		oid, err := primitive.ObjectIDFromHex(req.ProjectId)
+		if err != nil {
+			zap.L().Error("can't parse ObjectId", zap.Error(err), zap.Any("req", req))
+			rsp.Status = billingpb.ResponseStatusBadData
+			rsp.Message = customerNotFound
+			return nil
+		}
+		query["identity"] = bson.M{
+			"$elemMatch": bson.M{
+				"project_id": oid,
+			},
+		}
+	}
+
+	if len(req.QuickSearch) > 0 {
+		r := primitive.Regex{Pattern: ".*" + regexp.QuoteMeta(req.QuickSearch) + ".*", Options: "i"}
+
+		query["$or"] = []bson.M{
+			{"uuid": bson.M{"$regex": r}},
+			{"external_id": bson.M{"$regex": r, "$exists": true}},
+			{"email": bson.M{"$regex": r, "$exists": true}},
+			{"phone": bson.M{"$regex": r, "$exists": true}},
+			{"address.city": bson.M{"$regex": r}},
+		}
+	}
+
 	if req.Amount != nil {
 		query["payment_activity.revenue.payment"] = bson.M{
 			"$gte": req.Amount.From,
@@ -587,6 +615,7 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 	rsp.Message = recurringErrorUnknown
 
 	req1 := &recurringpb.FindSubscriptionsRequest{
+		MerchantId: req.MerchantId,
 	}
 
 	if len(req.Cookie) > 0 {
@@ -639,9 +668,125 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 		rsp.List[i] = s.mapRecurringToBilling(subscription)
 	}
 
-	if len(rsp.List) == 0 {
-		rsp.List = []*billingpb.Subscription{}
+	return nil
+}
+
+func (s *Service) FindPublicSubscriptions(ctx context.Context, req *billingpb.FindPublicSubscriptionsRequest, rsp *billingpb.FindPublicSubscriptionsResponse) error {
+	browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+	if err != nil {
+		zap.L().Error(
+			"can't decrypt cookie",
+			zap.Error(err),
+			zap.Any(errorFieldRequest, req),
+		)
+
+		rsp.Status = billingpb.ResponseStatusForbidden
+		rsp.Message = recurringCustomerNotFound
+		return nil
 	}
 
+	if len(browserCookie.CustomerId) == 0 {
+		zap.L().Error("customer_id is empty", zap.Any("browserCookie", browserCookie), zap.Any("req", req))
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = recurringCustomerNotFound
+		return nil
+	}
+
+	req1 := &recurringpb.FindSubscriptionsRequest{
+		CustomerId: browserCookie.CustomerId,
+		Limit: req.Limit,
+		Offset: req.Offset,
+	}
+
+	rsp1, err := s.rep.FindSubscriptions(ctx, req1)
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorGrpcServiceCallFailed,
+			zap.Error(err),
+			zap.String(errorFieldService, recurringpb.PayOneRepositoryServiceName),
+			zap.String(errorFieldMethod, "FindSubscriptions"),
+			zap.Any(errorFieldRequest, req),
+		)
+
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = recurringErrorUnknown
+		return nil
+	}
+
+	items := make([]*billingpb.CheckoutShortSubscriptionInfo, len(rsp1.List))
+	locale := browserCookie.AcceptLanguage
+	if len(browserCookie.AcceptLanguage) > 2 {
+		locale = browserCookie.AcceptLanguage[:2]
+	}
+
+	for i, subscription := range rsp1.List {
+		items[i] = &billingpb.CheckoutShortSubscriptionInfo{
+			Id:          subscription.Id,
+			ProjectId:   subscription.ProjectId,
+			Period:      subscription.Period,
+			MerchantId:  subscription.MerchantId,
+			Amount:      subscription.Amount,
+			Currency:    subscription.Currency,
+			IsActive:    subscription.IsActive,
+			MaskedPan:   subscription.MaskedPan,
+		}
+
+		project, err := s.project.GetById(ctx, subscription.ProjectId)
+		if err != nil {
+			zap.L().Error(
+				"can't get project",
+				zap.Error(err),
+				zap.String("project_id", subscription.ProjectId),
+			)
+
+			rsp.Status = billingpb.ResponseStatusSystemError
+			rsp.Message = projectErrorNotFound
+			return nil
+		}
+
+		projectName, ok := project.Name[locale]
+		if !ok {
+			projectName = project.Name[DefaultLanguage]
+		}
+		items[i].ProjectName = projectName
+	}
+	rsp.List = items
+
+	return nil
+}
+
+func (s *Service) GetCustomerShortInfo(ctx context.Context, req *billingpb.GetCustomerShortInfoRequest, rsp *billingpb.GetCustomerShortInfoResponse) error {
+	browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+	if err != nil {
+		zap.L().Error(
+			"can't decrypt cookie",
+			zap.Error(err),
+			zap.Any(errorFieldRequest, req),
+		)
+
+		rsp.Status = billingpb.ResponseStatusForbidden
+		rsp.Message = recurringCustomerNotFound
+		return nil
+	}
+
+	if len(browserCookie.CustomerId) == 0 {
+		zap.L().Error("customer_id is empty", zap.Any("browserCookie", browserCookie), zap.Any("req", req))
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = recurringCustomerNotFound
+		return nil
+	}
+
+	customer, err := s.customerRepository.GetById(ctx, browserCookie.CustomerId)
+	if err != nil {
+		zap.L().Error("can't get customer", zap.Error(err))
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = recurringErrorUnknown
+		return nil
+	}
+
+	info := &billingpb.CustomerShortInfo{Id: customer.Uuid, Email: customer.Email, Name: customer.Name}
+	rsp.Item = info
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Message = nil
 	return nil
 }
