@@ -4619,7 +4619,27 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 		Url:                 order.ReceiptUrl,
 		VatRate:             fmt.Sprintf("%.2f", order.Tax.Rate*100) + "%",
 		CustomerEmail:       order.User.Email,
+		CustomerUuid:        order.User.Uuid,
+		IsRecurring:         fmt.Sprintf("%t", order.Recurring),
 	}
+
+	if order.RecurringSettings != nil {
+		receipt.RecurringPeriod = order.RecurringSettings.Period
+		receipt.RecurringInterval = fmt.Sprintf("%d", order.RecurringSettings.Interval)
+		receipt.RecurringDateEnd = order.RecurringSettings.DateEnd
+	}
+
+	subscription, err := s.rep.FindSubscriptions(ctx, &recurringpb.FindSubscriptionsRequest{
+		MerchantId: order.Project.MerchantId,
+		CustomerId: order.User.Id,
+	})
+
+	if err != nil {
+		zap.L().Error(pkg.MethodFinishedWithError, zap.Error(err))
+		return nil, err
+	}
+
+	receipt.ExistsRecurringSubscriptions = fmt.Sprintf("%t", len(subscription.List) > 0)
 
 	return receipt, nil
 }

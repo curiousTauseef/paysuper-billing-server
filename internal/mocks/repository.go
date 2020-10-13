@@ -28,7 +28,9 @@ func (r *RepositoryServiceOk) GetSubscription(ctx context.Context, in *recurring
 }
 
 func (r *RepositoryServiceOk) FindSubscriptions(ctx context.Context, in *recurringpb.FindSubscriptionsRequest, opts ...client.CallOption) (*recurringpb.FindSubscriptionsResponse, error) {
-	panic("implement me")
+	return &recurringpb.FindSubscriptionsResponse{
+		List: []*recurringpb.Subscription{},
+	}, nil
 }
 
 func (r *RepositoryServiceOk) DeleteSubscription(ctx context.Context, in *recurringpb.Subscription, opts ...client.CallOption) (*recurringpb.DeleteSubscriptionResponse, error) {
