@@ -6369,6 +6369,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Ok() 
 		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("InsertSavedCard", mock.Anything, mock.Anything).
 		Return(nil, nil)
+	recurring.On("FindSubscriptions", mock.Anything, mock.Anything).
+		Return(&recurringpb.FindSubscriptionsResponse{List: []*recurringpb.Subscription{}}, nil)
 	suite.service.rep = recurring
 
 	req := &billingpb.OrderCreateRequest{
@@ -6532,6 +6534,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Recre
 		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("InsertSavedCard", mock.Anything, mock.Anything).
 		Return(nil, nil)
+	recurring.On("FindSubscriptions", mock.Anything, mock.Anything).
+		Return(&recurringpb.FindSubscriptionsResponse{List: []*recurringpb.Subscription{}}, nil)
 	suite.service.rep = recurring
 
 	req := &billingpb.OrderCreateRequest{
@@ -10035,9 +10039,118 @@ func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_Ok() {
 		return nil
 	}
 	postmarkBrokerMock := &mocks.BrokerInterface{}
-	postmarkBrokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(postmarkBrokerMockFn, nil)
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.MatchedBy(func(input *postmarkpb.Payload) bool {
+		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
+			return false
+		}
+		if _, ok := input.TemplateModel["isRecurring"]; !ok {
+			return false
+		}
+		return true
+	}), mock.Anything).Return(postmarkBrokerMockFn, nil)
 	suite.service.postmarkBroker = postmarkBrokerMock
 	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod, suite.cookie)
+	assert.NotNil(suite.T(), order)
+	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
+	assert.Nil(suite.T(), order.Cancellation)
+
+	messages := suite.zapRecorder.All()
+
+	for _, v := range messages {
+		if v.Entry.Message == "order_test" {
+			assert.Equal(suite.T(), zapcore.InfoLevel, v.Level)
+			assert.Equal(suite.T(), v.Context[0].String, order.ReceiptUrl)
+		}
+	}
+}
+
+func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_WithRecurring_Ok() {
+	recurringDateEnd := time.Now().AddDate(1, 0, 0).Format("2006-01-02")
+
+	zap.ReplaceGlobals(suite.logObserver)
+	postmarkBrokerMockFn := func(topicName string, payload proto.Message, t amqp.Table) error {
+		msg := payload.(*postmarkpb.Payload)
+		zap.L().Info("order_test", zap.String("url", msg.TemplateModel["url"]))
+
+		return nil
+	}
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.MatchedBy(func(input *postmarkpb.Payload) bool {
+		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
+			return false
+		}
+		if v, ok := input.TemplateModel["isRecurring"]; !ok || v != "true" {
+			return false
+		}
+		if v, ok := input.TemplateModel["recurringPeriod"]; !ok || v != recurringpb.RecurringPeriodMonth {
+			return false
+		}
+		if v, ok := input.TemplateModel["recurringInterval"]; !ok || v != "1" {
+			return false
+		}
+		if v, ok := input.TemplateModel["recurringDateEnd"]; !ok || v != recurringDateEnd {
+			return false
+		}
+		return true
+	}), mock.Anything).Return(postmarkBrokerMockFn, nil)
+	suite.service.postmarkBroker = postmarkBrokerMock
+	order := HelperCreateAndPayOrderWithRecurring(
+		suite.Suite,
+		suite.service,
+		100,
+		"RUB",
+		"RU",
+		suite.project,
+		suite.paymentMethod,
+		suite.cookie,
+		recurringpb.RecurringPeriodMonth,
+		recurringDateEnd,
+	)
+	assert.NotNil(suite.T(), order)
+	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
+	assert.Nil(suite.T(), order.Cancellation)
+
+	messages := suite.zapRecorder.All()
+
+	for _, v := range messages {
+		if v.Entry.Message == "order_test" {
+			assert.Equal(suite.T(), zapcore.InfoLevel, v.Level)
+			assert.Equal(suite.T(), v.Context[0].String, order.ReceiptUrl)
+		}
+	}
+}
+
+func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_WithSubscriptions_Ok() {
+	zap.ReplaceGlobals(suite.logObserver)
+	postmarkBrokerMockFn := func(topicName string, payload proto.Message, t amqp.Table) error {
+		msg := payload.(*postmarkpb.Payload)
+		zap.L().Info("order_test", zap.String("url", msg.TemplateModel["url"]))
+
+		return nil
+	}
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.MatchedBy(func(input *postmarkpb.Payload) bool {
+		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
+			return false
+		}
+		if v, ok := input.TemplateModel["existsRecurringSubscriptions"]; !ok || v != "true" {
+			return false
+		}
+		return true
+	}), mock.Anything).Return(postmarkBrokerMockFn, nil)
+	suite.service.postmarkBroker = postmarkBrokerMock
+	order := HelperCreateAndPayOrderWithRecurring(
+		suite.Suite,
+		suite.service,
+		100,
+		"RUB",
+		"RU",
+		suite.project,
+		suite.paymentMethod,
+		suite.cookie,
+		recurringpb.RecurringPeriodMonth,
+		time.Now().AddDate(1, 0, 0).Format("2006-01-02"),
+	)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
 	assert.Nil(suite.T(), order.Cancellation)
@@ -10061,10 +10174,167 @@ func (suite *OrderTestSuite) TestOrder_RefundReceipt_Ok() {
 	}
 
 	postmarkBrokerMock := &mocks.BrokerInterface{}
-	postmarkBrokerMock.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(postmarkBrokerMockFn, nil)
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.MatchedBy(func(input *postmarkpb.Payload) bool {
+		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
+			return false
+		}
+		if _, ok := input.TemplateModel["isRecurring"]; !ok {
+			return false
+		}
+		return true
+	}), mock.Anything).Return(postmarkBrokerMockFn, nil)
 	suite.service.postmarkBroker = postmarkBrokerMock
 
 	order := HelperCreateAndPayOrder(suite.Suite, suite.service, 100, "RUB", "RU", suite.project, suite.paymentMethod, suite.cookie)
+	assert.NotNil(suite.T(), order)
+	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
+	assert.Nil(suite.T(), order.Cancellation)
+
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	assert.NotNil(suite.T(), refund)
+
+	order, err := suite.service.getOrderById(context.TODO(), order.Id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), order)
+
+	refundOrder, err := suite.service.getOrderById(context.TODO(), refund.CreatedOrderId)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), refundOrder)
+
+	assert.Equal(suite.T(), suite.service.cfg.GetReceiptRefundUrl(refundOrder.Uuid, refundOrder.ReceiptId), refundOrder.ReceiptUrl)
+	assert.Equal(suite.T(), suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId), order.ReceiptUrl)
+	assert.Nil(suite.T(), order.Cancellation)
+
+	messages := suite.zapRecorder.All()
+
+	urlsSent := map[string]bool{
+		refundOrder.ReceiptUrl: false,
+		order.ReceiptUrl:       false,
+	}
+	for _, v := range messages {
+		if v.Entry.Message != "order_test_refund" {
+			continue
+		}
+		urlsSent[v.Context[0].String] = true
+	}
+
+	for key, v := range urlsSent {
+		assert.True(suite.T(), v, key)
+	}
+}
+
+func (suite *OrderTestSuite) TestOrder_RefundReceipt_WithRecurring_Ok() {
+	zap.ReplaceGlobals(suite.logObserver)
+	postmarkBrokerMockFn := func(topicName string, payload proto.Message, t amqp.Table) error {
+		msg := payload.(*postmarkpb.Payload)
+		zap.L().Info("order_test_refund", zap.String("url", msg.TemplateModel["url"]))
+		return nil
+	}
+
+	subscriptionDateEnd := time.Now().AddDate(1, 0, 0).Format("2006-01-02")
+
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.MatchedBy(func(input *postmarkpb.Payload) bool {
+		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
+			return false
+		}
+		if v, ok := input.TemplateModel["isRecurring"]; !ok || v != "true" {
+			return false
+		}
+		if v, ok := input.TemplateModel["recurringPeriod"]; !ok || v != recurringpb.RecurringPeriodMonth {
+			return false
+		}
+		if v, ok := input.TemplateModel["recurringInterval"]; !ok || v != "1" {
+			return false
+		}
+		if v, ok := input.TemplateModel["recurringDateEnd"]; !ok || v != subscriptionDateEnd {
+			return false
+		}
+		return true
+	}), mock.Anything).Return(postmarkBrokerMockFn, nil)
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	order := HelperCreateAndPayOrderWithRecurring(
+		suite.Suite,
+		suite.service,
+		100,
+		"RUB",
+		"RU",
+		suite.project,
+		suite.paymentMethod,
+		suite.cookie,
+		recurringpb.RecurringPeriodMonth,
+		subscriptionDateEnd,
+	)
+	assert.NotNil(suite.T(), order)
+	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
+	assert.Nil(suite.T(), order.Cancellation)
+
+	refund := HelperMakeRefund(suite.Suite, suite.service, order, order.ChargeAmount, false)
+	assert.NotNil(suite.T(), refund)
+
+	order, err := suite.service.getOrderById(context.TODO(), order.Id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), order)
+
+	refundOrder, err := suite.service.getOrderById(context.TODO(), refund.CreatedOrderId)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), refundOrder)
+
+	assert.Equal(suite.T(), suite.service.cfg.GetReceiptRefundUrl(refundOrder.Uuid, refundOrder.ReceiptId), refundOrder.ReceiptUrl)
+	assert.Equal(suite.T(), suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId), order.ReceiptUrl)
+	assert.Nil(suite.T(), order.Cancellation)
+
+	messages := suite.zapRecorder.All()
+
+	urlsSent := map[string]bool{
+		refundOrder.ReceiptUrl: false,
+		order.ReceiptUrl:       false,
+	}
+	for _, v := range messages {
+		if v.Entry.Message != "order_test_refund" {
+			continue
+		}
+		urlsSent[v.Context[0].String] = true
+	}
+
+	for key, v := range urlsSent {
+		assert.True(suite.T(), v, key)
+	}
+}
+
+func (suite *OrderTestSuite) TestOrder_RefundReceipt_WithSubscriptions_Ok() {
+	zap.ReplaceGlobals(suite.logObserver)
+	postmarkBrokerMockFn := func(topicName string, payload proto.Message, t amqp.Table) error {
+		msg := payload.(*postmarkpb.Payload)
+		zap.L().Info("order_test_refund", zap.String("url", msg.TemplateModel["url"]))
+		return nil
+	}
+
+	postmarkBrokerMock := &mocks.BrokerInterface{}
+	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.MatchedBy(func(input *postmarkpb.Payload) bool {
+		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
+			return false
+		}
+		if v, ok := input.TemplateModel["existsRecurringSubscriptions"]; !ok || v != "true" {
+			return false
+		}
+		return true
+	}), mock.Anything).Return(postmarkBrokerMockFn, nil)
+	suite.service.postmarkBroker = postmarkBrokerMock
+
+	order := HelperCreateAndPayOrderWithRecurring(
+		suite.Suite,
+		suite.service,
+		100,
+		"RUB",
+		"RU",
+		suite.project,
+		suite.paymentMethod,
+		suite.cookie,
+		recurringpb.RecurringPeriodMonth,
+		time.Now().AddDate(1, 0, 0).Format("2006-01-02"),
+	)
 	assert.NotNil(suite.T(), order)
 	assert.Equal(suite.T(), order.ReceiptUrl, suite.service.cfg.GetReceiptPurchaseUrl(order.Uuid, order.ReceiptId))
 	assert.Nil(suite.T(), order.Cancellation)
