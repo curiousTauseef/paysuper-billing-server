@@ -13,6 +13,20 @@ type PaymentSystemInterface struct {
 	mock.Mock
 }
 
+// CanSaveCard provides a mock function with given fields: request
+func (_m *PaymentSystemInterface) CanSaveCard(request protoiface.MessageV1) bool {
+	ret := _m.Called(request)
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(protoiface.MessageV1) bool); ok {
+		r0 = rf(request)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
 // CreatePayment provides a mock function with given fields: order, successUrl, failUrl, requisites
 func (_m *PaymentSystemInterface) CreatePayment(order *billingpb.Order, successUrl string, failUrl string, requisites map[string]string) (string, error) {
 	ret := _m.Called(order, successUrl, failUrl, requisites)

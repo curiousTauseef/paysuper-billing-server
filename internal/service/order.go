@@ -1457,7 +1457,7 @@ func (s *Service) PaymentCallbackProcess(
 			s.sendMailWithReceipt(ctx, order)
 		}
 
-		if h.IsRecurringCallback(data) {
+		if h.CanSaveCard(data) {
 			s.saveRecurringCard(ctx, order, h.GetRecurringId(data))
 		}
 

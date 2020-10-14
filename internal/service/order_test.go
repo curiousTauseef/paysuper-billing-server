@@ -6340,6 +6340,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Ok() 
 		Return(true)
 	paymentSystem.On("IsRecurringCallback", mock.Anything).
 		Return(true)
+	paymentSystem.On("CanSaveCard", mock.Anything).
+		Return(true)
 	paymentSystem.On("GetRecurringId", mock.Anything).
 		Return("recurring_id")
 
@@ -6503,6 +6505,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Recre
 	paymentSystem.On("IsSubscriptionCallback", mock.Anything).
 		Return(true)
 	paymentSystem.On("IsRecurringCallback", mock.Anything).
+		Return(true)
+	paymentSystem.On("CanSaveCard", mock.Anything).
 		Return(true)
 	paymentSystem.On("GetRecurringId", mock.Anything).
 		Return("recurring_id")
@@ -6833,6 +6837,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Delet
 	paymentSystem.On("IsSubscriptionCallback", mock.Anything).
 		Return(true)
 	paymentSystem.On("IsRecurringCallback", mock.Anything).
+		Return(true)
+	paymentSystem.On("CanSaveCard", mock.Anything).
 		Return(true)
 	paymentSystem.On("GetRecurringId", mock.Anything).
 		Return("recurring_id")

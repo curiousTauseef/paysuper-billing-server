@@ -109,6 +109,7 @@ func NewCardPayMock() payment_system.PaymentSystemInterface {
 	cpMock.On("IsSubscriptionCallback", mock.Anything).Return(false, nil)
 	cpMock.On("DeleteRecurringSubscription", mock.Anything, mock.Anything).
 		Return(nil, nil)
+	cpMock.On("CanSaveCard", mock.Anything).Return(false)
 	return cpMock
 }
 
@@ -155,6 +156,10 @@ func (m *PaymentSystemMockOk) DeleteRecurringSubscription(_ *billingpb.Order, _ 
 	return nil
 }
 
+func (m *PaymentSystemMockOk) CanSaveCard(_ proto.Message) bool {
+	return false
+}
+
 func (m *PaymentSystemMockError) CreatePayment(_ *billingpb.Order, _, _ string, _ map[string]string) (string, error) {
 	return "", nil
 }
@@ -192,4 +197,8 @@ func (m *PaymentSystemMockError) IsSubscriptionCallback(_ proto.Message) bool {
 
 func (m *PaymentSystemMockError) DeleteRecurringSubscription(_ *billingpb.Order, _ *recurringpb.Subscription) error {
 	return nil
+}
+
+func (m *PaymentSystemMockError) CanSaveCard(_ proto.Message) bool {
+	return false
 }

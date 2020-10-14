@@ -532,6 +532,11 @@ func (h *cardPay) IsRecurringCallback(request proto.Message) bool {
 	return req.PaymentMethod == recurringpb.PaymentSystemGroupAliasBankCard && req.IsRecurring()
 }
 
+func (h *cardPay) CanSaveCard(request proto.Message) bool {
+	req := request.(*billingpb.CardPayPaymentCallback)
+	return req.PaymentMethod == recurringpb.PaymentSystemGroupAliasBankCard && req.IsRecurringWithFiling()
+}
+
 func (h *cardPay) GetRecurringId(request proto.Message) string {
 	return request.(*billingpb.CardPayPaymentCallback).RecurringData.Filing.Id
 }

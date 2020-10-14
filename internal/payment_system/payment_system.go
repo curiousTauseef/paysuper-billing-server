@@ -36,6 +36,7 @@ type PaymentSystemInterface interface {
 	CreatePayment(order *billingpb.Order, successUrl, failUrl string, requisites map[string]string) (string, error)
 	ProcessPayment(order *billingpb.Order, message proto.Message, raw, signature string) error
 	IsRecurringCallback(request proto.Message) bool
+	CanSaveCard(request proto.Message) bool
 	GetRecurringId(request proto.Message) string
 	CreateRefund(order *billingpb.Order, refund *billingpb.Refund) error
 	ProcessRefund(order *billingpb.Order, refund *billingpb.Refund, message proto.Message, raw, signature string) error
