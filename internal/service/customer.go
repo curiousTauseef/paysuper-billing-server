@@ -729,6 +729,7 @@ func (s *Service) FindPublicSubscriptions(ctx context.Context, req *billingpb.Fi
 			Currency:    subscription.Currency,
 			IsActive:    subscription.IsActive,
 			MaskedPan:   subscription.MaskedPan,
+			StartDate:   subscription.CreatedAt,
 		}
 
 		project, err := s.project.GetById(ctx, subscription.ProjectId)

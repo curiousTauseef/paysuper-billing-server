@@ -197,12 +197,18 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 
 	items := make([]*billingpb.ShortOrder, len(orders))
 	for i, order := range orders {
+		name := ""
+		if order.Project != nil {
+			name, _ = order.Project.Name[DefaultLanguage]
+		}
+
 		items[i] = &billingpb.ShortOrder{
-			Id:         order.Uuid,
-			Amount:     float32(order.OrderCharge.AmountRounded),
-			Currency:   order.OrderCharge.Currency,
-			Date:       order.TransactionDate,
-			CardNumber: order.GetCardNumber(),
+			Id:          order.Uuid,
+			Amount:      float32(order.OrderCharge.AmountRounded),
+			Currency:    order.OrderCharge.Currency,
+			Date:        order.TransactionDate,
+			CardNumber:  order.GetCardNumber(),
+			ProductName: name,
 		}
 	}
 
@@ -261,12 +267,12 @@ func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.G
 
 	for i, subscription := range res.List {
 		items[i] = &billingpb.MerchantSubscription{
-			Start: subscription.Start,
-			Amount: subscription.Amount,
-			Currency: subscription.Currency,
-			Email: subscription.Email,
+			Start:          subscription.Start,
+			Amount:         subscription.Amount,
+			Currency:       subscription.Currency,
+			Email:          subscription.Email,
 			SubscriptionId: subscription.SubscriptionId,
-			ProjectId: subscription.ProjectId,
+			ProjectId:      subscription.ProjectId,
 		}
 
 		name, ok := projectNames[subscription.ProjectId]
