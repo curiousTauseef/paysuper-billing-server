@@ -10049,7 +10049,7 @@ func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_Ok() {
 		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
 			return false
 		}
-		if _, ok := input.TemplateModel["isRecurring"]; !ok {
+		if _, ok := input.TemplateModel["subscriptionsManagementUrl"]; !ok {
 			return false
 		}
 		return true
@@ -10085,7 +10085,7 @@ func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_WithRecurring_Ok() {
 		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
 			return false
 		}
-		if v, ok := input.TemplateModel["isRecurring"]; !ok || v != "true" {
+		if v, ok := input.TemplateModel["subscriptionViewUrl"]; !ok || v == "" {
 			return false
 		}
 		if v, ok := input.TemplateModel["recurringPeriod"]; !ok || v != recurringpb.RecurringPeriodMonth {
@@ -10139,7 +10139,7 @@ func (suite *OrderTestSuite) TestOrder_PurchaseReceipt_WithSubscriptions_Ok() {
 		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
 			return false
 		}
-		if v, ok := input.TemplateModel["existsRecurringSubscriptions"]; !ok || v != "true" {
+		if v, ok := input.TemplateModel["subscriptionsManagementUrl"]; !ok || v == "" {
 			return false
 		}
 		return true
@@ -10184,7 +10184,7 @@ func (suite *OrderTestSuite) TestOrder_RefundReceipt_Ok() {
 		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
 			return false
 		}
-		if _, ok := input.TemplateModel["isRecurring"]; !ok {
+		if _, ok := input.TemplateModel["subscriptionsManagementUrl"]; !ok {
 			return false
 		}
 		return true
@@ -10244,7 +10244,7 @@ func (suite *OrderTestSuite) TestOrder_RefundReceipt_WithRecurring_Ok() {
 		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
 			return false
 		}
-		if v, ok := input.TemplateModel["isRecurring"]; !ok || v != "true" {
+		if v, ok := input.TemplateModel["subscriptionViewUrl"]; !ok || v == "" {
 			return false
 		}
 		if v, ok := input.TemplateModel["recurringPeriod"]; !ok || v != recurringpb.RecurringPeriodMonth {
@@ -10322,7 +10322,7 @@ func (suite *OrderTestSuite) TestOrder_RefundReceipt_WithSubscriptions_Ok() {
 		if v, ok := input.TemplateModel["customerUuid"]; !ok || v == "" {
 			return false
 		}
-		if v, ok := input.TemplateModel["existsRecurringSubscriptions"]; !ok || v != "true" {
+		if v, ok := input.TemplateModel["subscriptionsManagementUrl"]; !ok || v == "" {
 			return false
 		}
 		return true
