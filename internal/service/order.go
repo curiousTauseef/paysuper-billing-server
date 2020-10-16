@@ -722,7 +722,7 @@ func (s *Service) PaymentFormJsonDataProcess(
 		}
 
 		if len(subscriptions.List) > 0 {
-			rsp.Item.RecurringManagementUrl = fmt.Sprintf("%s/subscriptions/%s", s.cfg.CheckoutUrl, customer.Uuid)
+			rsp.Item.RecurringManagementUrl = fmt.Sprintf("%s/subscriptions", s.cfg.CheckoutUrl)
 		}
 	}
 
@@ -4601,32 +4601,27 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 	}
 
 	receipt := &billingpb.OrderReceipt{
-		TotalPrice:          totalPrice,
-		TransactionId:       order.Uuid,
-		TransactionDate:     date,
-		ProjectName:         order.Project.Name[DefaultLanguage],
-		MerchantName:        merchant.GetCompanyName(),
-		Items:               items,
-		OrderType:           order.Type,
-		PlatformName:        platformName,
-		PaymentPartner:      oc.Name,
-		VatPayer:            order.VatPayer,
-		VatInOrderCurrency:  vatInOrderCurrency,
-		VatInChargeCurrency: vatInChargeCurrency,
-		TotalAmount:         totalAmount,
-		TotalCharge:         totalCharge,
-		ReceiptId:           order.ReceiptId,
-		Url:                 order.ReceiptUrl,
-		VatRate:             fmt.Sprintf("%.2f", order.Tax.Rate*100) + "%",
-		CustomerEmail:       order.User.Email,
-		CustomerUuid:        order.User.Uuid,
-		IsRecurring:         fmt.Sprintf("%t", order.Recurring),
-	}
-
-	if order.RecurringSettings != nil {
-		receipt.RecurringPeriod = order.RecurringSettings.Period
-		receipt.RecurringInterval = fmt.Sprintf("%d", order.RecurringSettings.Interval)
-		receipt.RecurringDateEnd = order.RecurringSettings.DateEnd
+		TotalPrice:                 totalPrice,
+		TransactionId:              order.Uuid,
+		TransactionDate:            date,
+		ProjectName:                order.Project.Name[DefaultLanguage],
+		MerchantName:               merchant.GetCompanyName(),
+		Items:                      items,
+		OrderType:                  order.Type,
+		PlatformName:               platformName,
+		PaymentPartner:             oc.Name,
+		VatPayer:                   order.VatPayer,
+		VatInOrderCurrency:         vatInOrderCurrency,
+		VatInChargeCurrency:        vatInChargeCurrency,
+		TotalAmount:                totalAmount,
+		TotalCharge:                totalCharge,
+		ReceiptId:                  order.ReceiptId,
+		Url:                        order.ReceiptUrl,
+		VatRate:                    fmt.Sprintf("%.2f", order.Tax.Rate*100) + "%",
+		CustomerEmail:              order.User.Email,
+		CustomerUuid:               order.User.Uuid,
+		SubscriptionViewUrl:        "",
+		SubscriptionsManagementUrl: "",
 	}
 
 	subscription, err := s.rep.FindSubscriptions(ctx, &recurringpb.FindSubscriptionsRequest{
@@ -4639,7 +4634,19 @@ func (s *Service) getOrderReceiptObject(ctx context.Context, order *billingpb.Or
 		return nil, err
 	}
 
-	receipt.ExistsRecurringSubscriptions = fmt.Sprintf("%t", len(subscription.List) > 0)
+	if order.Recurring {
+		receipt.SubscriptionViewUrl = fmt.Sprintf("%s/subscriptions/%s", s.cfg.CheckoutUrl, order.RecurringId)
+
+		if order.RecurringSettings != nil {
+			receipt.RecurringPeriod = order.RecurringSettings.Period
+			receipt.RecurringInterval = fmt.Sprintf("%d", order.RecurringSettings.Interval)
+			receipt.RecurringDateEnd = order.RecurringSettings.DateEnd
+		}
+	}
+
+	if len(subscription.List) > 0 {
+		receipt.SubscriptionsManagementUrl = fmt.Sprintf("%s/subscriptions", s.cfg.CheckoutUrl)
+	}
 
 	return receipt, nil
 }
