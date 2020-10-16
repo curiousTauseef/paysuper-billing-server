@@ -120,6 +120,8 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 			rsp.Message = recurringCustomerNotFound
 			return nil
 		}
+
+		customerId = browserCookie.CustomerId
 	}
 
 	req1 := &recurringpb.GetSubscriptionRequest{Id: req.SubscriptionId}
