@@ -5201,44 +5201,6 @@ func (s *Service) addRecurringSubscription(
 	return subscription, url, nil
 }
 
-func (s *Service) DeleteRecurringSubscription(
-	ctx context.Context,
-	req *billingpb.DeleteRecurringSubscriptionRequest,
-	res *billingpb.EmptyResponseWithStatus,
-) error {
-	order, err := s.orderRepository.GetById(ctx, req.OrderId)
-
-	if err != nil {
-		return orderErrorNotFound
-	}
-
-	rsp, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{Id: order.RecurringId})
-
-	if err != nil || rsp.Status != billingpb.ResponseStatusOk {
-		return orderErrorRecurringSubscriptionNotFound
-	}
-
-	ps, err := s.paymentSystemRepository.GetById(ctx, order.PaymentMethod.PaymentSystemId)
-
-	if err != nil {
-		return orderErrorPaymentSystemInactive
-	}
-
-	h, err := s.paymentSystemGateway.GetGateway(ps.Handler)
-
-	if err != nil {
-		return err
-	}
-
-	err = h.DeleteRecurringSubscription(order, rsp.Subscription)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Set caption for redirect button in payment form
 func (m *orderCreateRequestProcessorChecked) setRedirectButtonCaption(caption string) {
 	m.project.RedirectSettings.ButtonCaption = caption
