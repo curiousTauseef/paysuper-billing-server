@@ -203,6 +203,8 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 		return nil
 	}
 
+	count, err := s.orderViewRepository.GetCountBy(ctx, query)
+
 	items := make([]*billingpb.ShortOrder, len(orders))
 	for i, order := range orders {
 		name := ""
@@ -223,6 +225,8 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 	rsp.List = items
 	rsp.Message = nil
 	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Count = int32(count)
+
 	return nil
 }
 

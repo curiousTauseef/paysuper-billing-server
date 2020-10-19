@@ -1327,3 +1327,19 @@ func (r *orderViewRepository) GetRoyaltySummaryRoundedAmounts(
 
 	return
 }
+
+func (r *orderViewRepository) GetCountBy(ctx context.Context, filter bson.M, opts ...*options.CountOptions) (int64, error) {
+	count, err := r.db.Collection(CollectionOrderView).CountDocuments(ctx, filter, opts...)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, CollectionOrderView),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, filter),
+		)
+		return 0, err
+	}
+
+	return count, nil
+}

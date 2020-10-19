@@ -63,6 +63,9 @@ type OrderViewRepositoryInterface interface {
 	// Return orders by some conditions and with options
 	GetManyBy(ctx context.Context, filter bson.M, opts ...*options.FindOptions) ([]*billingpb.OrderViewPrivate, error)
 
+	// Return count of orders by some conditions and with options
+	GetCountBy(ctx context.Context, filter bson.M, opts ...*options.CountOptions) (int64, error)
+
 	// GetRoyaltySummary returns orders for summary royal report by merchant id, currency and dates with checking exists royalty report.
 	GetRoyaltySummaryRoundedAmounts(ctx context.Context, merchantId, currency string, from, to time.Time, hasExistsReportId bool) (items []*billingpb.RoyaltyReportProductSummaryItem, total *billingpb.RoyaltyReportProductSummaryItem, ordersIds []primitive.ObjectID, err error)
 }
