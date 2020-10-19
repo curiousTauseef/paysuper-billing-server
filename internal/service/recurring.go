@@ -164,8 +164,13 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 		return nil
 	}
 
-	if rsp1.Subscription.CustomerId != customerId && rsp1.Subscription.CustomerUuid != customerId {
-		zap.L().Error("trying to get subscription without rights", zap.String("customer_id", customerId), zap.Any("subscription", rsp1.Subscription))
+	if rsp1.Subscription.CustomerId != customerId && rsp1.Subscription.CustomerUuid != customerId ||
+		(len(req.MerchantId) > 0 && rsp1.Subscription.MerchantId != req.MerchantId) {
+		zap.L().Error("trying to get subscription without rights",
+			zap.String("customer_id", customerId),
+			zap.Any("subscription", rsp1.Subscription),
+			zap.String("merchant_id", req.MerchantId))
+
 		rsp.Status = billingpb.ResponseStatusForbidden
 		rsp.Message = recurringCustomerNotFound
 
@@ -198,6 +203,8 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 		return nil
 	}
 
+	count, err := s.orderViewRepository.GetCountBy(ctx, query)
+
 	items := make([]*billingpb.ShortOrder, len(orders))
 	for i, order := range orders {
 		name := ""
@@ -218,6 +225,8 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 	rsp.List = items
 	rsp.Message = nil
 	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Count = int32(count)
+
 	return nil
 }
 
@@ -276,6 +285,7 @@ func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.G
 			Email:          subscription.Email,
 			SubscriptionId: subscription.SubscriptionId,
 			ProjectId:      subscription.ProjectId,
+			MaskedPan: 		subscription.MaskedPan,
 		}
 
 		name, ok := projectNames[subscription.ProjectId]
@@ -298,6 +308,7 @@ func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.G
 		items[i].ProjectName = name
 	}
 
+	rsp.Count = res.Count
 	rsp.List = items
 	rsp.Status = billingpb.ResponseStatusOk
 	return nil
