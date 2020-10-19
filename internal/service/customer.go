@@ -667,6 +667,7 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 	for i, subscription := range rsp1.List {
 		rsp.List[i] = s.mapRecurringToBilling(subscription)
 	}
+	rsp.Count = rsp1.Count
 
 	return nil
 }
@@ -752,6 +753,7 @@ func (s *Service) FindPublicSubscriptions(ctx context.Context, req *billingpb.Fi
 		items[i].ProjectName = projectName
 	}
 	rsp.List = items
+	rsp.Count = rsp1.Count
 
 	return nil
 }

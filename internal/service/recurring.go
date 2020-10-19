@@ -2,20 +2,23 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 )
 
 var (
-	recurringErrorIncorrectCookie = errors.NewBillingServerErrorMsg("re000001", "customer cookie value is incorrect")
-	recurringCustomerNotFound     = errors.NewBillingServerErrorMsg("re000002", "customer not found")
-	recurringErrorUnknown         = errors.NewBillingServerErrorMsg("re000003", "unknown error")
-	recurringSavedCardNotFount    = errors.NewBillingServerErrorMsg("re000005", "saved card for customer not found")
+	recurringErrorIncorrectCookie    = errors.NewBillingServerErrorMsg("re000001", "customer cookie value is incorrect")
+	recurringCustomerNotFound        = errors.NewBillingServerErrorMsg("re000002", "customer not found")
+	recurringErrorUnknown            = errors.NewBillingServerErrorMsg("re000003", "unknown error")
+	recurringSavedCardNotFount       = errors.NewBillingServerErrorMsg("re000005", "saved card for customer not found")
+	recurringErrorDeleteSubscription = errors.NewBillingServerErrorMsg("re000006", "unable to delete subscription")
 )
 
 func (s *Service) DeleteSavedCard(
@@ -297,5 +300,150 @@ func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.G
 
 	rsp.List = items
 	rsp.Status = billingpb.ResponseStatusOk
+	return nil
+}
+
+func (s *Service) DeleteRecurringSubscription(
+	ctx context.Context,
+	req *billingpb.DeleteRecurringSubscriptionRequest,
+	res *billingpb.EmptyResponseWithStatus,
+) error {
+	customerId := req.CustomerId
+
+	if len(req.Cookie) > 0 {
+		browserCookie, err := s.decryptBrowserCookie(req.Cookie)
+		if err != nil {
+			zap.L().Error(
+				"can't decrypt cookie",
+				zap.Error(err),
+				zap.Any(errorFieldRequest, req),
+			)
+
+			res.Status = billingpb.ResponseStatusForbidden
+			res.Message = recurringCustomerNotFound
+			return nil
+		}
+
+		if len(browserCookie.CustomerId) == 0 {
+			zap.L().Error(
+				"customer_id is empty",
+				zap.Any("browserCookie", browserCookie),
+				zap.Any("req", req),
+			)
+
+			res.Status = billingpb.ResponseStatusBadData
+			res.Message = recurringCustomerNotFound
+			return nil
+		}
+	}
+
+	rsp, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{
+		Id: req.SubscriptionId,
+	})
+
+	if err != nil || rsp.Status != billingpb.ResponseStatusOk {
+		if err == nil {
+			err = fmt.Errorf(rsp.Message)
+		}
+
+		zap.L().Error(
+			"Unable to get subscription",
+			zap.Error(err),
+			zap.Any("subscription_id", req.SubscriptionId),
+		)
+
+		res.Status = billingpb.ResponseStatusNotFound
+		res.Message = orderErrorRecurringSubscriptionNotFound
+		return nil
+	}
+
+	subscription := rsp.Subscription
+
+	if subscription.CustomerId != customerId && subscription.CustomerUuid != customerId {
+		zap.L().Error(
+			"trying to delete subscription without rights",
+			zap.String("customer_id", customerId),
+			zap.Any("subscription", subscription),
+		)
+		res.Status = billingpb.ResponseStatusForbidden
+		res.Message = recurringCustomerNotFound
+
+		return nil
+	}
+
+	if subscription.OrderId == primitive.NilObjectID.Hex() {
+		zap.L().Error(
+			"Order ID for subscription is empty. Skipping.",
+			zap.Error(err),
+			zap.Any("subscription", subscription),
+		)
+	} else {
+		order, err := s.orderRepository.GetById(ctx, subscription.OrderId)
+
+		if err != nil {
+			res.Status = billingpb.ResponseStatusNotFound
+			res.Message = orderErrorNotFound
+			return nil
+		}
+
+		ps, err := s.paymentSystemRepository.GetById(ctx, order.PaymentMethod.PaymentSystemId)
+
+		if err != nil {
+			res.Status = billingpb.ResponseStatusNotFound
+			res.Message = orderErrorPaymentSystemInactive
+			return nil
+		}
+
+		h, err := s.paymentSystemGateway.GetGateway(ps.Handler)
+
+		if err != nil {
+			zap.L().Error(
+				"Unable to get payment system gateway",
+				zap.Error(err),
+				zap.Any("subscription", subscription),
+				zap.Any("payment_system", ps),
+			)
+
+			res.Status = billingpb.ResponseStatusSystemError
+			res.Message = orderErrorPaymentSystemInactive
+			return nil
+		}
+
+		err = h.DeleteRecurringSubscription(order, subscription)
+
+		if err != nil {
+			zap.L().Error(
+				"Unable to delete subscription on payment system",
+				zap.Error(err),
+				zap.Any("subscription", subscription),
+				zap.Any("payment_system", ps),
+			)
+
+			res.Status = billingpb.ResponseStatusSystemError
+			res.Message = recurringErrorDeleteSubscription
+			return nil
+		}
+	}
+
+	resDelete, err := s.rep.DeleteSubscription(ctx, subscription)
+
+	if err != nil || resDelete.Status != billingpb.ResponseStatusOk {
+		if err == nil {
+			err = fmt.Errorf(resDelete.Message)
+		}
+
+		zap.L().Error(
+			"Unable to delete subscription on recurring service",
+			zap.Error(err),
+			zap.Any("subscription", subscription),
+		)
+
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = recurringErrorDeleteSubscription
+		return nil
+	}
+
+	res.Status = billingpb.ResponseStatusOk
+
 	return nil
 }
