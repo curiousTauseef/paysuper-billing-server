@@ -276,6 +276,7 @@ func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.G
 			Email:          subscription.Email,
 			SubscriptionId: subscription.SubscriptionId,
 			ProjectId:      subscription.ProjectId,
+			MaskedPan: 		subscription.MaskedPan,
 		}
 
 		name, ok := projectNames[subscription.ProjectId]
