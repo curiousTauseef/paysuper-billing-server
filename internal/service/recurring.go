@@ -164,8 +164,13 @@ func (s *Service) GetSubscriptionOrders(ctx context.Context, req *billingpb.GetS
 		return nil
 	}
 
-	if rsp1.Subscription.CustomerId != customerId && rsp1.Subscription.CustomerUuid != customerId {
-		zap.L().Error("trying to get subscription without rights", zap.String("customer_id", customerId), zap.Any("subscription", rsp1.Subscription))
+	if rsp1.Subscription.CustomerId != customerId && rsp1.Subscription.CustomerUuid != customerId ||
+		(len(req.MerchantId) > 0 && rsp1.Subscription.MerchantId != req.MerchantId) {
+		zap.L().Error("trying to get subscription without rights",
+			zap.String("customer_id", customerId),
+			zap.Any("subscription", rsp1.Subscription),
+			zap.String("merchant_id", req.MerchantId))
+
 		rsp.Status = billingpb.ResponseStatusForbidden
 		rsp.Message = recurringCustomerNotFound
 
