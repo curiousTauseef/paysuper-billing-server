@@ -298,6 +298,7 @@ func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.G
 		items[i].ProjectName = name
 	}
 
+	rsp.Count = res.Count
 	rsp.List = items
 	rsp.Status = billingpb.ResponseStatusOk
 	return nil
