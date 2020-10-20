@@ -285,8 +285,8 @@ func (s *Service) GetMerchantSubscriptions(ctx context.Context, req *billingpb.G
 			Email:          subscription.Email,
 			SubscriptionId: subscription.SubscriptionId,
 			ProjectId:      subscription.ProjectId,
-			MaskedPan: 		subscription.MaskedPan,
-			CustomerId: 	subscription.CustomerId,
+			MaskedPan:      subscription.MaskedPan,
+			CustomerId:     subscription.CustomerId,
 		}
 
 		name, ok := projectNames[subscription.ProjectId]
@@ -347,6 +347,8 @@ func (s *Service) DeleteRecurringSubscription(
 			res.Message = recurringCustomerNotFound
 			return nil
 		}
+
+		customerId = browserCookie.CustomerId
 	}
 
 	rsp, err := s.rep.GetSubscription(ctx, &recurringpb.GetSubscriptionRequest{
@@ -371,7 +373,7 @@ func (s *Service) DeleteRecurringSubscription(
 
 	subscription := rsp.Subscription
 
-	if subscription.CustomerId != customerId && subscription.CustomerUuid != customerId {
+	if customerId == "" || (subscription.CustomerId != customerId && subscription.CustomerUuid != customerId) {
 		zap.L().Error(
 			"trying to delete subscription without rights",
 			zap.String("customer_id", customerId),
