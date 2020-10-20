@@ -217,10 +217,17 @@ func (s *Service) ChangeMerchant(
 	rsp *billingpb.ChangeMerchantResponse,
 ) error {
 	var (
-		merchant      *billingpb.Merchant
-		err           error
-		isNewMerchant bool
+		merchant         *billingpb.Merchant
+		err              error
+		isNewMerchant    bool
+		isPerformerAdmin = false
 	)
+
+	role, err := s.userRoleRepository.GetAdminUserByUserId(ctx, req.User.Id)
+
+	if err == nil && role != nil && role.Id != "" {
+		isPerformerAdmin = true
+	}
 
 	if req.HasIdentificationFields() {
 		if req.User != nil && req.User.Id != "" {
@@ -255,7 +262,7 @@ func (s *Service) ChangeMerchant(
 		isNewMerchant = true
 	}
 
-	if !s.IsChangeDataAllow(merchant, req) {
+	if !isPerformerAdmin && !s.IsChangeDataAllow(merchant, req) {
 		rsp.Status = billingpb.ResponseStatusForbidden
 		rsp.Message = merchantErrorChangeNotAllowed
 
@@ -299,7 +306,7 @@ func (s *Service) ChangeMerchant(
 		merchant.Contacts = req.Contacts
 	}
 
-	if merchant.IsDataComplete() && merchant.Steps != nil && merchant.Steps.Tariff {
+	if !isPerformerAdmin && merchant.IsDataComplete() && merchant.Steps != nil && merchant.Steps.Tariff {
 		err = s.onMerchantOnboardingComplete(ctx, merchant)
 
 		if err != nil {
