@@ -939,6 +939,9 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_CreateMerchant_C
 			Swift:         "TEST",
 			Details:       "",
 		},
+		User: &billingpb.MerchantUser{
+			Id: primitive.NewObjectID().Hex(),
+		},
 	}
 
 	cmres := &billingpb.ChangeMerchantResponse{}
@@ -4027,6 +4030,8 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_User
 	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
 	userRoleRepositoryMock.On("AddMerchantUser", mock2.Anything, mock2.Anything).
 		Return(errors.New("UserRoleRepository_AddMerchantUser_Error"))
+	userRoleRepositoryMock.On("GetAdminUserByUserId", mock2.Anything, mock2.Anything).
+		Return(nil, nil)
 	suite.service.userRoleRepository = userRoleRepositoryMock
 
 	rsp := &billingpb.ChangeMerchantResponse{}
@@ -4081,4 +4086,155 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_Oper
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, rsp.Status)
 	assert.Equal(suite.T(), merchantErrorUnknown, rsp.Message)
+}
+
+func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_AllowUpdateWithNoneDraftStatusForAdmin_Ok() {
+	req := &billingpb.OnboardingRequest{
+		User: &billingpb.MerchantUser{
+			Id:    primitive.NewObjectID().Hex(),
+			Email: "test@unit.test",
+		},
+		Company: &billingpb.MerchantCompanyInfo{
+			Name:    "merchant1",
+			Country: "RU",
+			Zip:     "190000",
+			City:    "St.Petersburg",
+		},
+		Contacts: &billingpb.MerchantContact{
+			Authorized: &billingpb.MerchantContactAuthorized{
+				Name:     "Unit Test",
+				Email:    "test@unit.test",
+				Phone:    "0987654321",
+				Position: "Unit Test",
+			},
+			Technical: &billingpb.MerchantContactTechnical{
+				Name:  "Unit Test",
+				Email: "test@unit.test",
+				Phone: "0987654321",
+			},
+		},
+		Banking: &billingpb.MerchantBanking{
+			Currency:      "RUB",
+			Name:          "Bank name",
+			Address:       "Unknown",
+			AccountNumber: "0987654321",
+			Swift:         "TEST",
+			Details:       "",
+		},
+	}
+
+	cmres := &billingpb.ChangeMerchantResponse{}
+	err := suite.service.ChangeMerchant(context.TODO(), req, cmres)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), cmres.Status, billingpb.ResponseStatusOk)
+	rsp := cmres.Item
+	assert.True(suite.T(), len(rsp.Id) > 0)
+	assert.Equal(suite.T(), billingpb.MerchantStatusDraft, rsp.Status)
+	assert.Equal(suite.T(), req.Company.Website, rsp.Company.Website)
+	assert.Equal(suite.T(), req.Contacts.Authorized.Phone, rsp.Contacts.Authorized.Phone)
+	assert.Equal(suite.T(), req.Banking.AccountNumber, rsp.Banking.AccountNumber)
+	assert.NotZero(suite.T(), rsp.CentrifugoToken)
+
+	merchant, err := suite.service.merchantRepository.GetById(ctx, rsp.Id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), merchant)
+	assert.Equal(suite.T(), rsp.Status, merchant.Status)
+	assert.Equal(suite.T(), rsp.Contacts.Authorized.Phone, merchant.Contacts.Authorized.Phone)
+	assert.Equal(suite.T(), rsp.Banking.AccountNumber, merchant.Banking.AccountNumber)
+
+	merchant.Status = billingpb.MerchantStatusAgreementSigned
+	err = suite.service.merchantRepository.Update(ctx, merchant)
+	assert.NoError(suite.T(), err)
+
+	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
+	userRoleRepositoryMock.On("GetAdminUserByUserId", mock2.Anything, mock2.Anything).
+		Return(&billingpb.UserRole{Id: primitive.NewObjectID().Hex()}, nil)
+	suite.service.userRoleRepository = userRoleRepositoryMock
+
+	req.Id = merchant.Id
+	req.Contacts.Authorized.Name = "New Authorized Name"
+	err = suite.service.ChangeMerchant(context.TODO(), req, cmres)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.MerchantStatusAgreementSigned, cmres.Item.Status)
+	assert.Equal(suite.T(), req.Contacts.Authorized.Name, cmres.Item.Contacts.Authorized.Name)
+}
+
+func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_DontSwitchStatusToPendingForAdmin_Ok() {
+	req := &billingpb.OnboardingRequest{
+		User: &billingpb.MerchantUser{
+			Id:    primitive.NewObjectID().Hex(),
+			Email: "test@unit.test",
+		},
+		Company: &billingpb.MerchantCompanyInfo{
+			Name:               "merchant1",
+			AlternativeName:    "AlternativeName",
+			Website:            "Website",
+			Address:            "Address",
+			RegistrationNumber: "RegistrationNumber",
+			Country:            "RU",
+			Zip:                "190000",
+			City:               "St.Petersburg",
+		},
+		Contacts: &billingpb.MerchantContact{
+			Authorized: &billingpb.MerchantContactAuthorized{
+				Name:     "Unit Test",
+				Email:    "test@unit.test",
+				Phone:    "0987654321",
+				Position: "Unit Test",
+			},
+			Technical: &billingpb.MerchantContactTechnical{
+				Name:  "Unit Test",
+				Email: "test@unit.test",
+				Phone: "0987654321",
+			},
+		},
+		Banking: &billingpb.MerchantBanking{
+			Currency:      "RUB",
+			Name:          "Bank name",
+			Address:       "Unknown",
+			AccountNumber: "0987654321",
+			Swift:         "TEST",
+			Details:       "",
+		},
+	}
+
+	cmres := &billingpb.ChangeMerchantResponse{}
+	err := suite.service.ChangeMerchant(context.TODO(), req, cmres)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), cmres.Status, billingpb.ResponseStatusOk)
+	rsp := cmres.Item
+	assert.True(suite.T(), len(rsp.Id) > 0)
+	assert.Equal(suite.T(), billingpb.MerchantStatusDraft, rsp.Status)
+	assert.Equal(suite.T(), req.Company.Website, rsp.Company.Website)
+	assert.Equal(suite.T(), req.Contacts.Authorized.Phone, rsp.Contacts.Authorized.Phone)
+	assert.Equal(suite.T(), req.Banking.AccountNumber, rsp.Banking.AccountNumber)
+	assert.NotZero(suite.T(), rsp.CentrifugoToken)
+
+	merchant, err := suite.service.merchantRepository.GetById(ctx, rsp.Id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), merchant)
+	assert.Equal(suite.T(), rsp.Status, merchant.Status)
+	assert.Equal(suite.T(), rsp.Contacts.Authorized.Phone, merchant.Contacts.Authorized.Phone)
+	assert.Equal(suite.T(), rsp.Banking.AccountNumber, merchant.Banking.AccountNumber)
+
+	merchant.Steps = &billingpb.MerchantCompletedSteps{
+		Contacts: true,
+		Company:  true,
+		Banking:  true,
+		Tariff:   true,
+	}
+	err = suite.service.merchantRepository.Update(ctx, merchant)
+	assert.NoError(suite.T(), err)
+
+	userRoleRepositoryMock := &mocks.UserRoleRepositoryInterface{}
+	userRoleRepositoryMock.On("GetAdminUserByUserId", mock2.Anything, mock2.Anything).
+		Return(&billingpb.UserRole{Id: primitive.NewObjectID().Hex()}, nil)
+	suite.service.userRoleRepository = userRoleRepositoryMock
+
+	req.Id = merchant.Id
+	req.Contacts.Authorized.Name = "New Authorized Name"
+	err = suite.service.ChangeMerchant(context.TODO(), req, cmres)
+	assert.NoError(suite.T(), err)
+	assert.NotEqual(suite.T(), billingpb.MerchantStatusPending, cmres.Item.Status)
+	assert.Equal(suite.T(), merchant.Status, cmres.Item.Status)
 }
