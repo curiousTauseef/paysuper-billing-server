@@ -39,6 +39,9 @@ type AccountingEntryRepositoryInterface interface {
 	// FindBySource returns the account entries by source type and id.
 	FindBySource(context.Context, string, string) ([]*billingpb.AccountingEntry, error)
 
+	// FindBySource returns the account entries by source type and id.
+	DeleteBySource(context.Context, string, string) error
+
 	// FindByTypeCountryDates returns the account entries by type, country and dates.
 	FindByTypeCountryDates(context.Context, string, []string, time.Time, time.Time) ([]*billingpb.AccountingEntry, error)
 

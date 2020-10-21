@@ -4,6 +4,7 @@ import (
 	_ "github.com/micro/go-plugins/registry/kubernetes"
 	"github.com/paysuper/paysuper-billing-server/internal"
 	"go.uber.org/zap"
+	"strings"
 )
 
 func main() {
@@ -12,6 +13,8 @@ func main() {
 
 	task := app.CliArgs.Get("task").String("")
 	date := app.CliArgs.Get("date").String("")
+	orderId := app.CliArgs.Get("orderid").String("")
+	force := strings.ToLower(app.CliArgs.Get("force").String("")) == "true"
 
 	if task != "" {
 
@@ -54,6 +57,10 @@ func main() {
 
 		case "update_merchants_first_payment":
 			err = app.UpdateFirstPayments()
+			break
+
+		case "rebuild_accounting_entries":
+			err = app.TaskRebuildAccountingEntries(orderId, force)
 			break
 		}
 

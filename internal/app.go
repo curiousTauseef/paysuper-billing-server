@@ -150,6 +150,16 @@ func (app *Application) Init() {
 				Value: "",
 				Usage: "task context date, i.e. 2006-01-02T15:04:05Z07:00",
 			},
+			cli.StringFlag{
+				Name:  "orderid",
+				Value: "",
+				Usage: "selected order id",
+			},
+			cli.StringFlag{
+				Name:  "force",
+				Value: "",
+				Usage: "force rebuild accounting entries for order",
+			},
 		),
 	}
 
@@ -390,6 +400,9 @@ func (app *Application) TaskAutoCreatePayouts() error {
 
 func (app *Application) TaskRebuildOrderView() error {
 	return app.svc.RebuildOrderView(context.TODO())
+}
+func (app *Application) TaskRebuildAccountingEntries(orderId string, force bool) error {
+	return app.svc.RebuildAccountingEntries(context.TODO(), orderId, force)
 }
 
 func (app *Application) TaskMerchantsMigrate() error {

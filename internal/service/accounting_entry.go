@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -134,6 +135,7 @@ type accountingEntry struct {
 	refundOrder       *billingpb.Order
 	merchant          *billingpb.Merchant
 	country           *billingpb.Country
+	datetime          *timestamp.Timestamp
 	accountingEntries []*billingpb.AccountingEntry
 	req               *billingpb.CreateAccountingEntryRequest
 }
@@ -166,6 +168,7 @@ func (s *Service) CreateAccountingEntry(
 		}
 
 		handler.order = order
+		handler.datetime = order.PaymentMethodOrderClosedAt
 		countryCode = order.GetCountry()
 	}
 
@@ -198,6 +201,8 @@ func (s *Service) CreateAccountingEntry(
 		handler.order = order
 		handler.refund = refund
 		handler.refundOrder = refundOrder
+		handler.datetime = refundOrder.PaymentMethodOrderClosedAt
+
 		countryCode = order.GetCountry()
 	}
 
@@ -281,6 +286,7 @@ func (s *Service) onPaymentNotify(ctx context.Context, order *billingpb.Order) e
 		ctx:      ctx,
 		country:  country,
 		merchant: merchant,
+		datetime: order.PaymentMethodOrderClosedAt,
 	}
 
 	return s.processEvent(handler, accountingEventTypePayment)
@@ -316,6 +322,7 @@ func (s *Service) onRefundNotify(ctx context.Context, refund *billingpb.Refund, 
 		ctx:         ctx,
 		country:     country,
 		merchant:    merchant,
+		datetime:    refundOrder.PaymentMethodOrderClosedAt,
 	}
 
 	return s.processEvent(handler, accountingEventTypeRefund)
@@ -403,7 +410,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 
 	// 1. realGrossRevenue
 	realGrossRevenue := h.newEntry(pkg.AccountingEntryTypeRealGrossRevenue)
-	realGrossRevenue.Amount, err = h.GetExchangePsCurrentCommon(h.order.ChargeCurrency, h.order.ChargeAmount)
+	realGrossRevenue.Amount, err = h.GetExchangePsByDateCommon(h.order.ChargeCurrency, h.order.ChargeAmount)
 	if err != nil {
 		return err
 	}
@@ -416,7 +423,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 	// 2. realTaxFee
 	realTaxFee := h.newEntry(pkg.AccountingEntryTypeRealTaxFee)
 	orderTaxAmount := h.order.GetTaxAmountInChargeCurrency()
-	realTaxFee.Amount, err = h.GetExchangePsCurrentCommon(h.order.ChargeCurrency, orderTaxAmount)
+	realTaxFee.Amount, err = h.GetExchangePsByDateCommon(h.order.ChargeCurrency, orderTaxAmount)
 	if err != nil {
 		return err
 	}
@@ -438,7 +445,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 
 	// 5. psGrossRevenueFx
 	psGrossRevenueFx := h.newEntry(pkg.AccountingEntryTypePsGrossRevenueFx)
-	amount, err = h.GetExchangePsCurrentMerchant(h.order.ChargeCurrency, h.order.ChargeAmount)
+	amount, err = h.GetExchangePsByDateMerchant(h.order.ChargeCurrency, h.order.ChargeAmount)
 	if err != nil {
 		return err
 	}
@@ -472,11 +479,11 @@ func (h *accountingEntry) processPaymentEvent() error {
 	// 10. merchantTaxFeeCentralBankFx
 	merchantTaxFeeCentralBankFx := h.newEntry(pkg.AccountingEntryTypeMerchantTaxFeeCentralBankFx)
 	if h.country.VatEnabled {
-		amount, err = h.GetExchangeCbCurrentCommon(h.order.GetMerchantRoyaltyCurrency(), merchantTaxFeeCostValue.Amount)
+		amount, err = h.GetExchangeCbByDateCommon(h.order.GetMerchantRoyaltyCurrency(), merchantTaxFeeCostValue.Amount)
 		if err != nil {
 			return err
 		}
-		amount, err = h.GetExchangeStockCurrentCommon(h.country.GetVatCurrencyCode(), amount)
+		amount, err = h.GetExchangeStockByDateCommon(h.country.GetVatCurrencyCode(), amount)
 		if err != nil {
 			return err
 		}
@@ -530,7 +537,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 
 	// 16. merchantMethodFixedFee
 	merchantMethodFixedFee := h.newEntry(pkg.AccountingEntryTypeMerchantMethodFixedFee)
-	merchantMethodFixedFee.Amount, err = h.GetExchangePsCurrentMerchant(paymentChannelCostMerchant.MethodFixAmountCurrency, paymentChannelCostMerchant.MethodFixAmount)
+	merchantMethodFixedFee.Amount, err = h.GetExchangePsByDateMerchant(paymentChannelCostMerchant.MethodFixAmountCurrency, paymentChannelCostMerchant.MethodFixAmount)
 	if err != nil {
 		return err
 	}
@@ -541,7 +548,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 
 	// 17. realMerchantMethodFixedFee
 	realMerchantMethodFixedFee := h.newEntry(pkg.AccountingEntryTypeRealMerchantMethodFixedFee)
-	realMerchantMethodFixedFee.Amount, err = h.GetExchangePsCurrentCommon(paymentChannelCostMerchant.MethodFixAmountCurrency, paymentChannelCostMerchant.MethodFixAmount)
+	realMerchantMethodFixedFee.Amount, err = h.GetExchangePsByDateCommon(paymentChannelCostMerchant.MethodFixAmountCurrency, paymentChannelCostMerchant.MethodFixAmount)
 	if err != nil {
 		return err
 	}
@@ -555,7 +562,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 
 	// 19. realMerchantMethodFixedFeeCostValue
 	realMerchantMethodFixedFeeCostValue := h.newEntry(pkg.AccountingEntryTypeRealMerchantMethodFixedFeeCostValue)
-	realMerchantMethodFixedFeeCostValue.Amount, err = h.GetExchangePsCurrentCommon(paymentChannelCostSystem.FixAmountCurrency, paymentChannelCostSystem.FixAmount)
+	realMerchantMethodFixedFeeCostValue.Amount, err = h.GetExchangePsByDateCommon(paymentChannelCostSystem.FixAmountCurrency, paymentChannelCostSystem.FixAmount)
 	if err != nil {
 		return err
 	}
@@ -568,7 +575,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 
 	// 21. merchantPsFixedFee
 	merchantPsFixedFee := h.newEntry(pkg.AccountingEntryTypeMerchantPsFixedFee)
-	merchantPsFixedFee.Amount, err = h.GetExchangePsCurrentMerchant(paymentChannelCostMerchant.PsFixedFeeCurrency, paymentChannelCostMerchant.PsFixedFee)
+	merchantPsFixedFee.Amount, err = h.GetExchangePsByDateMerchant(paymentChannelCostMerchant.PsFixedFeeCurrency, paymentChannelCostMerchant.PsFixedFee)
 	if err != nil {
 		return err
 	}
@@ -578,7 +585,7 @@ func (h *accountingEntry) processPaymentEvent() error {
 
 	// 22. realMerchantPsFixedFee
 	realMerchantPsFixedFee := h.newEntry(pkg.AccountingEntryTypeRealMerchantPsFixedFee)
-	realMerchantPsFixedFee.Amount, err = h.GetExchangePsCurrentCommon(paymentChannelCostMerchant.PsFixedFeeCurrency, paymentChannelCostMerchant.PsFixedFee)
+	realMerchantPsFixedFee.Amount, err = h.GetExchangePsByDateCommon(paymentChannelCostMerchant.PsFixedFeeCurrency, paymentChannelCostMerchant.PsFixedFee)
 	if err != nil {
 		return err
 	}
@@ -654,7 +661,7 @@ func (h *accountingEntry) processRefundEvent() error {
 
 	// 1. realRefund
 	realRefund := h.newEntry(pkg.AccountingEntryTypeRealRefund)
-	realRefund.Amount, err = h.GetExchangePsCurrentCommon(h.refund.Currency, h.refund.Amount)
+	realRefund.Amount, err = h.GetExchangePsByDateCommon(h.refund.Currency, h.refund.Amount)
 	if err != nil {
 		return err
 	}
@@ -707,7 +714,7 @@ func (h *accountingEntry) processRefundEvent() error {
 
 	// 4. realRefundFixedFee
 	realRefundFixedFee := h.newEntry(pkg.AccountingEntryTypeRealRefundFixedFee)
-	realRefundFixedFee.Amount, err = h.GetExchangePsCurrentCommon(moneyBackCostSystem.FixAmountCurrency, moneyBackCostSystem.FixAmount)
+	realRefundFixedFee.Amount, err = h.GetExchangePsByDateCommon(moneyBackCostSystem.FixAmountCurrency, moneyBackCostSystem.FixAmount)
 	if err != nil {
 		return err
 	}
@@ -718,7 +725,7 @@ func (h *accountingEntry) processRefundEvent() error {
 
 	// 5. merchantRefund
 	merchantRefund := h.newEntry(pkg.AccountingEntryTypeMerchantRefund)
-	merchantRefund.Amount, err = h.GetExchangePsCurrentMerchant(h.refund.Currency, h.refund.Amount)
+	merchantRefund.Amount, err = h.GetExchangePsByDateMerchant(h.refund.Currency, h.refund.Amount)
 	if err != nil {
 		return err
 	}
@@ -747,13 +754,13 @@ func (h *accountingEntry) processRefundEvent() error {
 	if moneyBackCostMerchant.IsPaidByMerchant {
 
 		// 9. merchantRefundFixedFeeCostValue
-		merchantRefundFixedFeeCostValue.Amount, err = h.GetExchangePsCurrentCommon(moneyBackCostMerchant.FixAmountCurrency, moneyBackCostMerchant.FixAmount)
+		merchantRefundFixedFeeCostValue.Amount, err = h.GetExchangePsByDateCommon(moneyBackCostMerchant.FixAmountCurrency, moneyBackCostMerchant.FixAmount)
 		if err != nil {
 			return err
 		}
 
 		// 10. merchantRefundFixedFee
-		merchantRefundFixedFee.Amount, err = h.GetExchangePsCurrentMerchant(moneyBackCostMerchant.FixAmountCurrency, moneyBackCostMerchant.FixAmount)
+		merchantRefundFixedFee.Amount, err = h.GetExchangePsByDateMerchant(moneyBackCostMerchant.FixAmountCurrency, moneyBackCostMerchant.FixAmount)
 		if err != nil {
 			return err
 		}
@@ -826,11 +833,11 @@ func (h *accountingEntry) processRefundEvent() error {
 		// next getting Centralbank fx for restored value as difference between converted and restored values,
 		// and finally getting difference between old merchantTaxFeeCentralBankFx amount and calculated new.
 		amountVatRestored := tools.GetPercentPartFromAmount(merchantRefund.Amount, h.order.Tax.Rate)
-		amountVatCb, err := h.GetExchangeCbCurrentCommon(h.order.GetMerchantRoyaltyCurrency(), amountVatRestored)
+		amountVatCb, err := h.GetExchangeCbByDateCommon(h.order.GetMerchantRoyaltyCurrency(), amountVatRestored)
 		if err != nil {
 			return err
 		}
-		amountMerchantStock, err := h.GetExchangeStockCurrentCommon(h.country.GetVatCurrencyCode(), amountVatCb)
+		amountMerchantStock, err := h.GetExchangeStockByDateCommon(h.country.GetVatCurrencyCode(), amountVatCb)
 		if err != nil {
 			return err
 		}
@@ -863,13 +870,13 @@ func (h *accountingEntry) processRefundEvent() error {
 	return nil
 }
 
-func (h *accountingEntry) GetExchangePsCurrentCommon(from string, amount float64) (float64, error) {
+func (h *accountingEntry) GetExchangePsByDateCommon(from string, amount float64) (float64, error) {
 	to := h.order.GetMerchantRoyaltyCurrency()
 
 	if to == from {
 		return amount, nil
 	}
-	return h.GetExchangeCurrentCommon(&currenciespb.ExchangeCurrencyCurrentCommonRequest{
+	return h.GetExchangeByDateCommon(&currenciespb.ExchangeCurrencyByDateCommonRequest{
 		From:              from,
 		To:                to,
 		RateType:          currenciespb.RateTypePaysuper,
@@ -878,13 +885,13 @@ func (h *accountingEntry) GetExchangePsCurrentCommon(from string, amount float64
 	})
 }
 
-func (h *accountingEntry) GetExchangeStockCurrentCommon(from string, amount float64) (float64, error) {
+func (h *accountingEntry) GetExchangeStockByDateCommon(from string, amount float64) (float64, error) {
 	to := h.order.GetMerchantRoyaltyCurrency()
 
 	if to == from {
 		return amount, nil
 	}
-	return h.GetExchangeCurrentCommon(&currenciespb.ExchangeCurrencyCurrentCommonRequest{
+	return h.GetExchangeByDateCommon(&currenciespb.ExchangeCurrencyByDateCommonRequest{
 		From:              from,
 		To:                to,
 		RateType:          currenciespb.RateTypeStock,
@@ -893,14 +900,14 @@ func (h *accountingEntry) GetExchangeStockCurrentCommon(from string, amount floa
 	})
 }
 
-func (h *accountingEntry) GetExchangePsCurrentMerchant(from string, amount float64) (float64, error) {
+func (h *accountingEntry) GetExchangePsByDateMerchant(from string, amount float64) (float64, error) {
 	to := h.order.GetMerchantRoyaltyCurrency()
 
 	if to == from {
 		return amount, nil
 	}
 
-	return h.GetExchangeCurrentMerchant(&currenciespb.ExchangeCurrencyCurrentForMerchantRequest{
+	return h.GetExchangeByDateMerchant(&currenciespb.ExchangeCurrencyByDateForMerchantRequest{
 		From:     from,
 		To:       to,
 		RateType: currenciespb.RateTypePaysuper,
@@ -912,14 +919,14 @@ func (h *accountingEntry) GetExchangePsCurrentMerchant(from string, amount float
 	})
 }
 
-func (h *accountingEntry) GetExchangeCbCurrentCommon(from string, amount float64) (float64, error) {
+func (h *accountingEntry) GetExchangeCbByDateCommon(from string, amount float64) (float64, error) {
 	to := h.country.GetVatCurrencyCode()
 
 	if to == from {
 		return amount, nil
 	}
 
-	return h.GetExchangeCurrentCommon(&currenciespb.ExchangeCurrencyCurrentCommonRequest{
+	return h.GetExchangeByDateCommon(&currenciespb.ExchangeCurrencyByDateCommonRequest{
 		From:              from,
 		To:                to,
 		RateType:          currenciespb.RateTypeCentralbanks,
@@ -929,20 +936,22 @@ func (h *accountingEntry) GetExchangeCbCurrentCommon(from string, amount float64
 	})
 }
 
-func (h *accountingEntry) GetExchangeCurrentMerchant(req *currenciespb.ExchangeCurrencyCurrentForMerchantRequest) (float64, error) {
+func (h *accountingEntry) GetExchangeByDateMerchant(req *currenciespb.ExchangeCurrencyByDateForMerchantRequest) (float64, error) {
 
 	if req.Amount == 0 || req.From == req.To {
 		return req.Amount, nil
 	}
 
-	rsp, err := h.curService.ExchangeCurrencyCurrentForMerchant(h.ctx, req)
+	req.Datetime = h.datetime
+
+	rsp, err := h.curService.ExchangeCurrencyByDateForMerchant(h.ctx, req)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorGrpcServiceCallFailed,
 			zap.Error(err),
 			zap.String(errorFieldService, "CurrencyRatesService"),
-			zap.String(errorFieldMethod, "ExchangeCurrencyCurrentForMerchantRequest"),
+			zap.String(errorFieldMethod, "ExchangeCurrencyByDateForMerchantRequest"),
 			zap.Any(errorFieldRequest, req),
 			zap.Any(errorFieldEntrySource, h.order.Id),
 		)
@@ -953,20 +962,22 @@ func (h *accountingEntry) GetExchangeCurrentMerchant(req *currenciespb.ExchangeC
 	return rsp.ExchangedAmount, nil
 }
 
-func (h *accountingEntry) GetExchangeCurrentCommon(req *currenciespb.ExchangeCurrencyCurrentCommonRequest) (float64, error) {
+func (h *accountingEntry) GetExchangeByDateCommon(req *currenciespb.ExchangeCurrencyByDateCommonRequest) (float64, error) {
 
 	if req.Amount == 0 || req.From == req.To {
 		return req.Amount, nil
 	}
 
-	rsp, err := h.curService.ExchangeCurrencyCurrentCommon(h.ctx, req)
+	req.Datetime = h.datetime
+
+	rsp, err := h.curService.ExchangeCurrencyByDateCommon(h.ctx, req)
 
 	if err != nil {
 		zap.L().Error(
 			pkg.ErrorGrpcServiceCallFailed,
 			zap.Error(err),
 			zap.String(errorFieldService, "CurrencyRatesService"),
-			zap.String(errorFieldMethod, "ExchangeCurrencyCurrentCommon"),
+			zap.String(errorFieldMethod, "ExchangeCurrencyByDateCommon"),
 			zap.Any(errorFieldRequest, req),
 			zap.Any(errorFieldEntrySource, h.order.Id),
 		)
@@ -1020,7 +1031,7 @@ func (h *accountingEntry) addEntry(entry *billingpb.AccountingEntry) error {
 		if entry.LocalCurrency == entry.OriginalCurrency {
 			entry.LocalAmount = entry.OriginalAmount
 		} else {
-			req := &currenciespb.ExchangeCurrencyCurrentCommonRequest{
+			req := &currenciespb.ExchangeCurrencyByDateCommonRequest{
 				From:              entry.OriginalCurrency,
 				To:                entry.LocalCurrency,
 				RateType:          rateType,
@@ -1031,14 +1042,16 @@ func (h *accountingEntry) addEntry(entry *billingpb.AccountingEntry) error {
 
 			if req.Amount != 0 && req.From != req.To {
 
-				rsp, err := h.curService.ExchangeCurrencyCurrentCommon(h.ctx, req)
+				req.Datetime = h.datetime
+
+				rsp, err := h.curService.ExchangeCurrencyByDateCommon(h.ctx, req)
 
 				if err != nil {
 					zap.L().Error(
 						pkg.ErrorGrpcServiceCallFailed,
 						zap.Error(err),
 						zap.String(errorFieldService, "CurrencyRatesService"),
-						zap.String(errorFieldMethod, "ExchangeCurrencyCurrentCommon"),
+						zap.String(errorFieldMethod, "ExchangeCurrencyByDateCommon"),
 						zap.String(errorFieldEntry, entry.Type),
 						zap.Any(errorFieldRequest, req),
 						zap.Any(errorFieldEntrySource, entry.Source),
@@ -1492,4 +1505,56 @@ func (s *Service) exchangeCurrencyByDateCommon(ctx context.Context, req *currenc
 	}
 
 	return rsp.ExchangedAmount, nil
+}
+
+func (s *Service) RebuildAccountingEntries(ctx context.Context, orderId string, force bool) error {
+	if orderId == "" {
+		return errors.New("order_id is obligatory parameter")
+	}
+
+	zap.L().Info("start rebuilding accounting entries for order " + orderId)
+
+	order, err := s.getOrderById(ctx, orderId)
+
+	if err != nil {
+		zap.L().Error("getOrderById failed with error", zap.Error(err))
+		return err
+	}
+
+	if force {
+		zap.L().Info("force rebuld - delete old entries")
+		err = s.accountingRepository.DeleteBySource(ctx, orderId, order.Type)
+		if err != nil {
+			zap.L().Error("accountingRepository.DeleteBySource failed with error", zap.Error(err))
+			return err
+		}
+	}
+
+	switch order.Type {
+
+	case pkg.OrderTypeOrder:
+		err = s.onPaymentNotify(ctx, order)
+
+	case pkg.OrderTypeRefund:
+		refund, err := s.refundRepository.GetById(ctx, order.Refund.ReceiptNumber)
+
+		if err != nil {
+			zap.L().Error("rebuilding accounting entries failed with error", zap.Error(err))
+			return err
+		}
+
+		err = s.onRefundNotify(ctx, refund, order)
+
+	default:
+		err = errors.New("Unsupported order type")
+	}
+
+	if err != nil {
+		zap.L().Error("rebuilding accounting entries failed with error", zap.Error(err))
+		return err
+	}
+
+	zap.L().Info("rebuilding accounting entries successfully")
+
+	return nil
 }
