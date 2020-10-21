@@ -291,6 +291,7 @@ func (suite *TurnoversTestSuite) fillAccountingEntries(operatingCompanyId, count
 		refund:   nil,
 		merchant: nil,
 		country:  country,
+		datetime: ptypes.TimestampNow(),
 		req:      &billingpb.CreateAccountingEntryRequest{},
 	}
 

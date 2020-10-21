@@ -268,6 +268,39 @@ func (r *accountingEntryRepository) FindBySource(ctx context.Context, sourceId, 
 	return objs, nil
 }
 
+func (r *accountingEntryRepository) DeleteBySource(ctx context.Context, sourceId, sourceType string) error {
+	objId, err := primitive.ObjectIDFromHex(sourceId)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseInvalidObjectId,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
+			zap.String(pkg.ErrorDatabaseFieldQuery, sourceId),
+		)
+		return err
+	}
+
+	query := bson.M{
+		"source.id":   objId,
+		"source.type": sourceType,
+	}
+
+	_, err = r.db.Collection(collectionAccountingEntry).DeleteMany(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionAccountingEntry),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return err
+	}
+
+	return nil
+}
+
 func (r *accountingEntryRepository) GetByTypeWithTaxes(ctx context.Context, types []string) ([]*billingpb.AccountingEntry, error) {
 	query := bson.M{
 		"type":   bson.M{"$in": types},
