@@ -11,10 +11,6 @@ import (
 
 type RepositoryServiceOk struct{}
 
-func (r *RepositoryServiceOk) GetMerchantSubscriptions(ctx context.Context, in *recurringpb.GetMerchantSubscriptionsRequest, opts ...client.CallOption) (*recurringpb.GetMerchantSubscriptionsResponse, error) {
-	panic("implement me")
-}
-
 func (r *RepositoryServiceOk) AddSubscription(ctx context.Context, in *recurringpb.Subscription, opts ...client.CallOption) (*recurringpb.AddSubscriptionResponse, error) {
 	panic("implement me")
 }
@@ -39,10 +35,6 @@ func (r *RepositoryServiceOk) DeleteSubscription(ctx context.Context, in *recurr
 
 type RepositoryServiceEmpty struct{}
 
-func (r *RepositoryServiceEmpty) GetMerchantSubscriptions(ctx context.Context, in *recurringpb.GetMerchantSubscriptionsRequest, opts ...client.CallOption) (*recurringpb.GetMerchantSubscriptionsResponse, error) {
-	panic("implement me")
-}
-
 func (r *RepositoryServiceEmpty) AddSubscription(ctx context.Context, in *recurringpb.Subscription, opts ...client.CallOption) (*recurringpb.AddSubscriptionResponse, error) {
 	panic("implement me")
 }
@@ -64,10 +56,6 @@ func (r *RepositoryServiceEmpty) DeleteSubscription(ctx context.Context, in *rec
 }
 
 type RepositoryServiceError struct{}
-
-func (r *RepositoryServiceError) GetMerchantSubscriptions(ctx context.Context, in *recurringpb.GetMerchantSubscriptionsRequest, opts ...client.CallOption) (*recurringpb.GetMerchantSubscriptionsResponse, error) {
-	panic("implement me")
-}
 
 func (r *RepositoryServiceError) AddSubscription(ctx context.Context, in *recurringpb.Subscription, opts ...client.CallOption) (*recurringpb.AddSubscriptionResponse, error) {
 	panic("implement me")

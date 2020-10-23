@@ -60,6 +60,34 @@ func (_m *OrderViewRepositoryInterface) GetById(_a0 context.Context, _a1 string)
 	return r0, r1
 }
 
+// GetCountBy provides a mock function with given fields: ctx, filter, opts
+func (_m *OrderViewRepositoryInterface) GetCountBy(ctx context.Context, filter primitive.M, opts ...*options.CountOptions) (int64, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, filter)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 int64
+	if rf, ok := ret.Get(0).(func(context.Context, primitive.M, ...*options.CountOptions) int64); ok {
+		r0 = rf(ctx, filter, opts...)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, primitive.M, ...*options.CountOptions) error); ok {
+		r1 = rf(ctx, filter, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetManyBy provides a mock function with given fields: ctx, filter, opts
 func (_m *OrderViewRepositoryInterface) GetManyBy(ctx context.Context, filter primitive.M, opts ...*options.FindOptions) ([]*billingpb.OrderViewPrivate, error) {
 	_va := make([]interface{}, len(opts))
