@@ -86,6 +86,9 @@ To start app in console mode you must set `-task` flag in command line to one of
 - `vat_reports` - to update vat reports data. This task must be run every day, at the end of day.
 - `royalty_reports` - to build royalty reports for merchants. This task must be run once on a week.
 - `royalty_reports_accept` - to auto-accept toyalty reports. This task must be run daily.
+- `rebuild_accounting_entries` - to rebuild accounting entries and order view for passed orderid. Full command looks like, 
+for example, `-task=rebuild_accounting_entries -orderid=5f0d19a5eb851d9ee7935ffa -force=true` where -orderid is id of order, 
+and -force is flag to delete old accounting entries (if exists) and create new ones. 
 
 Notice: for `vat-reports` task you may pass an report date (from past only!) for that you need get an report. 
 Date passed as `date` parameter, in YYYY-MM-DD format 
@@ -158,3 +161,4 @@ PaySuper welcomes contributions from anyone and everyone. Please refer to [our c
 ## License
 
 The project is available as open source under the terms of the [GPL v3 License](https://www.gnu.org/licenses/gpl-3.0).
+

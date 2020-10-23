@@ -11,15 +11,13 @@ import (
 )
 
 const (
-	eurPriceinRub         = float64(72)
-	eurPriceInRubCb       = float64(72.5)
-	eurPriceInRubCbOnDate = float64(70)
-	eurPriceInRubStock    = float64(70.5)
+	eurPriceInRub      = float64(72)
+	eurPriceInRubCb    = float64(72.5)
+	eurPriceInRubStock = float64(70.5)
 
-	usdPriceInRub         = float64(65)
-	usdPriceInRubCb       = float64(65.5)
-	usdPriceInRubCbOnDate = float64(63)
-	usdPriceInRubStock    = float64(64)
+	usdPriceInRub      = float64(65)
+	usdPriceInRubCb    = float64(65.5)
+	usdPriceInRubStock = float64(64)
 
 	merchantMarkupValuePercent = float64(2)
 	commonMarkupValuePercent   = float64(0)
@@ -207,7 +205,7 @@ func (s *CurrencyServiceMockOk) exchangeCurrency(
 ) (*currenciespb.ExchangeCurrencyResponse, error) {
 
 	if in.From == "RUB" && in.To == "EUR" {
-		rate := tools.ToPrecise((1 / eurPriceinRub) / divider)
+		rate := tools.ToPrecise((1 / eurPriceInRub) / divider)
 		a := in.Amount * rate
 
 		return &currenciespb.ExchangeCurrencyResponse{
@@ -218,7 +216,7 @@ func (s *CurrencyServiceMockOk) exchangeCurrency(
 		}, nil
 	}
 	if in.From == "EUR" && in.To == "RUB" {
-		rate := tools.ToPrecise(eurPriceinRub / divider)
+		rate := tools.ToPrecise(eurPriceInRub / divider)
 		a := in.Amount * rate
 
 		return &currenciespb.ExchangeCurrencyResponse{
@@ -254,7 +252,7 @@ func (s *CurrencyServiceMockOk) exchangeCurrency(
 			}, nil
 		}
 
-		rate := tools.ToPrecise((usdPriceInRub / eurPriceinRub) / divider)
+		rate := tools.ToPrecise((usdPriceInRub / eurPriceInRub) / divider)
 		a := in.Amount * rate
 		return &currenciespb.ExchangeCurrencyResponse{
 			ExchangedAmount: tools.ToPrecise(a),
@@ -289,7 +287,7 @@ func (s *CurrencyServiceMockOk) exchangeCurrency(
 			}, nil
 		}
 
-		rate := tools.ToPrecise((eurPriceinRub / usdPriceInRub) / divider)
+		rate := tools.ToPrecise((eurPriceInRub / usdPriceInRub) / divider)
 		a := in.Amount * rate
 		return &currenciespb.ExchangeCurrencyResponse{
 			ExchangedAmount: tools.ToPrecise(a),
@@ -391,37 +389,32 @@ func (s *CurrencyServiceMockOk) ExchangeCurrencyByDateCommon(
 			ExchangedAmount: in.Amount * 10,
 		}, nil
 	}
-	if in.From == "EUR" && in.To == "RUB" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: in.Amount * eurPriceInRubCbOnDate,
-		}, nil
+
+	divider := float64(1)
+
+	if in.RateType == currenciespb.RateTypePaysuper || in.RateType == currenciespb.RateTypeStock {
+
+		switch in.ExchangeDirection {
+
+		case currenciespb.ExchangeDirectionSell:
+			divider = 1 - (commonMarkupValuePercent / 100)
+
+		case currenciespb.ExchangeDirectionBuy:
+			divider = 1 + (commonMarkupValuePercent / 100)
+		}
 	}
-	if in.From == "RUB" && in.To == "EUR" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: in.Amount * (1 / eurPriceInRubCbOnDate),
-		}, nil
+
+	newIn := &currenciespb.ExchangeCurrencyCurrentForMerchantRequest{
+		From:              in.From,
+		To:                in.To,
+		RateType:          in.RateType,
+		Source:            in.Source,
+		Amount:            in.Amount,
+		MerchantId:        "",
+		ExchangeDirection: in.ExchangeDirection,
 	}
-	if in.From == "USD" && in.To == "RUB" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: in.Amount * usdPriceInRubCbOnDate,
-		}, nil
-	}
-	if in.From == "RUB" && in.To == "USD" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: in.Amount * (1 / usdPriceInRubCbOnDate),
-		}, nil
-	}
-	if in.From == "USD" && in.To == "EUR" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: in.Amount * (usdPriceInRubCbOnDate / eurPriceInRubCbOnDate),
-		}, nil
-	}
-	if in.From == "EUR" && in.To == "USD" {
-		return &currenciespb.ExchangeCurrencyResponse{
-			ExchangedAmount: in.Amount * (eurPriceInRubCbOnDate / usdPriceInRubCbOnDate),
-		}, nil
-	}
-	return &currenciespb.ExchangeCurrencyResponse{}, nil
+
+	return s.exchangeCurrency(divider, newIn)
 }
 
 func (s *CurrencyServiceMockOk) ExchangeCurrencyByDateForMerchant(
@@ -429,7 +422,29 @@ func (s *CurrencyServiceMockOk) ExchangeCurrencyByDateForMerchant(
 	in *currenciespb.ExchangeCurrencyByDateForMerchantRequest,
 	opts ...client.CallOption,
 ) (*currenciespb.ExchangeCurrencyResponse, error) {
-	return &currenciespb.ExchangeCurrencyResponse{}, nil
+
+	divider := float64(1)
+
+	switch in.ExchangeDirection {
+
+	case currenciespb.ExchangeDirectionSell:
+		divider = 1 - (merchantMarkupValuePercent / 100)
+
+	case currenciespb.ExchangeDirectionBuy:
+		divider = 1 + (merchantMarkupValuePercent / 100)
+	}
+
+	req := &currenciespb.ExchangeCurrencyCurrentForMerchantRequest{
+		From:              in.From,
+		To:                in.To,
+		RateType:          in.RateType,
+		Source:            in.Source,
+		Amount:            in.Amount,
+		MerchantId:        in.MerchantId,
+		ExchangeDirection: in.ExchangeDirection,
+	}
+
+	return s.exchangeCurrency(divider, req)
 }
 
 func (s *CurrencyServiceMockOk) GetCommonRateCorrectionRule(

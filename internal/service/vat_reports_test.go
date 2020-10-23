@@ -342,7 +342,7 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	assert.EqualValues(suite.T(), 144.36, report.FeesAmount)
 	assert.EqualValues(suite.T(), 0, report.DeductionAmount)
 	assert.EqualValues(suite.T(), 600, report.CountryAnnualTurnover)
-	assert.EqualValues(suite.T(), 4393.9, report.WorldAnnualTurnover)
+	assert.EqualValues(suite.T(), 4502.88, report.WorldAnnualTurnover)
 	assert.Equal(suite.T(), pkg.VatReportStatusThreshold, report.Status)
 
 	err = suite.service.GetVatReportsForCountry(context.TODO(), &billingpb.VatReportsRequest{Country: "FI"}, &repRes)
@@ -360,8 +360,8 @@ func (suite *VatReportsTestSuite) TestVatReports_ProcessVatReports() {
 	assert.EqualValues(suite.T(), 9.03, report.VatAmount)
 	assert.EqualValues(suite.T(), 8.89, report.FeesAmount)
 	assert.EqualValues(suite.T(), 0, report.DeductionAmount)
-	assert.EqualValues(suite.T(), 54, report.CountryAnnualTurnover)
-	assert.EqualValues(suite.T(), 62.77, report.WorldAnnualTurnover)
+	assert.EqualValues(suite.T(), 54.2, report.CountryAnnualTurnover)
+	assert.EqualValues(suite.T(), 62.54, report.WorldAnnualTurnover)
 	assert.Equal(suite.T(), pkg.VatReportStatusThreshold, report.Status)
 
 	assert.NoError(suite.T(), err)
