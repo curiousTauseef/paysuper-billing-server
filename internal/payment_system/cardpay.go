@@ -1300,7 +1300,7 @@ func (h *cardPay) createRecurringSubscription(
 
 	if err != nil {
 		zap.L().Error(
-			"cardpay API: send recurring subscription request failed",
+			"cardpay API: send create recurring subscription request failed",
 			zap.Error(err),
 			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPayment].Method),
 			zap.Any(pkg.LogFieldOrder, order),
@@ -1312,7 +1312,7 @@ func (h *cardPay) createRecurringSubscription(
 
 	if resp.StatusCode != http.StatusOK {
 		zap.L().Error(
-			"recurring subscription response returned with bad http status",
+			"create recurring subscription response returned with bad http status",
 			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionRecurringPayment].Method),
 			zap.Any(pkg.LogFieldOrder, order),
 			zap.Any(pkg.LogFieldBody, data),
@@ -1380,7 +1380,7 @@ func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscripti
 func (h *cardPay) updateRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription, status string) error {
 	data := &CardPayRecurringSubscriptionUpdateRequest{
 		Request: &CardPayRequest{
-			Id:   subscription.CardpaySubscriptionId,
+			Id:   time.Now().UTC().Format(CardPayDateFormat),
 			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		Operation: "CHANGE_STATUS",
@@ -1408,11 +1408,12 @@ func (h *cardPay) updateRecurringSubscription(order *billingpb.Order, subscripti
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
 		zap.L().Error(
-			"recurring subscription response returned with bad http status",
+			"update recurring subscription response returned with bad http status",
 			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
 			zap.Any(pkg.LogFieldRequest, req),
+			zap.Any(pkg.LogFieldBody, data),
 			zap.Any(pkg.LogFieldOrder, order),
 		)
 		return paymentSystemErrorUpdateRecurringSubscriptionFailed

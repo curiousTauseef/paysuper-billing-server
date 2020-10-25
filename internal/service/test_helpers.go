@@ -1016,6 +1016,8 @@ func HelperPayOrder(
 
 	recurring := &recurringMocks.RepositoryService{}
 	recurring.On("AddSubscription", mock.Anything, mock.Anything).Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "subscription_id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
+	recurring.On("GetSubscription", mock.Anything, mock.Anything).Return(&recurringpb.GetSubscriptionResponse{Subscription: &recurringpb.Subscription{}, Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("FindSubscriptions", mock.Anything, mock.Anything).Return(&recurringpb.FindSubscriptionsResponse{List: []*recurringpb.Subscription{{Id: "id"}}}, nil)
 	service.rep = recurring
 
