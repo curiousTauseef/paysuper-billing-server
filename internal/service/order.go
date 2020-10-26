@@ -5151,11 +5151,12 @@ func (s *Service) addRecurringSubscription(
 			Email:      order.User.Email,
 			Phone:      order.User.Phone,
 		},
-		IsActive: false,
-		Period:   order.RecurringSettings.Period,
-		ExpireAt: tsExpireAt,
-		Amount:   order.ChargeAmount,
-		Currency: order.ChargeCurrency,
+		IsActive:    false,
+		Period:      order.RecurringSettings.Period,
+		ExpireAt:    tsExpireAt,
+		Amount:      order.ChargeAmount,
+		Currency:    order.ChargeCurrency,
+		ProjectName: order.Project.Name,
 	}
 
 	subscription.ItemType = order.ProductType
