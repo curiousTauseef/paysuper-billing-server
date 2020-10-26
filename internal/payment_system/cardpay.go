@@ -1380,7 +1380,7 @@ func (h *cardPay) DeleteRecurringSubscription(order *billingpb.Order, subscripti
 func (h *cardPay) updateRecurringSubscription(order *billingpb.Order, subscription *recurringpb.Subscription, status string) error {
 	data := &CardPayRecurringSubscriptionUpdateRequest{
 		Request: &CardPayRequest{
-			Id:   time.Now().UTC().Format(CardPayDateFormat),
+			Id:   subscription.CardpaySubscriptionId + time.Now().UTC().Format(CardPayDateFormat),
 			Time: time.Now().UTC().Format(CardPayDateFormat),
 		},
 		Operation: "CHANGE_STATUS",
@@ -1412,6 +1412,7 @@ func (h *cardPay) updateRecurringSubscription(order *billingpb.Order, subscripti
 		zap.L().Error(
 			"update recurring subscription response returned with bad http status",
 			zap.String("method", pkg.CardPayPaths[pkg.PaymentSystemActionUpdateRecurringSubscription].Method),
+			zap.Any("status", resp.StatusCode),
 			zap.Any(pkg.LogFieldRequest, req),
 			zap.Any(pkg.LogFieldBody, data),
 			zap.Any(pkg.LogFieldOrder, order),
