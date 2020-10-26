@@ -5776,7 +5776,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_WithRecurring_Ok() {
 			Email:      order.User.Email,
 			Phone:      order.User.Phone,
 		},
-		OrderId: order.Id,
+		OrderId:     order.Id,
+		ProjectName: suite.projectWithProducts.Name,
 	}).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
 	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
