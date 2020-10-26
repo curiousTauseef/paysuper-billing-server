@@ -137,6 +137,8 @@ var (
 	orderErrorRecurringDateEndOutOfRange                      = errors2.NewBillingServerErrorMsg("fm000084", "subscription period cannot be less than the selected period and more than one year")
 	orderErrorRecurringInvalidPeriod                          = errors2.NewBillingServerErrorMsg("fm000085", "recurring period subscription is invalid")
 	orderErrorRecurringSubscriptionNotFound                   = errors2.NewBillingServerErrorMsg("fm000086", "recurring subscription not found")
+	orderErrorRecurringUnableToAdd                            = errors2.NewBillingServerErrorMsg("fm000087", "unable to add recurring subscription")
+	orderErrorRecurringUnableToUpdate                         = errors2.NewBillingServerErrorMsg("fm000088", "unable to update recurring subscription")
 
 	virtualCurrencyPayoutCurrencyMissed = errors2.NewBillingServerErrorMsg("vc000001", "virtual currency don't have price in merchant payout currency")
 
@@ -943,10 +945,7 @@ func (s *Service) PaymentCreateProcess(
 
 	order := processor.checked.order
 
-	if decryptedBrowserCustomer.CustomerId == "" {
-		decryptedBrowserCustomer.CustomerId = order.User.Id
-	}
-
+	decryptedBrowserCustomer.CustomerId = order.User.Id
 	cookie, err := s.generateBrowserCookie(decryptedBrowserCustomer)
 
 	if err != nil {
@@ -1136,6 +1135,7 @@ func (s *Service) PaymentCreateProcess(
 		subscription, url, err = s.addRecurringSubscription(ctx, order, h, req.Data)
 
 		if err != nil {
+			fmt.Println(err)
 			if e, ok := err.(*billingpb.ResponseErrorMessage); ok {
 				rsp.Status = billingpb.ResponseStatusSystemError
 				rsp.Message = e
@@ -1406,6 +1406,7 @@ func (s *Service) PaymentCallbackProcess(
 
 				subscription.IsActive = true
 				subscription.LastPaymentAt = latestPayment
+				subscription.TotalAmount += subscription.Amount
 				updateRsp, err := s.rep.UpdateSubscription(ctx, subscription)
 
 				if err != nil || updateRsp.Status != billingpb.ResponseStatusOk {
@@ -5157,16 +5158,24 @@ func (s *Service) addRecurringSubscription(
 		Currency: order.ChargeCurrency,
 	}
 
-	switch order.ProductType {
-	case pkg.OrderType_product:
-		subscription.ItemType = pkg.OrderType_product
-		subscription.ItemList = order.Products
-		break
-	case pkg.OrderType_key:
-		subscription.ItemType = pkg.OrderType_key
-		subscription.ItemList = order.Keys
-		break
+	subscription.ItemType = order.ProductType
+
+	for _, item := range order.Items {
+		subscription.ItemList = append(subscription.ItemList, item.Id)
 	}
+
+	res, err := s.rep.AddSubscription(ctx, subscription)
+
+	if err != nil || res.Status != billingpb.ResponseStatusOk {
+		zap.L().Error(
+			"Unable to add recurring subscription",
+			zap.Error(err),
+			zap.Any("subscription", subscription),
+		)
+		return nil, "", orderErrorRecurringUnableToAdd
+	}
+
+	subscription.Id = res.SubscriptionId
 
 	url, err := h.CreateRecurringSubscription(
 		order,
@@ -5185,18 +5194,16 @@ func (s *Service) addRecurringSubscription(
 		return nil, "", err
 	}
 
-	res, err := s.rep.AddSubscription(ctx, subscription)
+	resUpdate, err := s.rep.UpdateSubscription(ctx, subscription)
 
-	if err != nil || res.Status != billingpb.ResponseStatusOk {
+	if err != nil || resUpdate.Status != billingpb.ResponseStatusOk {
 		zap.L().Error(
-			"Unable to add recurring subscription",
+			"Unable to update recurring subscription",
 			zap.Error(err),
 			zap.Any("subscription", subscription),
 		)
-		return nil, "", orderErrorUnknown
+		return nil, "", orderErrorRecurringUnableToUpdate
 	}
-
-	subscription.Id = res.SubscriptionId
 
 	return subscription, url, nil
 }

@@ -5779,6 +5779,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCreateProcess_WithRecurring_Ok() {
 		OrderId: order.Id,
 	}).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	suite.service.rep = recurring
 
 	err = suite.service.PaymentCreateProcess(context.TODO(), createPaymentRequest, rsp)
@@ -6357,6 +6359,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Ok() 
 	recurring := &recurringMocks.RepositoryService{}
 	recurring.On("AddSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("GetSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.GetSubscriptionResponse{
 			Status:       billingpb.ResponseStatusOk,
@@ -6524,6 +6528,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Recre
 	recurring := &recurringMocks.RepositoryService{}
 	recurring.On("AddSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("GetSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.GetSubscriptionResponse{
 			Status:       billingpb.ResponseStatusOk,
@@ -6688,6 +6694,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Error
 	recurring := &recurringMocks.RepositoryService{}
 	recurring.On("AddSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil).Once()
 	recurring.On("GetSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.GetSubscriptionResponse{
 			Status:       billingpb.ResponseStatusOk,
@@ -6857,6 +6865,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Delet
 	recurring := &recurringMocks.RepositoryService{}
 	recurring.On("AddSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("GetSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.GetSubscriptionResponse{
 			Status:       billingpb.ResponseStatusOk,
@@ -7019,6 +7029,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Delet
 	recurring := &recurringMocks.RepositoryService{}
 	recurring.On("AddSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("GetSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.GetSubscriptionResponse{
 			Status:       billingpb.ResponseStatusOk,
@@ -7165,6 +7177,8 @@ func (suite *OrderTestSuite) TestOrder_PaymentCallbackProcess_Subscription_Get_E
 	recurring := &recurringMocks.RepositoryService{}
 	recurring.On("AddSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusOk, SubscriptionId: "id"}, nil)
+	recurring.On("UpdateSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.UpdateSubscriptionResponse{Status: billingpb.ResponseStatusOk}, nil)
 	recurring.On("GetSubscription", mock.Anything, mock.Anything).
 		Return(&recurringpb.GetSubscriptionResponse{
 			Status: billingpb.ResponseStatusNotFound,
