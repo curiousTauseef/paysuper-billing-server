@@ -602,12 +602,65 @@ func (s *Service) SetMerchantOperatingCompany(
 		return nil
 	}
 
-	statusChange := &billingpb.SystemNotificationStatuses{From: merchant.Status, To: billingpb.MerchantStatusAccepted}
-
 	merchant.OperatingCompanyId = oc.Id
 	merchant.DontChargeVat = req.DontChargeVat
+	merchant.Status = billingpb.MerchantStatusOpCompanySelected
+	merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
+
+	err = s.merchantRepository.Update(ctx, merchant)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = merchantErrorUnknown
+
+		return nil
+	}
+
+	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Item = merchant
+
+	return nil
+}
+
+func (s *Service) SetMerchantAcceptedStatus(
+	ctx context.Context,
+	req *billingpb.SetMerchantAcceptedStatusRequest,
+	rsp *billingpb.SetMerchantAcceptedStatusResponse,
+) error {
+	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusNotFound
+		rsp.Message = merchantErrorNotFound
+
+		return nil
+	}
+
+	oc, err := s.operatingCompanyRepository.GetById(ctx, merchant.OperatingCompanyId)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = errorOperatingCompanyNotFound
+		return nil
+	}
+
+	if merchant.Status != billingpb.MerchantStatusOpCompanySelected {
+		rsp.Status = billingpb.ResponseStatusBadData
+		rsp.Message = merchantStatusChangeNotPossible
+		return nil
+	}
+
 	merchant.Status = billingpb.MerchantStatusAccepted
 	merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
+
+	err = s.merchantRepository.Update(ctx, merchant)
+
+	if err != nil {
+		rsp.Status = billingpb.ResponseStatusSystemError
+		rsp.Message = merchantErrorUnknown
+
+		return nil
+	}
 
 	message, ok := merchantStatusChangesMessages[merchant.Status]
 
@@ -618,20 +671,12 @@ func (s *Service) SetMerchantOperatingCompany(
 		return nil
 	}
 
+	statusChange := &billingpb.SystemNotificationStatuses{From: merchant.Status, To: billingpb.MerchantStatusAccepted}
 	_, err = s.addNotification(ctx, message, merchant.Id, "", statusChange)
 
 	if err != nil {
 		rsp.Status = billingpb.ResponseStatusSystemError
 		rsp.Message = err.(*billingpb.ResponseErrorMessage)
-
-		return nil
-	}
-
-	err = s.merchantRepository.Update(ctx, merchant)
-
-	if err != nil {
-		rsp.Status = billingpb.ResponseStatusSystemError
-		rsp.Message = merchantErrorUnknown
 
 		return nil
 	}
