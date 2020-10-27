@@ -35,6 +35,7 @@ func (r *RepositoryServiceOk) DeleteSubscription(ctx context.Context, in *recurr
 
 type RepositoryServiceEmpty struct{}
 
+
 func (r *RepositoryServiceEmpty) AddSubscription(ctx context.Context, in *recurringpb.Subscription, opts ...client.CallOption) (*recurringpb.AddSubscriptionResponse, error) {
 	panic("implement me")
 }
