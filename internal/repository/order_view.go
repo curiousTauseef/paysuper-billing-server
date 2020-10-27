@@ -912,8 +912,8 @@ func (r *orderViewRepository) GetTurnoverSummary(
 		"is_production":        true,
 		"type":                 pkg.OrderTypeOrder,
 		"status":               recurringpb.OrderPublicStatusProcessed,
-		"payment_gross_revenue_origin": bson.M{
-			"$ne": nil,
+		"payment_gross_revenue_origin.currency": bson.M{
+			"$ne": "",
 		},
 	}
 	if country != "" {

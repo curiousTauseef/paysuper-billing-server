@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -95,6 +96,9 @@ type MgoOrderViewPrivate struct {
 	OrderCharge                                *billingpb.OrderViewMoney                `bson:"order_charge"`
 	OrderChargeBeforeVat                       *billingpb.OrderViewMoney                `bson:"order_charge_before_vat"`
 	PaymentMethodTerminalId                    string                                   `bson:"payment_method_terminal_id"`
+	MetadataValues                             []string                                 `bson:"metadata_values"`
+	AmountBeforeVat                            float64                                  `bson:"amount_before_vat"`
+	RoyaltyReportId                            string                                   `bson:"royalty_report_id"`
 }
 
 type orderViewPrivateMapper struct{}
@@ -104,7 +108,258 @@ func NewOrderViewPrivateMapper() Mapper {
 }
 
 func (o *orderViewPrivateMapper) MapObjectToMgo(obj interface{}) (interface{}, error) {
-	panic("not supported")
+	in := obj.(*billingpb.OrderViewPrivate)
+
+	oid, err := primitive.ObjectIDFromHex(in.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	merchantOid, err := primitive.ObjectIDFromHex(in.MerchantId)
+	if err != nil {
+		return nil, err
+	}
+
+	projectOid, err := primitive.ObjectIDFromHex(in.Project.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &MgoOrderViewPrivate{
+		Id:                 oid,
+		Uuid:               in.Uuid,
+		TotalPaymentAmount: in.TotalPaymentAmount,
+		Currency:           in.Currency,
+		Project: &MgoOrderProject{
+			Id:                      projectOid,
+			MerchantId:              merchantOid,
+			UrlSuccess:              in.Project.UrlSuccess,
+			UrlFail:                 in.Project.UrlFail,
+			NotifyEmails:            in.Project.NotifyEmails,
+			SendNotifyEmail:         in.Project.SendNotifyEmail,
+			SecretKey:               in.Project.SecretKey,
+			UrlCheckAccount:         in.Project.UrlCheckAccount,
+			UrlProcessPayment:       in.Project.UrlProcessPayment,
+			CallbackProtocol:        in.Project.CallbackProtocol,
+			UrlChargebackPayment:    in.Project.UrlChargebackPayment,
+			UrlCancelPayment:        in.Project.UrlCancelPayment,
+			UrlRefundPayment:        in.Project.UrlRefundPayment,
+			UrlFraudPayment:         in.Project.UrlFraudPayment,
+			Status:                  in.Project.Status,
+			MerchantRoyaltyCurrency: in.Project.MerchantRoyaltyCurrency,
+			RedirectSettings:        in.Project.RedirectSettings,
+		},
+		Transaction:                                in.Transaction,
+		PaymentMethod:                              nil,
+		CountryCode:                                in.CountryCode,
+		MerchantId:                                 merchantOid,
+		Locale:                                     in.Locale,
+		Status:                                     in.Status,
+		User:                                       in.User,
+		BillingAddress:                             in.BillingAddress,
+		Type:                                       in.Type,
+		IsVatDeduction:                             in.IsVatDeduction,
+		PaymentGrossRevenueLocal:                   in.PaymentGrossRevenueLocal,
+		PaymentGrossRevenueOrigin:                  in.PaymentGrossRevenueOrigin,
+		PaymentGrossRevenue:                        in.PaymentGrossRevenue,
+		PaymentTaxFee:                              in.PaymentTaxFee,
+		PaymentTaxFeeLocal:                         in.PaymentTaxFeeLocal,
+		PaymentTaxFeeOrigin:                        in.PaymentTaxFeeOrigin,
+		PaymentTaxFeeCurrencyExchangeFee:           in.PaymentTaxFeeCurrencyExchangeFee,
+		PaymentTaxFeeTotal:                         in.PaymentTaxFeeTotal,
+		PaymentGrossRevenueFx:                      in.PaymentGrossRevenueFx,
+		PaymentGrossRevenueFxTaxFee:                in.PaymentGrossRevenueFxTaxFee,
+		PaymentGrossRevenueFxProfit:                in.PaymentGrossRevenueFxProfit,
+		GrossRevenue:                               in.GrossRevenue,
+		TaxFee:                                     in.TaxFee,
+		TaxFeeCurrencyExchangeFee:                  in.TaxFeeCurrencyExchangeFee,
+		TaxFeeTotal:                                in.TaxFeeTotal,
+		MethodFeeTotal:                             in.MethodFeeTotal,
+		MethodFeeTariff:                            in.MethodFeeTariff,
+		PaysuperMethodFeeTariffSelfCost:            in.PaysuperMethodFeeTariffSelfCost,
+		PaysuperMethodFeeProfit:                    in.PaysuperMethodFeeProfit,
+		MethodFixedFeeTariff:                       in.MethodFixedFeeTariff,
+		PaysuperMethodFixedFeeTariffFxProfit:       in.PaysuperMethodFixedFeeTariffFxProfit,
+		PaysuperMethodFixedFeeTariffSelfCost:       in.PaysuperMethodFixedFeeTariffSelfCost,
+		PaysuperMethodFixedFeeTariffTotalProfit:    in.PaysuperMethodFixedFeeTariffTotalProfit,
+		PaysuperFixedFee:                           in.PaysuperFixedFee,
+		PaysuperFixedFeeFxProfit:                   in.PaysuperFixedFeeFxProfit,
+		FeesTotal:                                  in.FeesTotal,
+		FeesTotalLocal:                             in.FeesTotalLocal,
+		NetRevenue:                                 in.NetRevenue,
+		PaysuperMethodTotalProfit:                  in.PaysuperMethodTotalProfit,
+		PaysuperTotalProfit:                        in.PaysuperTotalProfit,
+		PaymentRefundGrossRevenueLocal:             in.PaymentRefundGrossRevenueLocal,
+		PaymentRefundGrossRevenueOrigin:            in.PaymentRefundGrossRevenueOrigin,
+		PaymentRefundGrossRevenue:                  in.PaymentRefundGrossRevenue,
+		PaymentRefundTaxFee:                        in.PaymentRefundTaxFee,
+		PaymentRefundTaxFeeLocal:                   in.PaymentRefundTaxFeeLocal,
+		PaymentRefundTaxFeeOrigin:                  in.PaymentRefundTaxFeeOrigin,
+		PaymentRefundFeeTariff:                     in.PaymentRefundFeeTariff,
+		MethodRefundFixedFeeTariff:                 in.MethodRefundFixedFeeTariff,
+		RefundGrossRevenue:                         in.RefundGrossRevenue,
+		RefundGrossRevenueFx:                       in.RefundGrossRevenueFx,
+		MethodRefundFeeTariff:                      in.MethodRefundFeeTariff,
+		PaysuperMethodRefundFeeTariffProfit:        in.PaysuperMethodRefundFeeTariffProfit,
+		PaysuperMethodRefundFixedFeeTariffSelfCost: in.PaysuperMethodRefundFixedFeeTariffSelfCost,
+		MerchantRefundFixedFeeTariff:               in.MerchantRefundFixedFeeTariff,
+		PaysuperMethodRefundFixedFeeTariffProfit:   in.PaysuperMethodRefundFixedFeeTariffProfit,
+		RefundTaxFee:                               in.RefundTaxFee,
+		RefundTaxFeeCurrencyExchangeFee:            in.RefundTaxFeeCurrencyExchangeFee,
+		PaysuperRefundTaxFeeCurrencyExchangeFee:    in.PaysuperRefundTaxFeeCurrencyExchangeFee,
+		RefundTaxFeeTotal:                          in.RefundTaxFeeTotal,
+		RefundReverseRevenue:                       in.RefundReverseRevenue,
+		RefundFeesTotal:                            in.RefundFeesTotal,
+		RefundFeesTotalLocal:                       in.RefundFeesTotalLocal,
+		PaysuperRefundTotalProfit:                  in.PaysuperRefundTotalProfit,
+		Issuer:                                     in.Issuer,
+		MerchantPayoutCurrency:                     in.MerchantPayoutCurrency,
+		ParentOrder:                                in.ParentOrder,
+		Cancellation:                               in.Cancellation,
+		MccCode:                                    in.MccCode,
+		OperatingCompanyId:                         in.OperatingCompanyId,
+		IsHighRisk:                                 in.IsHighRisk,
+		RefundAllowed:                              in.RefundAllowed,
+		VatPayer:                                   in.VatPayer,
+		IsProduction:                               in.IsProduction,
+		TaxRate:                                    in.TaxRate,
+		MerchantInfo:                               in.MerchantInfo,
+		OrderCharge:                                in.OrderCharge,
+		OrderChargeBeforeVat:                       in.OrderChargeBeforeVat,
+		PaymentMethodTerminalId:                    in.PaymentMethodTerminalId,
+
+		MetadataValues:  in.MetadataValues,
+		AmountBeforeVat: in.AmountBeforeVat,
+		RoyaltyReportId: in.RoyaltyReportId,
+	}
+
+	out.MerchantId = merchantOid
+
+	if in.Project != nil && len(in.Project.Name) > 0 {
+		for k, v := range in.Project.Name {
+			out.Project.Name = append(out.Project.Name, &MgoMultiLang{Lang: k, Value: v})
+		}
+	}
+
+	if in.Project != nil && in.Project.FirstPaymentAt != nil {
+		out.Project.FirstPaymentAt, err = ptypes.Timestamp(in.Project.FirstPaymentAt)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if in.CreatedAt != nil {
+		t, err := ptypes.Timestamp(in.CreatedAt)
+
+		if err != nil {
+			return nil, err
+		}
+
+		out.CreatedAt = t
+	} else {
+		out.CreatedAt = time.Now()
+	}
+
+	if in.TransactionDate != nil {
+		t, err := ptypes.Timestamp(in.TransactionDate)
+
+		if err != nil {
+			return nil, err
+		}
+
+		out.TransactionDate = t
+	}
+
+	for _, v := range in.Items {
+		item := &MgoOrderItem{
+			Object:      v.Object,
+			Sku:         v.Sku,
+			Name:        v.Name,
+			Description: v.Description,
+			Amount:      v.Amount,
+			Currency:    v.Currency,
+			Images:      v.Images,
+			Url:         v.Url,
+			Metadata:    v.Metadata,
+			Code:        v.Code,
+			PlatformId:  v.PlatformId,
+		}
+
+		if len(v.Id) <= 0 {
+			item.Id = primitive.NewObjectID()
+		} else {
+			itemOid, err := primitive.ObjectIDFromHex(v.Id)
+
+			if err != nil {
+				return nil, errors.New(billingpb.ErrorInvalidObjectId)
+			}
+			item.Id = itemOid
+		}
+
+		item.CreatedAt, err = ptypes.Timestamp(v.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		item.UpdatedAt, err = ptypes.Timestamp(v.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, item)
+	}
+
+	if len(out.Items) == 0 {
+		out.Items = []*MgoOrderItem{}
+	}
+
+	if in.PaymentMethod != nil {
+		paymentMethodOid, err := primitive.ObjectIDFromHex(in.PaymentMethod.Id)
+
+		if err != nil {
+			return nil, err
+		}
+
+		paymentSystemOid, err := primitive.ObjectIDFromHex(in.PaymentMethod.PaymentSystemId)
+
+		if err != nil {
+			return nil, err
+		}
+
+		out.PaymentMethod = &MgoOrderPaymentMethod{
+			Id:               paymentMethodOid,
+			Name:             in.PaymentMethod.Name,
+			ExternalId:       in.PaymentMethod.ExternalId,
+			Params:           in.PaymentMethod.Params,
+			PaymentSystemId:  paymentSystemOid,
+			Group:            in.PaymentMethod.Group,
+			Saved:            in.PaymentMethod.Saved,
+			Handler:          in.PaymentMethod.Handler,
+			RefundAllowed:    in.PaymentMethod.RefundAllowed,
+			RecurringAllowed: in.PaymentMethod.RecurringAllowed,
+		}
+
+		if in.Refund != nil {
+			out.Refund = &MgoOrderNotificationRefund{
+				Amount:        in.Refund.Amount,
+				Currency:      in.Refund.Currency,
+				Reason:        in.Refund.Reason,
+				Code:          in.Refund.Code,
+				ReceiptNumber: in.Refund.ReceiptNumber,
+				ReceiptUrl:    in.Refund.ReceiptUrl,
+			}
+		}
+
+		if in.PaymentMethod.Card != nil {
+			out.PaymentMethod.Card = in.PaymentMethod.Card
+		}
+		if in.PaymentMethod.Wallet != nil {
+			out.PaymentMethod.Wallet = in.PaymentMethod.Wallet
+		}
+		if in.PaymentMethod.CryptoCurrency != nil {
+			out.PaymentMethod.CryptoCurrency = in.PaymentMethod.CryptoCurrency
+		}
+	}
+
+	return out, nil
 }
 
 func (o *orderViewPrivateMapper) MapMgoToObject(obj interface{}) (interface{}, error) {
