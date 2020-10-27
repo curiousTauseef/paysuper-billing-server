@@ -423,15 +423,9 @@ func (s *Service) FindSubscriptions(ctx context.Context, req *billingpb.FindSubs
 	reqFind := &recurringpb.FindSubscriptionsRequest{
 		MerchantId:  req.MerchantId,
 		CustomerId:  customerId,
-		MaskedPan:   req.QuickFilter,
 		QuickFilter: req.QuickFilter,
-		Customer: &recurringpb.CustomerInfo{
-			Email:      req.QuickFilter,
-			Phone:      req.QuickFilter,
-			ExternalId: req.QuickFilter,
-		},
-		Offset: req.Offset,
-		Limit:  req.Limit,
+		Offset:      req.Offset,
+		Limit:       req.Limit,
 	}
 	rsp1, err := s.rep.FindSubscriptions(ctx, reqFind)
 
