@@ -99,6 +99,8 @@ type MgoOrderViewPrivate struct {
 	MetadataValues                             []string                                 `bson:"metadata_values"`
 	AmountBeforeVat                            float64                                  `bson:"amount_before_vat"`
 	RoyaltyReportId                            string                                   `bson:"royalty_report_id"`
+	Recurring                                  bool                                     `bson:"recurring"`
+	RecurringId                                string                                   `bson:"recurring_id"`
 }
 
 type orderViewPrivateMapper struct{}
@@ -227,10 +229,11 @@ func (o *orderViewPrivateMapper) MapObjectToMgo(obj interface{}) (interface{}, e
 		OrderCharge:                                in.OrderCharge,
 		OrderChargeBeforeVat:                       in.OrderChargeBeforeVat,
 		PaymentMethodTerminalId:                    in.PaymentMethodTerminalId,
-
-		MetadataValues:  in.MetadataValues,
-		AmountBeforeVat: in.AmountBeforeVat,
-		RoyaltyReportId: in.RoyaltyReportId,
+		MetadataValues:                             in.MetadataValues,
+		AmountBeforeVat:                            in.AmountBeforeVat,
+		RoyaltyReportId:                            in.RoyaltyReportId,
+		Recurring:                                  in.Recurring,
+		RecurringId:                                in.RecurringId,
 	}
 
 	out.MerchantId = merchantOid
@@ -463,6 +466,8 @@ func (o *orderViewPrivateMapper) MapMgoToObject(obj interface{}) (interface{}, e
 	m.OrderCharge = decoded.OrderCharge
 	m.OrderChargeBeforeVat = decoded.OrderChargeBeforeVat
 	m.PaymentMethodTerminalId = decoded.PaymentMethodTerminalId
+	m.Recurring = decoded.Recurring
+	m.RecurringId = decoded.RecurringId
 
 	m.CreatedAt, err = ptypes.TimestampProto(decoded.CreatedAt)
 	if err != nil {
