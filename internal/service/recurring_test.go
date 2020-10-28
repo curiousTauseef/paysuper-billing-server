@@ -1151,10 +1151,6 @@ func (suite *RecurringTestSuite) TestOrder_FindSubscriptions_RemapRequestForFind
 		return input.MerchantId == req.MerchantId &&
 			input.CustomerId == customerId &&
 			input.QuickFilter == req.QuickFilter &&
-			input.MaskedPan == req.QuickFilter &&
-			input.Customer.Email == req.QuickFilter &&
-			input.Customer.Phone == req.QuickFilter &&
-			input.Customer.ExternalId == req.QuickFilter &&
 			input.Limit == req.Limit &&
 			input.Offset == req.Offset
 	})).

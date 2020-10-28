@@ -32,7 +32,7 @@ require (
 	github.com/paysuper/paysuper-proto/go/document_signerpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200406132246-777573b2beed
 	github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200622151400-1714a8ed580b
-	github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201027141513-5c5cace1f657
+	github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201027172411-89971d20ce48
 	github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20201019125705-8777e2a54d37
 	github.com/paysuper/paysuper-proto/go/taxpb v0.0.0-20200302133127-ba8bd156664b
 	github.com/paysuper/paysuper-tools v0.0.0-20200615100217-a4fcd1148ac0
