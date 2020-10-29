@@ -1,0 +1,21 @@
+[
+  {
+    "update": "order",
+    "updates": [
+      {
+        "q": {
+          "net_revenue": {
+            "$exists": true
+          }
+        },
+        "u": {
+          "$unset": {
+            "net_revenue": "",
+            "fee": ""
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]
