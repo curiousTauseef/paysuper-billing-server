@@ -701,6 +701,7 @@ func (s *Service) PayoutDocumentPdfUploaded(
 			"merchant_greeting":      merchant.GetOwnerName(),
 			"payouts_url":            s.cfg.GetPayoutsUrl(),
 			"operating_company_name": operatingCompany.Name,
+			"current_year":           time.Now().UTC().Format("2006"),
 		},
 		To: merchant.GetOwnerEmail(),
 		Attachments: []*postmarkpb.PayloadAttachment{
@@ -784,6 +785,7 @@ func (s *Service) PayoutFinanceDone(
 			"status":                 payout.Status,
 			"operating_company_name": req.OperatingCompanyName,
 			"payout_url":             s.cfg.GetSystemPayoutUrl(payout.Id),
+			"current_year":           time.Now().UTC().Format("2006"),
 		},
 		To: s.cfg.EmailNotificationFinancierRecipient,
 		Attachments: []*postmarkpb.PayloadAttachment{

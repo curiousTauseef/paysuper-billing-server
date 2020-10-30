@@ -1453,6 +1453,7 @@ func (s *Service) sendOnboardingLetter(
 			"merchant_agreement_sign_url":   s.cfg.GetMerchantCompanyUrl(),
 			"admin_company_url":             s.cfg.GetAdminCompanyUrl(merchant.Id),
 			"admin_onboarding_requests_url": s.cfg.GetAdminOnboardingRequestsUrl(),
+			"current_year":                  time.Now().UTC().Format("2006"),
 		},
 		To: recipientEmail,
 	}
@@ -1478,6 +1479,7 @@ func (s *Service) sendLicenseAgreementSignedEmail(merchant *billingpb.Merchant) 
 		TemplateAlias: s.cfg.MerchantAgreementSigned,
 		TemplateModel: map[string]string{
 			"agreement_url": s.cfg.GetMerchantCompanyUrl(),
+			"current_year":  time.Now().UTC().Format("2006"),
 		},
 		To: merchant.GetOwnerEmail(),
 	}

@@ -908,6 +908,7 @@ func (s *Service) RoyaltyReportPdfUploaded(
 			"royalty_reports_url":    s.cfg.GetRoyaltyReportsUrl(),
 			"royalty_report_url":     s.cfg.GetRoyaltyReportUrl(report.Id),
 			"operating_company_name": operatingCompany.Name,
+			"current_year":           time.Now().UTC().Format("2006"),
 		},
 		To: merchant.GetOwnerEmail(),
 		Attachments: []*postmarkpb.PayloadAttachment{
@@ -975,6 +976,7 @@ func (s *Service) sendRoyaltyReportNotification(ctx context.Context, report *bil
 				"status":              report.Status,
 				"merchant_greeting":   merchant.GetOwnerName(),
 				"royalty_reports_url": s.cfg.GetRoyaltyReportsUrl(),
+				"current_year":        time.Now().UTC().Format("2006"),
 			},
 			To: merchant.GetOwnerEmail(),
 		}
@@ -1100,6 +1102,7 @@ func (s *Service) royaltyReportChangedEmail(ctx context.Context, report *billing
 			"license_agreement":   merchant.AgreementNumber,
 			"merchant_greeting":   merchant.GetOwnerName(),
 			"royalty_reports_url": s.cfg.GetRoyaltyReportsUrl(),
+			"current_year":        time.Now().UTC().Format("2006"),
 		},
 		To: merchant.GetOwnerEmail(),
 	}
@@ -1185,6 +1188,7 @@ func (s *Service) RoyaltyReportFinanceDone(
 			"action":                 action,
 			"dispute_reason":         disputeReason,
 			"royalty_report_url":     s.cfg.GetRoyaltyReportAdminUrl(royaltyReport.Id),
+			"current_year":           time.Now().UTC().Format("2006"),
 		},
 		To:          s.cfg.EmailNotificationFinancierRecipient,
 		Attachments: attachments,
