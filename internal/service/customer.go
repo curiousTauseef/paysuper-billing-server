@@ -331,6 +331,9 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 			{"email": bson.M{"$regex": r, "$exists": true}},
 			{"phone": bson.M{"$regex": r, "$exists": true}},
 			{"address.city": bson.M{"$regex": r}},
+			{"address.country": bson.M{"$regex": r}},
+			{"name": bson.M{"$regex": r, "$exists": true}},
+			{"locale": bson.M{"$regex": r, "$exists": true}},
 		}
 	}
 
@@ -350,7 +353,7 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 		opts = opts.SetSkip(req.Offset)
 	}
 
-	customers, err := s.customerRepository.FindBy(ctx, query)
+	customers, err := s.customerRepository.FindBy(ctx, query, opts)
 	if err != nil {
 		zap.L().Error("can't get customers", zap.Error(err), zap.Any("req", req))
 		return err
