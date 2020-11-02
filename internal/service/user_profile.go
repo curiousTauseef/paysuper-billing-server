@@ -372,7 +372,8 @@ func (s *Service) sendUserEmailConfirmationToken(ctx context.Context, profile *b
 	payload := &postmarkpb.Payload{
 		TemplateAlias: s.cfg.EmailTemplates.ConfirmAccount,
 		TemplateModel: map[string]string{
-			"confirm_url": profile.Email.ConfirmationUrl,
+			"confirm_url":  profile.Email.ConfirmationUrl,
+			"current_year": time.Now().UTC().Format("2006"),
 		},
 		To: profile.Email.Email,
 	}
