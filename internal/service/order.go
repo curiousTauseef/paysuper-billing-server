@@ -2785,7 +2785,7 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 		dateEnd = inputDateEnd.UTC()
 	}
 
-	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), dateEnd.Hour(), dateEnd.Minute(), dateEnd.Second(), 0, dateEnd.Location())
+	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), 23, 59, 59, 0, dateEnd.Location())
 	currentTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, currentTime.Location())
 	delta := dateEnd.Sub(currentTime).Hours()
 
