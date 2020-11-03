@@ -121,6 +121,55 @@ func (s *Service) ListMerchants(
 	req *billingpb.MerchantListingRequest,
 	rsp *billingpb.MerchantListingResponse,
 ) error {
+	merchantList := &billingpb.ListMerchantsForAgreementResponse{}
+	err := s.ListMerchantsForAgreement(ctx, req, merchantList)
+
+	if err != nil {
+		return merchantErrorUnknown
+	}
+
+	var items = make([]*billingpb.MerchantShortInfo, len(merchantList.Items))
+
+	for i, item := range merchantList.Items {
+		balanceResponse := &billingpb.GetMerchantBalanceResponse{}
+		err = s.GetMerchantBalance(ctx, &billingpb.GetMerchantBalanceRequest{MerchantId: item.Id}, balanceResponse)
+
+		if err != nil {
+			return err
+		}
+
+		if balanceResponse.Status != billingpb.ResponseStatusOk {
+			zap.L().Error(
+				"Unable to get merchant balance",
+				zap.Error(balanceResponse.Message),
+				zap.String("merchant_id", item.Id),
+			)
+			return nil
+		}
+
+		items[i] = &billingpb.MerchantShortInfo{
+			Id:        item.Id,
+			Status:    item.Status,
+			CreatedAt: item.CreatedAt,
+			User:      item.User,
+			Contacts:  item.Contacts,
+			Banking:   item.Banking,
+			Company:   item.Company,
+			Balance:   balanceResponse.Item,
+		}
+	}
+
+	rsp.Count = merchantList.Count
+	rsp.Items = items
+
+	return nil
+}
+
+func (s *Service) ListMerchantsForAgreement(
+	ctx context.Context,
+	req *billingpb.MerchantListingRequest,
+	rsp *billingpb.ListMerchantsForAgreementResponse,
+) error {
 	var err error
 	query := make(bson.M)
 
