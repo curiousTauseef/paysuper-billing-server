@@ -278,7 +278,8 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 	if len(req.MerchantId) > 0 {
 		query["payment_activity"] = bson.M{
 			"$elemMatch": bson.M{
-				"merchant_id": req.MerchantId,
+				"merchant_id":   req.MerchantId,
+				"count.payment": bson.M{"$gt": 0},
 			},
 		}
 	}
