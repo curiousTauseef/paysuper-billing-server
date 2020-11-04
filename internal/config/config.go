@@ -82,8 +82,8 @@ type Config struct {
 	RoyaltyReportAcceptTimeout int64  `envconfig:"ROYALTY_REPORT_ACCEPT_TIMEZONE" default:"432000"`
 	// moved to config for testing purposes, to prevent royalty reports tests crash on mondays before 18:00
 	// must not be changed on normal app running, because it will broke royalty reports calculations
-	RoyaltyReportPeriodStart []int `envconfig:"Royalty_Report_Period_End" default:"0,0,0"`
-	RoyaltyReportPeriodEnd   []int `envconfig:"Royalty_Report_Period_End" default:"0,0,0"`
+	RoyaltyReportPeriodStart []int `envconfig:"ROYALTY_REPORT_PERIOD_START" default:"0,0,0"`
+	RoyaltyReportPeriodEnd   []int `envconfig:"ROYALTY_REPORT_PERIOD_END" default:"0,0,0"`
 
 	CentrifugoMerchantChannel  string `envconfig:"CENTRIFUGO_MERCHANT_CHANNEL" default:"paysuper:merchant#%s"`
 	CentrifugoFinancierChannel string `envconfig:"CENTRIFUGO_FINANCIER_CHANNEL" default:"paysuper:financier"`

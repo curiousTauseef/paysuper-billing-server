@@ -325,6 +325,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
 	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
 
+	to = to.Add(-1 * time.Millisecond)
+
 	reports, err := suite.service.royaltyReportRepository.GetByPeriod(context.TODO(), from, to)
 	assert.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), reports)
@@ -404,6 +406,8 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Selec
 	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
 	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
 	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
+
+	to = to.Add(-1 * time.Millisecond)
 
 	for _, v := range reports {
 		assert.NotZero(suite.T(), v.Id)

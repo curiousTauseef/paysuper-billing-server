@@ -401,8 +401,13 @@ func (app *Application) TaskAutoCreatePayouts() error {
 func (app *Application) TaskRebuildOrderView() error {
 	return app.svc.RebuildOrderView(context.TODO())
 }
+
 func (app *Application) TaskRebuildAccountingEntries(orderId string, force bool) error {
 	return app.svc.RebuildAccountingEntries(context.TODO(), orderId, force)
+}
+
+func (app *Application) TaskFixReportDates() error {
+	return app.svc.TaskFixReportDates(context.TODO())
 }
 
 func (app *Application) TaskMerchantsMigrate() error {
