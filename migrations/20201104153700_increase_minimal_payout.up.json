@@ -1,0 +1,44 @@
+[
+  {
+    "update": "merchant_tariffs_settings",
+    "updates": [
+      {
+        "q": {
+          "minimal_payout": {
+            "$exists": true
+          }
+        },
+        "u": {
+          "$set": {
+            "minimal_payout.EUR": 1000.0,
+            "minimal_payout.USD": 1000.0,
+            "minimal_payout.GBP": 1000.0,
+            "minimal_payout.RUB": 100000.0
+          }
+        },
+        "multi": true
+      }
+    ]
+  },
+  {
+    "update": "merchant",
+    "updates": [
+      {
+        "q": {
+          "tariff.minimal_payout": {
+            "$exists": true
+          }
+        },
+        "u": {
+          "$set": {
+            "tariff.minimal_payout.EUR": 1000.0,
+            "tariff.minimal_payout.USD": 1000.0,
+            "tariff.minimal_payout.GBP": 1000.0,
+            "tariff.minimal_payout.RUB": 100000.0
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]
