@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/repository"
 	"github.com/paysuper/paysuper-billing-server/internal/repository/models"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -239,11 +240,32 @@ func (s *Service) getOrdersList(
 		pmDates := make(bson.M)
 
 		if req.PmDateFrom != "" {
-			pmDates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.PmDateFrom)
+			date, err := time.Parse(billingpb.FilterDatetimeFormat, req.PmDateFrom)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, req.PmDateFrom),
+					zap.Error(err),
+				)
+				return 0, nil, err
+			}
+			pmDates["$gte"] = now.New(date).BeginningOfDay()
+
 		}
 
 		if req.PmDateTo != "" {
-			pmDates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.PmDateTo)
+			date, err := time.Parse(billingpb.FilterDatetimeFormat, req.PmDateTo)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, req.PmDateTo),
+					zap.Error(err),
+				)
+				return 0, nil, err
+			}
+			pmDates["$lte"] = now.New(date).EndOfDay()
 		}
 
 		if len(pmDates) > 0 {

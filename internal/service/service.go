@@ -7,6 +7,7 @@ import (
 	"github.com/ProtocolONE/geoip-service/pkg/proto"
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
@@ -398,7 +399,7 @@ func (s *Service) TaskFixReportDates(ctx context.Context) (err error) {
 			return err
 		}
 		if report.PeriodFrom.GetNanos() != 0 {
-			from = time.Date(from.Year(), from.Month(), from.Day(), from.Hour(), from.Minute(), from.Second(), 0, from.Location())
+			from = now.New(from).BeginningOfDay()
 			report.PeriodFrom, err = ptypes.TimestampProto(from)
 			if err != nil {
 				return err
@@ -411,7 +412,7 @@ func (s *Service) TaskFixReportDates(ctx context.Context) (err error) {
 			return err
 		}
 		if report.PeriodTo.GetNanos() == 0 {
-			to = to.Add(-1 * time.Millisecond)
+			to = now.New(to).EndOfDay()
 			report.PeriodTo, err = ptypes.TimestampProto(to)
 			if err != nil {
 				return err
