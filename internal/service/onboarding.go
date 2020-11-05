@@ -148,14 +148,16 @@ func (s *Service) ListMerchants(
 		}
 
 		items[i] = &billingpb.MerchantShortInfo{
-			Id:        item.Id,
-			Status:    item.Status,
-			CreatedAt: item.CreatedAt,
-			User:      item.User,
-			Contacts:  item.Contacts,
-			Banking:   item.Banking,
-			Company:   item.Company,
-			Balance:   balanceResponse.Item,
+			Id:                  item.Id,
+			Status:              item.Status,
+			StatusLastUpdatedAt: item.StatusLastUpdatedAt,
+			FirstPaymentAt:      item.FirstPaymentAt,
+			CreatedAt:           item.CreatedAt,
+			User:                item.User,
+			Contacts:            item.Contacts,
+			Banking:             item.Banking,
+			Company:             item.Company,
+			Balance:             balanceResponse.Item,
 		}
 	}
 
