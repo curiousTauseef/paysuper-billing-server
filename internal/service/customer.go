@@ -356,11 +356,9 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 
 	customers, err := s.customerRepository.FindBy(ctx, query, opts)
 	if err != nil {
-		zap.L().Error("can't get customers", zap.Error(err), zap.Any("req", req))
+		zap.L().Error("can't get customers", zap.Error(err), zap.Any("req", req), zap.Any("query", query))
 		return err
 	}
-
-	zap.L().Info("GetCustomerList", zap.Any("req", req), zap.Any("query", query), zap.Int("customers", len(customers)))
 
 	result := make([]*billingpb.ShortCustomerInfo, len(customers))
 	for i, customer := range customers {
@@ -392,12 +390,19 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 		result[i] = shortCustomer
 	}
 
+	count, err := s.customerRepository.CountBy(ctx, query)
+	if err != nil {
+		zap.L().Error("can't get customers count", zap.Error(err), zap.Any("req", req), zap.Any("query", query))
+		return err
+	}
+
 	if len(result) == 0 {
 		result = []*billingpb.ShortCustomerInfo{}
 	}
 
 	rsp.Items = result
 	rsp.Status = billingpb.ResponseStatusOk
+	rsp.Count = count
 
 	return nil
 }
