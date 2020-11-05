@@ -1,0 +1,32 @@
+[
+  {
+    "update": "royalty_report",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$set": {
+            "string_period_from": "",
+            "string_period_to": ""
+          }
+        },
+        "multi": true
+      }
+    ]
+  },
+  {
+    "update": "payout_documents",
+    "updates": [
+      {
+        "q": {},
+        "u": {
+          "$set": {
+            "string_period_from": "",
+            "string_period_to": ""
+          }
+        },
+        "multi": true
+      }
+    ]
+  }
+]

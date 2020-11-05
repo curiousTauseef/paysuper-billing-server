@@ -378,8 +378,9 @@ func (s *Service) updateVatReport(ctx context.Context, vr *billingpb.VatReport) 
 		payload := &postmarkpb.Payload{
 			TemplateAlias: s.cfg.EmailTemplates.VatReportChanged,
 			TemplateModel: map[string]string{
-				"country": vr.Country,
-				"status":  vr.Status,
+				"country":      vr.Country,
+				"status":       vr.Status,
+				"current_year": time.Now().UTC().Format("2006"),
 			},
 			To: s.cfg.EmailNotificationFinancierRecipient,
 		}

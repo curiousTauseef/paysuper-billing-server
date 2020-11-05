@@ -62,6 +62,10 @@ func main() {
 		case "rebuild_accounting_entries":
 			err = app.TaskRebuildAccountingEntries(orderId, force)
 			break
+
+		case "fix_reports_dates":
+			err = app.TaskFixReportDates()
+			break
 		}
 
 		if err != nil {

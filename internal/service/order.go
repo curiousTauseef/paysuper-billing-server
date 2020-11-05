@@ -2104,6 +2104,8 @@ func (s *Service) getPayloadForReceipt(ctx context.Context, order *billingpb.Ord
 		delete(templateModel, "platform")
 	}
 
+	templateModel["current_year"] = time.Now().UTC().Format("2006")
+
 	// pass subtotal row info as struct, for email template condition
 	var subTotal *structpb.Value
 	if receipt.TotalAmount != receipt.TotalCharge {
@@ -2200,6 +2202,7 @@ func (s *Service) sendMailWithCode(_ context.Context, order *billingpb.Order, ke
 					"activation_instruction_url": activationInstructionUrl,
 					"platform_name":              platformName,
 					"receipt_url":                order.ReceiptUrl,
+					"current_year":               time.Now().UTC().Format("2006"),
 				},
 				To: order.ReceiptEmail,
 			}
@@ -2782,7 +2785,7 @@ func (v *OrderCreateRequestProcessor) processRecurringSettings() (err error) {
 		dateEnd = inputDateEnd.UTC()
 	}
 
-	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), dateEnd.Hour(), dateEnd.Minute(), dateEnd.Second(), 0, dateEnd.Location())
+	dateEnd = time.Date(dateEnd.Year(), dateEnd.Month(), dateEnd.Day(), 23, 59, 59, 0, dateEnd.Location())
 	currentTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, currentTime.Location())
 	delta := dateEnd.Sub(currentTime).Hours()
 

@@ -1011,7 +1011,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_GetMerchantBy_IncorrectRequest_
 	assert.Nil(suite.T(), rsp.Item)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_EmptyQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_EmptyQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{}
 	rsp := &billingpb.MerchantListingResponse{}
 
@@ -1022,7 +1022,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_EmptyQuery_Ok() {
 	assert.Equal(suite.T(), suite.merchant.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_NameQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_NameQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		Name: "test",
 	}
@@ -1035,7 +1035,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_NameQuery_Ok() {
 	assert.Equal(suite.T(), suite.merchant.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_StatusesQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_StatusesQuery_Ok() {
 	req := &billingpb.OnboardingRequest{
 		User: &billingpb.MerchantUser{
 			Id:    primitive.NewObjectID().Hex(),
@@ -1167,7 +1167,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_StatusesQuery_Ok(
 	assert.EqualValues(suite.T(), int64(5), rsp1.Count)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_QuickSearchQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		QuickSearch: "test_agreement",
 	}
@@ -1180,7 +1180,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 	assert.Equal(suite.T(), suite.merchantAgreement.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateFromQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_PayoutDateFromQuery_Ok() {
 	date := time.Now().Add(time.Hour * -450)
 
 	req := &billingpb.MerchantListingRequest{
@@ -1195,7 +1195,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateFromQue
 	assert.Equal(suite.T(), suite.merchantAgreement.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateToQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_PayoutDateToQuery_Ok() {
 	date := time.Now()
 
 	req := &billingpb.MerchantListingRequest{
@@ -1210,7 +1210,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateToQuery
 	assert.Equal(suite.T(), suite.merchant.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateFromToQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_PayoutDateFromToQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		LastPayoutDateFrom: time.Now().Add(time.Hour * -500).Format(billingpb.FilterDatetimeFormat),
 		LastPayoutDateTo:   time.Now().Add(time.Hour * -400).Format(billingpb.FilterDatetimeFormat),
@@ -1224,7 +1224,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutDateFromToQ
 	assert.Equal(suite.T(), suite.merchant.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutAmountQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_PayoutAmountQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		LastPayoutAmount: 999999,
 	}
@@ -1237,7 +1237,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_PayoutAmountQuery
 	assert.Equal(suite.T(), suite.merchant.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_IsAgreementFalseQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_IsAgreementFalseQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		IsSigned: 1,
 	}
@@ -1250,7 +1250,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_IsAgreementFalseQ
 	assert.Equal(suite.T(), suite.merchant1.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_IsAgreementTrueQuery_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_IsAgreementTrueQuery_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		IsSigned: 2,
 	}
@@ -1263,7 +1263,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_IsAgreementTrueQu
 	assert.Equal(suite.T(), suite.merchant.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_Limit_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_Limit_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		Limit: 2,
 	}
@@ -1277,7 +1277,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_Limit_Ok() {
 	assert.Equal(suite.T(), suite.merchant.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_Offset_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_Offset_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		Offset: 1,
 	}
@@ -1291,7 +1291,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_Offset_Ok() {
 	assert.Equal(suite.T(), suite.merchantAgreement.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_Sort_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_Sort_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		Limit: 2,
 		Sort:  []string{"-_id"},
@@ -1306,7 +1306,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_Sort_Ok() {
 	assert.Equal(suite.T(), suite.merchant1.Id, rsp.Items[0].Id)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_EmptyResult_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_EmptyResult_Ok() {
 	req := &billingpb.MerchantListingRequest{
 		Name: primitive.NewObjectID().Hex(),
 	}
@@ -3077,7 +3077,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ChangeMerchant_NewMerchant_With
 	assert.NotZero(suite.T(), rsp1.Item.Banking.Currency)
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_UserFirstNameLastName_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_QuickSearchQuery_UserFirstNameLastName_Ok() {
 	lastName := "LastName"
 
 	req := &billingpb.UserProfile{
@@ -3143,7 +3143,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 	assert.Len(suite.T(), rsp2.Items, int(rsp2.Count))
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_UserRegistrationDate_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_QuickSearchQuery_UserRegistrationDate_Ok() {
 	req := &billingpb.OnboardingRequest{
 		User: &billingpb.MerchantUser{},
 		Company: &billingpb.MerchantCompanyInfo{
@@ -3195,7 +3195,7 @@ func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_
 	assert.Len(suite.T(), rsp2.Items, int(rsp2.Count))
 }
 
-func (suite *OnboardingTestSuite) TestOnboarding_ListMerchants_QuickSearchQuery_ReceivedDateFrom_Ok() {
+func (suite *OnboardingTestSuite) TestOnboarding_ListMerchantsForAgreement_QuickSearchQuery_ReceivedDateFrom_Ok() {
 	req := &billingpb.OnboardingRequest{
 		User: &billingpb.MerchantUser{},
 		Company: &billingpb.MerchantCompanyInfo{

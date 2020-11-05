@@ -454,8 +454,10 @@ github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c/go.mod h1:X07ZCGwU
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b h1:X4JLXz47Uzl2jM0jegSGv/SVKzWZ491lTRA9mIgiMyU=
 github.com/paysuper/paysuper-i18n v0.0.0-20190926113224-7eaca4563c7b/go.mod h1:ylOwG4lTgHfMviuc16JFhbchWF8aBAGEuoGEX6HSOTE=
-github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201027141513-5c5cace1f657 h1:hC6qInnpN1l1d9lFUbl978TSg3P78usZERb0E7HlCO8=
-github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201027141513-5c5cace1f657/go.mod h1:nzAuryXupP6jYt4glcwc+kquCT2QjwGd+JeW/DdANC4=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201103123855-2a43825fd8e1 h1:IUxCNR40MnIEbMFZPOep58ocmybsLzGJYkhnM1NZoik=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201103123855-2a43825fd8e1/go.mod h1:nzAuryXupP6jYt4glcwc+kquCT2QjwGd+JeW/DdANC4=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201104155539-ad38005741aa h1:t4q3Y27qEtIxdGI2Xmx++5HshdfcNGjXWPMBfeN2UY4=
+github.com/paysuper/paysuper-proto/go/billingpb v0.0.0-20201104155539-ad38005741aa/go.mod h1:nzAuryXupP6jYt4glcwc+kquCT2QjwGd+JeW/DdANC4=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b h1:s61VyrEMY6uw95yLCIoL5addjUbEyQ8mFpc33dDG/6w=
 github.com/paysuper/paysuper-proto/go/casbinpb v0.0.0-20200302133127-ba8bd156664b/go.mod h1:sdQKpEC56et7ND0Otfqwf2HZAMsIm+5NkznUaC4HSqk=
 github.com/paysuper/paysuper-proto/go/currenciespb v0.0.0-20200831113431-b8d2b94f7600 h1:8yt8sNVRpvezeH/Z6NJPhjdKk8SpFvkqvnnO+JYADWo=
@@ -467,8 +469,6 @@ github.com/paysuper/paysuper-proto/go/notifierpb v0.0.0-20200406132246-777573b2b
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200622151400-1714a8ed580b h1:Ezchi6AvyiHRgtvBbA472kcpe4f4KjoYKZu5j7+Xk0Q=
 github.com/paysuper/paysuper-proto/go/postmarkpb v0.0.0-20200622151400-1714a8ed580b/go.mod h1:c3rl5iNgrvw2lNceLDBMvBuKR54pSs7MsNYqpl70pts=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20200302121221-60194355f1cc/go.mod h1:u48GCpSgBmO9VhSSRiAzv3dReqvB7pKjFmFHkvpB8wM=
-github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201027141513-5c5cace1f657 h1:PFzZECpZ6NDvUbqfKEAbSqp9fRZ4p1bgy0r421c6x0w=
-github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201027141513-5c5cace1f657/go.mod h1:U5OOpXvY31QrRsI1gnoMcC7Q4vvyt2SXvXzdIpdDrAo=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201027172411-89971d20ce48 h1:ix/ww1CzWmY/AGuqyCMMhZQxCpVFF48l3YLN3LipO7Y=
 github.com/paysuper/paysuper-proto/go/recurringpb v0.0.0-20201027172411-89971d20ce48/go.mod h1:U5OOpXvY31QrRsI1gnoMcC7Q4vvyt2SXvXzdIpdDrAo=
 github.com/paysuper/paysuper-proto/go/reporterpb v0.0.0-20201019125705-8777e2a54d37 h1:hvVX3ksAmFPny3IZ1NynEf2NWJj0bhPD7MpTtscOq5A=

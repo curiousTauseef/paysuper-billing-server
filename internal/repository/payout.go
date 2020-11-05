@@ -260,6 +260,7 @@ func (r *payoutRepository) GetBalanceAmount(ctx context.Context, merchantId, cur
 	payoutDocumentStatusActive := []string{
 		pkg.PayoutDocumentStatusPending,
 		pkg.PayoutDocumentStatusPaid,
+		pkg.PayoutDocumentStatusSkip,
 	}
 	query := []bson.M{
 		{

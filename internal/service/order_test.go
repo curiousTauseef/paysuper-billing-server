@@ -4040,7 +4040,7 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 	paymentMethod.RecurringAllowed = true
 	_ = suite.service.paymentMethodRepository.Update(context.TODO(), paymentMethod)
 
-	dateEnd := time.Now().UTC().AddDate(0, 0, 30).Format(billingpb.FilterDateFormat)
+	dateEnd := time.Now().UTC().AddDate(0, 0, 27).Format(billingpb.FilterDateFormat)
 
 	req := &billingpb.OrderCreateRequest{
 		Type:          pkg.OrderType_simple,
@@ -4091,11 +4091,17 @@ func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_Merc
 		RecurringDateEnd: dateEnd,
 	}
 
+	recurring := &recurringMocks.RepositoryService{}
+	recurring.On("AddSubscription", mock.Anything, mock.Anything).
+		Return(&recurringpb.AddSubscriptionResponse{Status: billingpb.ResponseStatusSystemError}, nil)
+	suite.service.rep = recurring
+
 	rsp := &billingpb.OrderCreateProcessResponse{}
 	err := suite.service.OrderCreateProcess(context.TODO(), req, rsp)
 
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, rsp.Status)
+	fmt.Println(rsp.Message)
 }
 
 func (suite *OrderTestSuite) TestOrder_OrderCreateProcess_RecurringSettings_MerchantDateEnd_MaxMonthLimit_Error() {

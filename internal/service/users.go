@@ -672,6 +672,7 @@ func (s *Service) sendInviteEmail(
 			"sender_company":    senderCompany,
 			"invite_link":       s.cfg.GetUserInviteUrl(token),
 			"role_name":         roleName,
+			"current_year":      time.Now().UTC().Format("2006"),
 		},
 		To: receiverEmail,
 	}

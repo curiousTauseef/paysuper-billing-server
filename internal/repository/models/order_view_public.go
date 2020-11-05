@@ -66,6 +66,9 @@ type MgoOrderViewPublic struct {
 	MerchantInfo                            *billingpb.OrderViewMerchantInfo         `bson:"merchant_info"`
 	Recurring                               bool                                     `bson:"recurring"`
 	RecurringId                             string                                   `bson:"recurring_id"`
+	PaymentGrossRevenue                     *billingpb.OrderViewMoney                `bson:"payment_gross_revenue"`
+	PaymentRefundGrossRevenue               *billingpb.OrderViewMoney                `bson:"payment_refund_gross_revenue"`
+	RefundTaxFeeTotal                       *billingpb.OrderViewMoney                `bson:"refund_tax_fee_total"`
 }
 
 func NewOrderViewPublicMapper() Mapper {
@@ -144,6 +147,10 @@ func (o *orderViewPublicMapper) MapMgoToObject(obj interface{}) (interface{}, er
 	m.MerchantInfo = decoded.MerchantInfo
 	m.Recurring = decoded.Recurring
 	m.RecurringId = decoded.RecurringId
+
+	m.PaymentGrossRevenue = getOrderViewMoney(decoded.PaymentGrossRevenue)
+	m.PaymentRefundGrossRevenue = getOrderViewMoney(decoded.PaymentRefundGrossRevenue)
+	m.RefundTaxFeeTotal = getOrderViewMoney(decoded.RefundTaxFeeTotal)
 
 	m.CreatedAt, err = ptypes.TimestampProto(decoded.CreatedAt)
 	if err != nil {
