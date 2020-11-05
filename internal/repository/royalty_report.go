@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
@@ -399,11 +400,31 @@ func (r *royaltyReportRepository) FindByMerchantStatusDates(
 		date := bson.M{}
 
 		if dateFrom != "" {
-			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
+			t, err := time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, dateFrom),
+					zap.Error(err),
+				)
+				return nil, err
+			}
+			date["$gte"] = now.New(t).BeginningOfDay()
 		}
 
 		if dateTo != "" {
-			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
+			t, err := time.Parse(billingpb.FilterDatetimeFormat, dateTo)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, dateTo),
+					zap.Error(err),
+				)
+				return nil, err
+			}
+			date["$lte"] = now.New(t).EndOfDay()
 		}
 
 		query["created_at"] = date
@@ -483,11 +504,31 @@ func (r *royaltyReportRepository) FindCountByMerchantStatusDates(
 		date := bson.M{}
 
 		if dateFrom != "" {
-			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
+			t, err := time.Parse(billingpb.FilterDatetimeFormat, dateFrom)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, dateFrom),
+					zap.Error(err),
+				)
+				return 0, err
+			}
+			date["$gte"] = now.New(t).BeginningOfDay()
 		}
 
 		if dateTo != "" {
-			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, dateTo)
+			t, err := time.Parse(billingpb.FilterDatetimeFormat, dateTo)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, dateTo),
+					zap.Error(err),
+				)
+				return 0, err
+			}
+			date["$lte"] = now.New(t).EndOfDay()
 		}
 
 		query["created_at"] = date

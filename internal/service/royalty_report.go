@@ -44,7 +44,6 @@ var (
 	royaltyReportErrorCorrectionReasonRequired        = errors.NewBillingServerErrorMsg("rr00003", "correction reason required")
 	royaltyReportEntryErrorUnknown                    = errors.NewBillingServerErrorMsg("rr00004", "unknown error. try request later")
 	royaltyReportUpdateBalanceError                   = errors.NewBillingServerErrorMsg("rr00005", "update balance failed")
-	royaltyReportErrorEndOfPeriodIsInFuture           = errors.NewBillingServerErrorMsg("rr00006", "end of royalty report period is in future")
 	royaltyReportErrorTimezoneIncorrect               = errors.NewBillingServerErrorMsg("rr00007", "incorrect time zone")
 	royaltyReportErrorAlreadyExistsAndCannotBeUpdated = errors.NewBillingServerErrorMsg("rr00008", "report for this merchant and period already exists and can not be updated")
 	royaltyReportErrorCorrectionAmountRequired        = errors.NewBillingServerErrorMsg("rr00009", "correction amount required and must be not zero")
@@ -79,20 +78,11 @@ func (s *Service) CreateRoyaltyReport(
 		return royaltyReportErrorTimezoneIncorrect
 	}
 
-	tEnd := s.cfg.RoyaltyReportPeriodEnd
-	to := now.Monday().In(loc)
-	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
-
-	if to.After(time.Now().In(loc)) {
-		return royaltyReportErrorEndOfPeriodIsInFuture
-	}
-
-	tEnd = s.cfg.RoyaltyReportPeriodStart
-	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
-	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
-
 	// prevent to include next day into date - PAY-37849
-	to = to.Add(-1 * time.Millisecond)
+	to := now.Monday().Add(-1 * time.Nanosecond).In(loc)
+
+	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Nanosecond).In(loc)
+	from = now.New(from).BeginningOfDay()
 
 	var merchants []*pkg2.RoyaltyReportMerchant
 

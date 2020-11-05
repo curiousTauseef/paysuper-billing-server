@@ -721,10 +721,13 @@ func (suite *ReportTestSuite) TestReport_FindByRoyaltyReportId_Ok() {
 		_ = HelperCreateAndPayOrder(suite.Suite, suite.service, 555.55, "RUB", "RU", suite.project, suite.pmBankCard, suite.cookie)
 	}
 
+	datePast := now.Monday().Add(-1 * time.Hour)
+	diff := datePast.Sub(time.Now())
+
 	res, err := suite.service.db.Collection(repository.CollectionOrder).UpdateMany(
 		context.TODO(),
 		bson.M{},
-		bson.M{"$set": bson.M{"pm_order_close_date": time.Now().Add(-3 * time.Hour).Add(-10 * time.Minute)}},
+		bson.M{"$set": bson.M{"pm_order_close_date": time.Now().Add(diff)}},
 	)
 	assert.NoError(suite.T(), err)
 	assert.EqualValues(suite.T(), expectedCount, res.MatchedCount)
@@ -741,11 +744,6 @@ func (suite *ReportTestSuite) TestReport_FindByRoyaltyReportId_Ok() {
 	postmarkBrokerMock.On("Publish", postmarkpb.PostmarkSenderTopicName, mock.Anything, mock.Anything).Return(nil, nil)
 	suite.service.postmarkBroker = postmarkBrokerMock
 
-	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
-	assert.NoError(suite.T(), err)
-	t := time.Now().Unix() - now.Monday().In(loc).Unix()
-
-	suite.service.cfg.RoyaltyReportPeriodEnd = []int{0, 0, int(t)}
 	req1 := &billingpb.CreateRoyaltyReportRequest{}
 	rsp1 := &billingpb.CreateRoyaltyReportRequest{}
 	err = suite.service.CreateRoyaltyReport(context.TODO(), req1, rsp1)
