@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
 	pkg2 "github.com/paysuper/paysuper-billing-server/internal/pkg"
@@ -628,11 +629,31 @@ func (r *payoutRepository) getFindFilter(in *billingpb.GetPayoutDocumentsRequest
 		date := bson.M{}
 
 		if in.DateFrom != "" {
-			date["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, in.DateFrom)
+			t, err := time.Parse(billingpb.FilterDatetimeFormat, in.DateFrom)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, in.DateFrom),
+					zap.Error(err),
+				)
+				return nil, err
+			}
+			date["$gte"] = now.New(t).BeginningOfDay()
 		}
 
 		if in.DateTo != "" {
-			date["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, in.DateTo)
+			t, err := time.Parse(billingpb.FilterDatetimeFormat, in.DateTo)
+			if err != nil {
+				zap.L().Error(
+					pkg.ErrorTimeConversion,
+					zap.Any(pkg.ErrorTimeConversionMethod, "time.Parse"),
+					zap.Any(pkg.ErrorTimeConversionValue, in.DateTo),
+					zap.Error(err),
+				)
+				return nil, err
+			}
+			date["$lte"] = now.New(t).EndOfDay()
 		}
 
 		filter["created_at"] = date

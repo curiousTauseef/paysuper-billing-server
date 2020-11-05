@@ -72,7 +72,6 @@ func (suite *RoyaltyReportTestSuite) SetupTest() {
 	if err != nil {
 		suite.FailNow("Config load failed", "%v", err)
 	}
-	cfg.RoyaltyReportPeriodEnd = []int{time.Now().Hour(), 0, 0}
 	cfg.CardPayApiUrl = "https://sandbox.cardpay.com"
 
 	m, err := migrate.New(
@@ -318,14 +317,10 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_AllMe
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
-	to := now.Monday().In(loc)
-	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
-	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
-	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
-	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
+	to := now.Monday().Add(-1 * time.Millisecond).In(loc)
 
-	to = to.Add(-1 * time.Millisecond)
+	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(2 * time.Millisecond).In(loc)
+	from = now.New(from).BeginningOfDay()
 
 	reports, err := suite.service.royaltyReportRepository.GetByPeriod(context.TODO(), from, to)
 	assert.NoError(suite.T(), err)
@@ -400,14 +395,10 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Selec
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
-	to := now.Monday().In(loc)
-	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
-	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
-	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
-	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
+	to := now.Monday().Add(-1 * time.Millisecond).In(loc)
 
-	to = to.Add(-1 * time.Millisecond)
+	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(2 * time.Millisecond).In(loc)
+	from = now.New(from).BeginningOfDay()
 
 	for _, v := range reports {
 		assert.NotZero(suite.T(), v.Id)
@@ -494,12 +485,10 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_Ok() {
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
-	to := now.Monday().In(loc)
-	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location()).Add(-time.Duration(168) * time.Hour)
-	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
-	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
-	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
+	to := now.Monday().Add(-1 * time.Nanosecond).In(loc)
+
+	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Nanosecond).In(loc)
+	from = now.New(from).BeginningOfDay()
 
 	oid, _ := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	query := bson.M{"merchant_id": oid}
@@ -578,12 +567,10 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 	loc, err := time.LoadLocation(suite.service.cfg.RoyaltyReportTimeZone)
 	assert.NoError(suite.T(), err)
 
-	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
-	to := now.Monday().In(loc)
-	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location()).Add(-time.Duration(168) * time.Hour)
-	tEnd = suite.service.cfg.RoyaltyReportPeriodStart
-	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
-	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
+	to := now.Monday().Add(-1 * time.Nanosecond).In(loc)
+
+	from := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Nanosecond).In(loc)
+	from = now.New(from).BeginningOfDay()
 
 	oid, _ := primitive.ObjectIDFromHex(suite.project.GetMerchantId())
 	query := bson.M{"merchant_id": oid}
@@ -599,7 +586,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_ListRoyaltyReports_FindBy
 	rsp1 := &billingpb.ListRoyaltyReportsResponse{}
 	err = suite.service.ListRoyaltyReports(context.TODO(), req1, rsp1)
 	assert.NoError(suite.T(), err)
-	assert.EqualValues(suite.T(), 2, rsp1.Data.Count)
+	assert.EqualValues(suite.T(), 1, rsp1.Data.Count)
 	assert.Len(suite.T(), rsp1.Data.Items, int(rsp1.Data.Count))
 }
 
@@ -1167,9 +1154,7 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 	if !assert.NoError(suite.T(), err) {
 		suite.FailNow("time.LoadLocation failed", "%v", err)
 	}
-	tEnd := suite.service.cfg.RoyaltyReportPeriodEnd
-	to := now.Monday().In(loc)
-	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
+	to := now.Monday().Add(-1 * time.Nanosecond).In(loc)
 	date := to.Add(-time.Duration(suite.service.cfg.RoyaltyReportPeriod/2) * time.Second).In(loc)
 
 	order.PaymentMethodOrderClosedAt, _ = ptypes.TimestampProto(date)
@@ -1179,16 +1164,6 @@ func (suite *RoyaltyReportTestSuite) createOrder(project *billingpb.Project) *bi
 	}
 
 	return order
-}
-
-func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Fail_EndOfPeriodInFuture() {
-	suite.service.cfg.RoyaltyReportPeriodEnd = []int{192, 59, 59}
-
-	req := &billingpb.CreateRoyaltyReportRequest{}
-	rsp := &billingpb.CreateRoyaltyReportRequest{}
-	err := suite.service.CreateRoyaltyReport(context.TODO(), req, rsp)
-	assert.Error(suite.T(), err)
-	assert.Equal(suite.T(), royaltyReportErrorEndOfPeriodIsInFuture, err)
 }
 
 func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_MerchantWithCorrectionAndReserve() {
@@ -1207,7 +1182,7 @@ func (suite *RoyaltyReportTestSuite) TestRoyaltyReport_CreateRoyaltyReport_Ok_Me
 		suite.FailNow("time.LoadLocation failed", "%v", err)
 	}
 
-	entryDate := now.Monday().In(loc)
+	entryDate := now.Monday().Add(-1 * time.Nanosecond).In(loc)
 
 	req := &billingpb.CreateAccountingEntryRequest{
 		Type:       pkg.AccountingEntryTypeMerchantRoyaltyCorrection,

@@ -51,7 +51,7 @@ func (suite *OrderViewTestSuite) SetupTest() {
 	if err != nil {
 		suite.FailNow("Config load failed", "%v", err)
 	}
-	cfg.RoyaltyReportPeriodEnd = []int{0, 0, 0}
+
 	cfg.CardPayApiUrl = "https://sandbox.cardpay.com"
 	cfg.OrderViewUpdateBatchSize = 20
 
@@ -537,10 +537,12 @@ func (suite *OrderViewTestSuite) Test_OrderView_GetRoyaltySummary_HasExistsRepor
 	to := time.Now().Add(time.Duration(5) * time.Hour)
 	from := to.Add(-time.Duration(10) * time.Hour)
 
+	//goland:noinspection GoNilness
 	id, _ := primitive.ObjectIDFromHex(orders[0].Id)
 	err := suite.service.orderRepository.IncludeOrdersToRoyaltyReport(ctx, "report_id", []primitive.ObjectID{id})
 	assert.NoError(suite.T(), err)
 
+	//goland:noinspection GoNilness
 	err = suite.service.updateOrderView(ctx, []string{orders[0].Id})
 	assert.NoError(suite.T(), err)
 

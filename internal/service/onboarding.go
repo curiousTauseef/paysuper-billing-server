@@ -241,6 +241,20 @@ func (s *Service) ListMerchantsForAgreement(
 
 			query["received_date"] = dates
 		}
+
+		if req.StatusLastUpdatedFrom != "" || req.StatusLastUpdatedTo != "" {
+			dates := bson.M{}
+
+			if req.StatusLastUpdatedFrom != "" {
+				dates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.StatusLastUpdatedFrom)
+			}
+
+			if req.StatusLastUpdatedTo != "" {
+				dates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.StatusLastUpdatedTo)
+			}
+
+			query["status_last_updated_at"] = dates
+		}
 	}
 
 	if len(req.Statuses) > 0 {
