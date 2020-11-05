@@ -284,3 +284,19 @@ func (r *customerRepository) FindBy(ctx context.Context, query bson.M, opts ...*
 
 	return objs, nil
 }
+
+func (r *customerRepository) CountBy(ctx context.Context, query bson.M) (int64, error) {
+	count, err := r.db.Collection(collectionCustomer).CountDocuments(ctx, query)
+
+	if err != nil {
+		zap.L().Error(
+			pkg.ErrorDatabaseQueryFailed,
+			zap.Error(err),
+			zap.String(pkg.ErrorDatabaseFieldCollection, collectionCustomer),
+			zap.Any(pkg.ErrorDatabaseFieldQuery, query),
+		)
+		return 0, err
+	}
+
+	return count, nil
+}
