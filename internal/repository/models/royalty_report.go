@@ -45,6 +45,8 @@ type MgoRoyaltyReport struct {
 	IsAutoAccepted     bool                           `bson:"is_auto_accepted"`
 	PayoutDocumentId   string                         `bson:"payout_document_id"`
 	OperatingCompanyId string                         `bson:"operating_company_id"`
+	StringPeriodFrom   string                         `bson:"string_period_from"`
+	StringPeriodTo     string                         `bson:"string_period_to"`
 }
 
 type MgoRoyaltyReportSummary struct {
@@ -82,6 +84,8 @@ func (m *royaltyReportMapper) MapObjectToMgo(obj interface{}) (interface{}, erro
 		IsAutoAccepted:     in.IsAutoAccepted,
 		PayoutDocumentId:   in.PayoutDocumentId,
 		OperatingCompanyId: in.OperatingCompanyId,
+		StringPeriodFrom:   in.StringPeriodFrom,
+		StringPeriodTo:     in.StringPeriodTo,
 	}
 
 	if len(in.Id) <= 0 {
@@ -218,6 +222,8 @@ func (m *royaltyReportMapper) MapMgoToObject(obj interface{}) (interface{}, erro
 		IsAutoAccepted:     in.IsAutoAccepted,
 		PayoutDocumentId:   in.PayoutDocumentId,
 		OperatingCompanyId: in.OperatingCompanyId,
+		StringPeriodFrom:   in.StringPeriodFrom,
+		StringPeriodTo:     in.StringPeriodTo,
 	}
 
 	out.CreatedAt, err = ptypes.TimestampProto(in.CreatedAt)

@@ -133,6 +133,7 @@ func (s *Service) createPayoutDocument(
 	pd.Currency = reports[0].Currency
 
 	times := make([]time.Time, 0)
+	stringTimes := make([]string, 0)
 	grossTotalAmountMoney := helper.NewMoney()
 	totalFeesMoney := helper.NewMoney()
 	totalVatMoney := helper.NewMoney()
@@ -186,6 +187,7 @@ func (s *Service) createPayoutDocument(
 			return err
 		}
 		times = append(times, from, to)
+		stringTimes = append(stringTimes, r.StringPeriodFrom, r.StringPeriodTo)
 	}
 
 	pd.TotalFees = math.Round(totalFeesAmount*100) / 100
@@ -220,6 +222,8 @@ func (s *Service) createPayoutDocument(
 		return times[i].Before(times[j])
 	})
 
+	sort.Strings(stringTimes)
+
 	from := times[0]
 	to := times[len(times)-1]
 
@@ -239,6 +243,9 @@ func (s *Service) createPayoutDocument(
 		)
 		return err
 	}
+
+	pd.StringPeriodFrom = stringTimes[0]
+	pd.StringPeriodTo = stringTimes[len(stringTimes)-1]
 
 	err = s.payoutRepository.Insert(ctx, pd, req.Ip, payoutChangeSourceMerchant)
 
@@ -661,27 +668,6 @@ func (s *Service) PayoutDocumentPdfUploaded(
 	content := base64.StdEncoding.EncodeToString(req.Content)
 	contentType := mime.TypeByExtension(filepath.Ext(req.Filename))
 
-	periodFrom, err := ptypes.Timestamp(pd.PeriodFrom)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorTimeConversion,
-			zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
-			zap.Any(pkg.ErrorTimeConversionValue, pd.PeriodFrom),
-			zap.Error(err),
-		)
-		return err
-	}
-	periodTo, err := ptypes.Timestamp(pd.PeriodTo)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorTimeConversion,
-			zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
-			zap.Any(pkg.ErrorTimeConversionValue, pd.PeriodTo),
-			zap.Error(err),
-		)
-		return err
-	}
-
 	operatingCompany, err := s.operatingCompanyRepository.GetById(ctx, pd.OperatingCompanyId)
 
 	if err != nil {
@@ -694,8 +680,8 @@ func (s *Service) PayoutDocumentPdfUploaded(
 		TemplateModel: map[string]string{
 			"merchant_id":            merchant.Id,
 			"payout_id":              pd.Id,
-			"period_from":            periodFrom.Format("2006-01-02"),
-			"period_to":              periodTo.Format("2006-01-02"),
+			"period_from":            pd.StringPeriodFrom,
+			"period_to":              pd.StringPeriodTo,
 			"license_agreement":      merchant.AgreementNumber,
 			"status":                 pd.Status,
 			"merchant_greeting":      merchant.GetOwnerName(),

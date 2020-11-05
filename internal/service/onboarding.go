@@ -148,14 +148,16 @@ func (s *Service) ListMerchants(
 		}
 
 		items[i] = &billingpb.MerchantShortInfo{
-			Id:        item.Id,
-			Status:    item.Status,
-			CreatedAt: item.CreatedAt,
-			User:      item.User,
-			Contacts:  item.Contacts,
-			Banking:   item.Banking,
-			Company:   item.Company,
-			Balance:   balanceResponse.Item,
+			Id:                  item.Id,
+			Status:              item.Status,
+			StatusLastUpdatedAt: item.StatusLastUpdatedAt,
+			FirstPaymentAt:      item.FirstPaymentAt,
+			CreatedAt:           item.CreatedAt,
+			User:                item.User,
+			Contacts:            item.Contacts,
+			Banking:             item.Banking,
+			Company:             item.Company,
+			Balance:             balanceResponse.Item,
 		}
 	}
 
@@ -238,6 +240,20 @@ func (s *Service) ListMerchantsForAgreement(
 			}
 
 			query["received_date"] = dates
+		}
+
+		if req.StatusLastUpdatedFrom != "" || req.StatusLastUpdatedTo != "" {
+			dates := bson.M{}
+
+			if req.StatusLastUpdatedFrom != "" {
+				dates["$gte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.StatusLastUpdatedFrom)
+			}
+
+			if req.StatusLastUpdatedTo != "" {
+				dates["$lte"], _ = time.Parse(billingpb.FilterDatetimeFormat, req.StatusLastUpdatedTo)
+			}
+
+			query["status_last_updated_at"] = dates
 		}
 	}
 

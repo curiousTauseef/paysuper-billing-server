@@ -26,4 +26,7 @@ type CustomerRepositoryInterface interface {
 
 	//FindBy returns customers filter by query
 	FindBy(ctx context.Context, query bson.M, opts ...*options.FindOptions) ([]*billingpb.Customer, error)
+
+	//CountBy returns count of customers with filter by query
+	CountBy(ctx context.Context, query bson.M) (int64, error)
 }

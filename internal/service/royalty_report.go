@@ -44,7 +44,6 @@ var (
 	royaltyReportErrorCorrectionReasonRequired        = errors.NewBillingServerErrorMsg("rr00003", "correction reason required")
 	royaltyReportEntryErrorUnknown                    = errors.NewBillingServerErrorMsg("rr00004", "unknown error. try request later")
 	royaltyReportUpdateBalanceError                   = errors.NewBillingServerErrorMsg("rr00005", "update balance failed")
-	royaltyReportErrorEndOfPeriodIsInFuture           = errors.NewBillingServerErrorMsg("rr00006", "end of royalty report period is in future")
 	royaltyReportErrorTimezoneIncorrect               = errors.NewBillingServerErrorMsg("rr00007", "incorrect time zone")
 	royaltyReportErrorAlreadyExistsAndCannotBeUpdated = errors.NewBillingServerErrorMsg("rr00008", "report for this merchant and period already exists and can not be updated")
 	royaltyReportErrorCorrectionAmountRequired        = errors.NewBillingServerErrorMsg("rr00009", "correction amount required and must be not zero")
@@ -79,17 +78,11 @@ func (s *Service) CreateRoyaltyReport(
 		return royaltyReportErrorTimezoneIncorrect
 	}
 
-	tEnd := s.cfg.RoyaltyReportPeriodEnd
-	to := now.Monday().In(loc)
-	to = time.Date(to.Year(), to.Month(), to.Day(), tEnd[0], tEnd[1], tEnd[2], 0, to.Location())
+	// prevent to include next day into date - PAY-37849
+	to := now.Monday().Add(-1 * time.Nanosecond).In(loc)
 
-	if to.After(time.Now().In(loc)) {
-		return royaltyReportErrorEndOfPeriodIsInFuture
-	}
-
-	tEnd = s.cfg.RoyaltyReportPeriodStart
-	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Millisecond).In(loc)
-	from = time.Date(from.Year(), from.Month(), from.Day(), tEnd[0], tEnd[1], tEnd[2], 0, from.Location())
+	from := to.Add(-time.Duration(s.cfg.RoyaltyReportPeriod) * time.Second).Add(1 * time.Nanosecond).In(loc)
+	from = now.New(from).BeginningOfDay()
 
 	var merchants []*pkg2.RoyaltyReportMerchant
 
@@ -796,11 +789,13 @@ func (h *royaltyHandler) buildMerchantRoyaltyReport(
 	if err != nil {
 		return nil, nil, err
 	}
+	report.StringPeriodFrom = h.from.Format("2006-01-02")
 
 	report.PeriodTo, err = ptypes.TimestampProto(h.to)
 	if err != nil {
 		return nil, nil, err
 	}
+	report.StringPeriodTo = h.to.Format("2006-01-02")
 
 	report.AcceptExpireAt, err = ptypes.TimestampProto(time.Now().Add(time.Duration(h.cfg.RoyaltyReportAcceptTimeout) * time.Second))
 	if err != nil {
@@ -868,27 +863,6 @@ func (s *Service) RoyaltyReportPdfUploaded(
 	content := base64.StdEncoding.EncodeToString(req.Content)
 	contentType := mime.TypeByExtension(filepath.Ext(req.Filename))
 
-	periodFrom, err := ptypes.Timestamp(report.PeriodFrom)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorTimeConversion,
-			zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
-			zap.Any(pkg.ErrorTimeConversionValue, report.PeriodFrom),
-			zap.Error(err),
-		)
-		return err
-	}
-	periodTo, err := ptypes.Timestamp(report.PeriodTo)
-	if err != nil {
-		zap.L().Error(
-			pkg.ErrorTimeConversion,
-			zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
-			zap.Any(pkg.ErrorTimeConversionValue, report.PeriodTo),
-			zap.Error(err),
-		)
-		return err
-	}
-
 	operatingCompany, err := s.operatingCompanyRepository.GetById(ctx, report.OperatingCompanyId)
 	if err != nil {
 		zap.L().Error("Operating company not found", zap.Error(err), zap.String("operating_company_id", report.OperatingCompanyId))
@@ -900,8 +874,8 @@ func (s *Service) RoyaltyReportPdfUploaded(
 		TemplateModel: map[string]string{
 			"merchant_id":            merchant.Id,
 			"royalty_report_id":      report.Id,
-			"period_from":            periodFrom.Format("2006-01-02"),
-			"period_to":              periodTo.Format("2006-01-02"),
+			"period_from":            report.StringPeriodFrom,
+			"period_to":              report.StringPeriodTo,
 			"license_agreement":      merchant.AgreementNumber,
 			"status":                 report.Status,
 			"merchant_greeting":      merchant.GetOwnerName(),
@@ -944,34 +918,13 @@ func (s *Service) sendRoyaltyReportNotification(ctx context.Context, report *bil
 	}
 
 	if merchant.HasAuthorizedEmail() == true {
-		periodFrom, err := ptypes.Timestamp(report.PeriodFrom)
-		if err != nil {
-			zap.L().Error(
-				pkg.ErrorTimeConversion,
-				zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
-				zap.Any(pkg.ErrorTimeConversionValue, report.PeriodFrom),
-				zap.Error(err),
-			)
-			return
-		}
-		periodTo, err := ptypes.Timestamp(report.PeriodTo)
-		if err != nil {
-			zap.L().Error(
-				pkg.ErrorTimeConversion,
-				zap.Any(pkg.ErrorTimeConversionMethod, "ptypes.Timestamp"),
-				zap.Any(pkg.ErrorTimeConversionValue, report.PeriodTo),
-				zap.Error(err),
-			)
-			return
-		}
-
 		payload := &postmarkpb.Payload{
 			TemplateAlias: s.cfg.EmailTemplates.UpdateRoyaltyReport,
 			TemplateModel: map[string]string{
 				"merchant_id":         merchant.Id,
 				"royalty_report_id":   report.Id,
-				"period_from":         periodFrom.Format(time.RFC822),
-				"period_to":           periodTo.Format(time.RFC822),
+				"period_from":         report.StringPeriodFrom,
+				"period_to":           report.StringPeriodTo,
 				"license_agreement":   merchant.AgreementNumber,
 				"status":              report.Status,
 				"merchant_greeting":   merchant.GetOwnerName(),

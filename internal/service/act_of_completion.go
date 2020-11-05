@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"math"
@@ -37,8 +38,8 @@ func (s *Service) GetActOfCompletion(
 		return nil
 	}
 
-	dateFrom = time.Date(dateFrom.Year(), dateFrom.Month(), dateFrom.Day(), 0, 0, 0, 0, dateFrom.Location())
-	dateTo = time.Date(dateTo.Year(), dateTo.Month(), dateTo.Day(), 23, 59, 59, 0, dateTo.Location())
+	dateFrom = now.New(dateFrom).BeginningOfDay()
+	dateTo = now.New(dateTo).EndOfDay()
 
 	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
 	if err != nil {

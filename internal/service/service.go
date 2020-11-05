@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/ProtocolONE/geoip-service/pkg/proto"
 	"github.com/go-redis/redis"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/jinzhu/now"
 	"github.com/paysuper/paysuper-billing-server/internal/config"
 	"github.com/paysuper/paysuper-billing-server/internal/database"
 	"github.com/paysuper/paysuper-billing-server/internal/helper"
@@ -27,8 +29,10 @@ import (
 	"gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	"gopkg.in/gomail.v2"
 	mongodb "gopkg.in/paysuper/paysuper-database-mongo.v2"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -367,4 +371,100 @@ func (s *Service) round(merchantId, fieldKey string, val float64) (float64, erro
 	}
 
 	return rounded, err
+}
+
+func (s *Service) TaskFixReportDates(ctx context.Context) (err error) {
+
+	ip := "127.0.0.1"
+	source := "system_task"
+
+	loc, err := time.LoadLocation(s.cfg.RoyaltyReportTimeZone)
+
+	if err != nil {
+		zap.L().Error(royaltyReportErrorTimezoneIncorrect.Error(), zap.Error(err))
+		return err
+	}
+
+	reports, err := s.royaltyReportRepository.GetAll(ctx)
+	if err != nil {
+		return err
+	}
+
+	reportsMap := map[string]*billingpb.RoyaltyReport{}
+
+	for _, report := range reports {
+
+		reportsMap[report.Id] = report
+
+		from, err := ptypes.Timestamp(report.PeriodFrom)
+		if err != nil {
+			return err
+		}
+		if report.PeriodFrom.GetNanos() != 0 {
+			from = now.New(from).BeginningOfDay()
+			report.PeriodFrom, err = ptypes.TimestampProto(from)
+			if err != nil {
+				return err
+			}
+		}
+		report.StringPeriodFrom = from.In(loc).Format("2006-01-02")
+
+		to, err := ptypes.Timestamp(report.PeriodTo)
+		if err != nil {
+			return err
+		}
+		if report.PeriodTo.GetNanos() == 0 {
+			to = now.New(to).EndOfDay()
+			report.PeriodTo, err = ptypes.TimestampProto(to)
+			if err != nil {
+				return err
+			}
+		}
+		report.StringPeriodTo = to.In(loc).Format("2006-01-02")
+
+		err = s.royaltyReportRepository.Update(ctx, report, ip, source)
+		if err != nil {
+			return err
+		}
+	}
+
+	payouts, err := s.payoutRepository.FindAll(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, payout := range payouts {
+
+		if len(payout.SourceId) == 0 {
+			continue
+		}
+
+		times := make([]string, 0)
+
+		for _, royaltyReportId := range payout.SourceId {
+
+			r, ok := reportsMap[royaltyReportId]
+			if !ok {
+				continue
+			}
+
+			times = append(times, r.StringPeriodFrom, r.StringPeriodTo)
+		}
+
+		if len(times) == 0 {
+			continue
+		}
+
+		sort.Strings(times)
+
+		payout.StringPeriodFrom = times[0]
+		payout.StringPeriodTo = times[len(times)-1]
+
+		err = s.payoutRepository.Update(ctx, payout, ip, source)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
