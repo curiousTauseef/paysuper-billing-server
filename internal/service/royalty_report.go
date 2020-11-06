@@ -605,7 +605,7 @@ func (h *royaltyHandler) createMerchantRoyaltyReport(ctx context.Context, mercha
 		return royaltyReportErrorAlreadyExistsAndCannotBeUpdated
 	}
 
-	newReport, ordersIds, err := h.buildMerchantRoyaltyReport(ctx, merchant, true)
+	newReport, ordersIds, err := h.buildMerchantRoyaltyReportRoundedAmounts(ctx, merchant, true)
 	if err != nil {
 		return err
 	}
