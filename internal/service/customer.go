@@ -367,6 +367,7 @@ func (s *Service) GetCustomerList(ctx context.Context, req *billingpb.ListCustom
 			ExternalId: customer.ExternalId,
 			Language:   customer.Locale,
 			LastOrder:  &timestamp.Timestamp{},
+			Email:      customer.Email,
 		}
 
 		if customer.Address != nil {
