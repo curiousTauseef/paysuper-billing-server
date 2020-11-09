@@ -51,6 +51,7 @@ var (
 	statusForUpdateBalance = map[string]bool{
 		pkg.PayoutDocumentStatusPending: true,
 		pkg.PayoutDocumentStatusPaid:    true,
+		pkg.PayoutDocumentStatusSkip:    true,
 	}
 
 	statusForBecomePaid = map[string]bool{
