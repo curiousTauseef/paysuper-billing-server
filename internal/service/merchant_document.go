@@ -30,7 +30,7 @@ func (s *Service) AddMerchantDocument(
 		return nil
 	}
 
-	role, err := s.userRoleRepository.GetMerchantOwner(ctx, req.MerchantId)
+	role, err := s.merchantRepository.GetById(ctx, req.MerchantId)
 	if err != nil {
 		zap.L().Error("can't get merchant owner", zap.Error(err), zap.String("merchant_id", req.MerchantId))
 		res.Status = billingpb.ResponseStatusSystemError
@@ -40,7 +40,7 @@ func (s *Service) AddMerchantDocument(
 
 	var payload *postmarkpb.Payload
 
-	if role.UserId == req.UserId {
+	if role.User.Id == req.UserId {
 		payload = &postmarkpb.Payload{
 			TemplateAlias: s.cfg.EmailTemplates.MerchantDocumentUploaded,
 			TemplateModel: map[string]string{
