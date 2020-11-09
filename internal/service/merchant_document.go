@@ -57,7 +57,7 @@ func (s *Service) AddMerchantDocument(
 			TemplateAlias: s.cfg.EmailTemplates.AdminDocumentUploaded,
 			TemplateModel: map[string]string{
 			},
-			To: role.Email,
+			To: role.User.Email,
 		}
 	}
 
