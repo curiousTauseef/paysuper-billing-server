@@ -123,6 +123,7 @@ type Config struct {
 	MetricsPort              string `envconfig:"METRICS_PORT" default:"8086"`
 	MetricsReadTimeout       int    `envconfig:"METRICS_READ_TIMEOUT" default:"60"`
 	MetricsReadHeaderTimeout int    `envconfig:"METRICS_READ_HEADER_TIMEOUT" default:"60"`
+	EmailAdminDocumentViewer string `envconfig:"EMAIL_ADMIN_DOCUMENT_VIEWER" default:"anton.krainiuk@pay.super.com"`
 }
 
 func NewConfig() (*Config, error) {

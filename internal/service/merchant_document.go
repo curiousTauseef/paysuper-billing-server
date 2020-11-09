@@ -4,7 +4,10 @@ import (
 	"context"
 	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/postmarkpb"
+	"github.com/streadway/amqp"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/zap"
 )
 
 var (
@@ -25,6 +28,23 @@ func (s *Service) AddMerchantDocument(
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errorMerchantDocumentUnableInsert
 		return nil
+	}
+
+	payload := &postmarkpb.Payload{
+		TemplateAlias: s.cfg.EmailTemplates.NewRoyaltyReport,
+		TemplateModel: map[string]string{
+			"merchant_id": req.MerchantId,
+			"document_id": req.Id,
+			"user_id":     req.UserId,
+			"name":        req.OriginalName,
+			"file_path":   req.FilePath,
+		},
+		To: s.cfg.EmailAdminDocumentViewer,
+	}
+
+	err = s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
+	if err != nil {
+		zap.L().Error("can't send email", zap.Error(err), zap.Any("payload", payload))
 	}
 
 	res.Item = req
