@@ -30,16 +30,35 @@ func (s *Service) AddMerchantDocument(
 		return nil
 	}
 
-	payload := &postmarkpb.Payload{
-		TemplateAlias: s.cfg.EmailTemplates.NewRoyaltyReport,
-		TemplateModel: map[string]string{
-			"merchant_id": req.MerchantId,
-			"document_id": req.Id,
-			"user_id":     req.UserId,
-			"name":        req.OriginalName,
-			"file_path":   req.FilePath,
-		},
-		To: s.cfg.EmailAdminDocumentViewer,
+	role, err := s.userRoleRepository.GetMerchantOwner(ctx, req.MerchantId)
+	if err != nil {
+		zap.L().Error("can't get merchant owner", zap.Error(err), zap.String("merchant_id", req.MerchantId))
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = errorMerchantDocumentUnableInsert
+		return nil
+	}
+
+	var payload *postmarkpb.Payload
+
+	if role.UserId == req.UserId {
+		payload = &postmarkpb.Payload{
+			TemplateAlias: s.cfg.EmailTemplates.MerchantDocumentUploaded,
+			TemplateModel: map[string]string{
+				"merchant_id": req.MerchantId,
+				"document_id": req.Id,
+				"user_id":     req.UserId,
+				"name":        req.OriginalName,
+				"file_path":   req.FilePath,
+			},
+			To: s.cfg.EmailAdminDocumentViewer,
+		}
+	} else {
+		payload = &postmarkpb.Payload{
+			TemplateAlias: s.cfg.EmailTemplates.AdminDocumentUploaded,
+			TemplateModel: map[string]string{
+			},
+			To: role.Email,
+		}
 	}
 
 	err = s.postmarkBroker.Publish(postmarkpb.PostmarkSenderTopicName, payload, amqp.Table{})
