@@ -139,7 +139,7 @@ func (suite *MerchantDocumentTestSuite) TearDownTest() {
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument_Ok() {
 	res := &billingpb.AddMerchantDocumentResponse{}
 	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
-		MerchantId: primitive.NewObjectID().Hex(),
+		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
 
@@ -163,7 +163,7 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument_Ok() {
 	res := &billingpb.AddMerchantDocumentResponse{}
 	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
-		MerchantId: primitive.NewObjectID().Hex(),
+		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
 	assert.NoError(suite.T(), err)
@@ -197,7 +197,7 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument_ErrorAccessDenied() {
 	res := &billingpb.AddMerchantDocumentResponse{}
 	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
-		MerchantId: primitive.NewObjectID().Hex(),
+		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
 	assert.NoError(suite.T(), err)
@@ -215,7 +215,7 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocuments_Ok() {
 	res := &billingpb.AddMerchantDocumentResponse{}
 	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
-		MerchantId: primitive.NewObjectID().Hex(),
+		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
 	assert.NoError(suite.T(), err)
@@ -242,7 +242,7 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocuments_OkNotFound() {
 	res := &billingpb.AddMerchantDocumentResponse{}
 	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
-		MerchantId: primitive.NewObjectID().Hex(),
+		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
 	assert.NoError(suite.T(), err)
