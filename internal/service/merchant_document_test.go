@@ -137,8 +137,12 @@ func (suite *MerchantDocumentTestSuite) TearDownTest() {
 }
 
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument_Ok() {
+	suite.merchant.Status = billingpb.MerchantStatusPending
+	err := suite.service.merchantRepository.Update(context.Background(), suite.merchant)
+	assert.NoError(suite.T(), err)
+
 	res := &billingpb.AddMerchantDocumentResponse{}
-	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
+	err = suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
 		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
@@ -149,7 +153,7 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument
 	assert.Equal(suite.T(), billingpb.ResponseStatusOk, res.Status)
 }
 
-func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument_Error() {
+func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument_Error_MerchantNotFound() {
 	res := &billingpb.AddMerchantDocumentResponse{}
 	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
 		MerchantId: primitive.NewObjectID().Hex(),
@@ -157,12 +161,27 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument
 
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, res.Status)
-	assert.Equal(suite.T(), errorMerchantDocumentUnableInsert, res.Message)
+	assert.Equal(suite.T(), errorMerchantNotFound, res.Message)
+}
+
+func (suite *MerchantDocumentTestSuite) TestMerchantDocument_AddMerchantDocument_Error_MerchantStatus() {
+	res := &billingpb.AddMerchantDocumentResponse{}
+	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
+		MerchantId: suite.merchant.Id,
+	}, res)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), billingpb.ResponseStatusSystemError, res.Status)
+	assert.Equal(suite.T(), errorMerchantDocumentIncorrectStatus, res.Message)
 }
 
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument_Ok() {
+	suite.merchant.Status = billingpb.MerchantStatusPending
+	err := suite.service.merchantRepository.Update(context.Background(), suite.merchant)
+	assert.NoError(suite.T(), err)
+
 	res := &billingpb.AddMerchantDocumentResponse{}
-	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
+	err = suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
 		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
@@ -195,8 +214,12 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument
 }
 
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument_ErrorAccessDenied() {
+	suite.merchant.Status = billingpb.MerchantStatusPending
+	err := suite.service.merchantRepository.Update(context.Background(), suite.merchant)
+	assert.NoError(suite.T(), err)
+
 	res := &billingpb.AddMerchantDocumentResponse{}
-	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
+	err = suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
 		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
@@ -213,8 +236,12 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument
 }
 
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocuments_Ok() {
+	suite.merchant.Status = billingpb.MerchantStatusPending
+	err := suite.service.merchantRepository.Update(context.Background(), suite.merchant)
+	assert.NoError(suite.T(), err)
+
 	res := &billingpb.AddMerchantDocumentResponse{}
-	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
+	err = suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
 		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)
@@ -240,8 +267,12 @@ func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocument
 }
 
 func (suite *MerchantDocumentTestSuite) TestMerchantDocument_GetMerchantDocuments_OkNotFound() {
+	suite.merchant.Status = billingpb.MerchantStatusPending
+	err := suite.service.merchantRepository.Update(context.Background(), suite.merchant)
+	assert.NoError(suite.T(), err)
+
 	res := &billingpb.AddMerchantDocumentResponse{}
-	err := suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
+	err = suite.service.AddMerchantDocument(context.Background(), &billingpb.MerchantDocument{
 		MerchantId: suite.merchant.Id,
 		UserId:     primitive.NewObjectID().Hex(),
 	}, res)

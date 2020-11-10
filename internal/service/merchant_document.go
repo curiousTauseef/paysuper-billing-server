@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg/errors"
 	"github.com/paysuper/paysuper-proto/go/billingpb"
 	"github.com/paysuper/paysuper-proto/go/postmarkpb"
@@ -11,9 +12,11 @@ import (
 )
 
 var (
-	errorMerchantDocumentNotFound     = errors.NewBillingServerErrorMsg("md000001", "unable to get merchant document list")
-	errorMerchantDocumentAccessDenied = errors.NewBillingServerErrorMsg("md000002", "access denied")
-	errorMerchantDocumentUnableInsert = errors.NewBillingServerErrorMsg("md000003", "unable to add merchant document")
+	errorMerchantDocumentNotFound        = errors.NewBillingServerErrorMsg("md000001", "unable to get merchant document list")
+	errorMerchantDocumentAccessDenied    = errors.NewBillingServerErrorMsg("md000002", "access denied")
+	errorMerchantDocumentUnableInsert    = errors.NewBillingServerErrorMsg("md000003", "unable to add merchant document")
+	errorMerchantDocumentIncorrectStatus = errors.NewBillingServerErrorMsg("md000004", "incorrect merchant status for document upload")
+	errorMerchantNotFound                = errors.NewBillingServerErrorMsg("md000005", "merchant not found")
 )
 
 func (s *Service) AddMerchantDocument(
@@ -21,8 +24,23 @@ func (s *Service) AddMerchantDocument(
 	req *billingpb.MerchantDocument,
 	res *billingpb.AddMerchantDocumentResponse,
 ) error {
+	merchant, err := s.merchantRepository.GetById(ctx, req.MerchantId)
+
+	if err != nil {
+		zap.L().Error("incorrect merchant status for document upload", zap.Error(err), zap.String("merchant_id", req.MerchantId))
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = errorMerchantNotFound
+		return nil
+	}
+
+	if !merchant.CanChangeStatusTo(billingpb.MerchantStatusKycStarted) {
+		res.Status = billingpb.ResponseStatusSystemError
+		res.Message = errorMerchantDocumentIncorrectStatus
+		return nil
+	}
+
 	req.Id = primitive.NewObjectID().Hex()
-	err := s.merchantDocumentRepository.Insert(ctx, req)
+	err = s.merchantDocumentRepository.Insert(ctx, req)
 
 	if err != nil {
 		res.Status = billingpb.ResponseStatusSystemError
@@ -30,17 +48,20 @@ func (s *Service) AddMerchantDocument(
 		return nil
 	}
 
-	role, err := s.merchantRepository.GetById(ctx, req.MerchantId)
+	merchant.Status = billingpb.MerchantStatusOpCompanySelected
+	merchant.StatusLastUpdatedAt = ptypes.TimestampNow()
+	err = s.merchantRepository.Update(ctx, merchant)
+
 	if err != nil {
-		zap.L().Error("can't get merchant owner", zap.Error(err), zap.String("merchant_id", req.MerchantId))
 		res.Status = billingpb.ResponseStatusSystemError
 		res.Message = errorMerchantDocumentUnableInsert
+
 		return nil
 	}
 
 	var payload *postmarkpb.Payload
 
-	if role.User.Id == req.UserId {
+	if merchant.User.Id == req.UserId {
 		payload = &postmarkpb.Payload{
 			TemplateAlias: s.cfg.EmailTemplates.MerchantDocumentUploaded,
 			TemplateModel: map[string]string{
@@ -55,9 +76,8 @@ func (s *Service) AddMerchantDocument(
 	} else {
 		payload = &postmarkpb.Payload{
 			TemplateAlias: s.cfg.EmailTemplates.AdminDocumentUploaded,
-			TemplateModel: map[string]string{
-			},
-			To: role.User.Email,
+			TemplateModel: map[string]string{},
+			To:            merchant.User.Email,
 		}
 	}
 
